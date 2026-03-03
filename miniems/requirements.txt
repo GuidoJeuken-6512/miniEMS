@@ -1,0 +1,5 @@
+websockets>=12.0
+aiohttp>=3.9
+fastapi>=0.111
+uvicorn[standard]>=0.30
+jinja2>=3.1

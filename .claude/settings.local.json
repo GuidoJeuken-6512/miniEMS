@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker exec addon_local_miniems env)",
+      "Bash(docker exec addon_local_miniems sh -c 'TOKEN=$SUPERVISOR_TOKEN; curl -s -o /dev/null -w \"\"HTTP %{http_code}\"\" http://supervisor/core/api/ -H \"\"Authorization: Bearer $TOKEN\"\" 2>&1')",
+      "Bash(docker exec addon_local_miniems sh -c 'curl -s -w \"\"\\\\nHTTP %{http_code}\"\" http://supervisor/info -H \"\"Authorization: Bearer $SUPERVISOR_TOKEN\"\" 2>&1 | tail -5')",
+      "Bash(docker exec addon_local_miniems sh -c 'curl -s http://supervisor/core/api/states -H \"\"Authorization: Bearer $SUPERVISOR_TOKEN\"\" 2>&1 | head -c 300')",
+      "Bash(docker exec addon_local_miniems sh -c 'curl -s http://supervisor/core/api/config -H \"\"Authorization: Bearer $SUPERVISOR_TOKEN\"\" 2>&1 | head -c 300')",
+      "Bash(docker exec addon_local_miniems sh -c 'curl -s http://homeassistant:8123/api/ -H \"\"Authorization: Bearer $SUPERVISOR_TOKEN\"\" 2>&1 | head -c 200')",
+      "Bash(docker exec addon_local_miniems sh -c 'curl -s http://supervisor/apps/self/info -H \"\"Authorization: Bearer $SUPERVISOR_TOKEN\"\" 2>&1 | python3 -m json.tool 2>/dev/null | grep -E \"\"hassio_api|homeassistant_api|auth_api|slug|name\"\" | head -20')",
+      "Bash(docker exec addon_local_miniems sh -c 'curl -s http://supervisor/addons/self/info -H \"\"Authorization: Bearer $SUPERVISOR_TOKEN\"\" 2>&1 | head -c 500')",
+      "Bash(docker exec addon_local_miniems sh -c 'curl -s http://supervisor/addons/self/info -H \"\"Authorization: Bearer $SUPERVISOR_TOKEN\"\" 2>&1')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\)[''data'']; print\\({k:d[k] for k in [''hassio_api'',''homeassistant_api'',''auth_api'',''privileged'',''options''] if k in d}\\)\")",
+      "Bash(docker exec addon_local_miniems sh -c 'curl -s http://supervisor/addons/self/info -H \"\"Authorization: Bearer $SUPERVISOR_TOKEN\"\"')",
+      "Bash(ha apps stop \"local_miniems\")",
+      "Bash(ha supervisor reload)",
+      "Bash(docker exec hassio_supervisor cat /data/addons/local/miniems/config.yaml)",
+      "Bash(docker exec hassio_supervisor find /data -name \"config.yaml\")",
+      "Bash(docker exec hassio_supervisor find /addons -name \"config.yaml\")",
+      "Read(//mnt/supervisor/**)",
+      "Bash(docker exec hassio_supervisor ls /data/addons/local/)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\(''addons_custom_path'',''nicht gesetzt''\\), d.get\\(''addons_local'',''nicht gesetzt''\\)\\)\")",
+      "Bash(docker exec hassio_supervisor ls /data/addons/local/testEMS/)",
+      "Bash(docker exec hassio_supervisor cat /data/addons/local/testEMS/miniems/config.yaml)",
+      "Bash(docker exec hassio_supervisor find /data -name \"*.json\")",
+      "Bash(docker exec hassio_supervisor ls /data/)",
+      "Bash(docker exec hassio_supervisor cat /data/addons.json)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); addon=[a for a in d.get\\(''addons'',[]\\) if ''miniems'' in str\\(a\\)]; print\\(json.dumps\\(addon[0] if addon else ''not found'', indent=2\\)\\)\")",
+      "Bash(docker exec hassio_supervisor python3 -c \":*)",
+      "Bash(docker rm -f \"addon_local_miniems\")",
+      "Bash(ha apps start \"local_miniems\")",
+      "Bash(docker exec hassio_supervisor python3 -c \"import json; d=json.load\\(open\\(''/data/addons.json''\\)\\); print\\(''addons.json aktuell:'', d[''system''][''local_miniems''][''homeassistant_api'']\\)\")",
+      "Bash(docker ps --format \"{{.Names}}\")",
+      "Bash(docker ps --format \"{{.Names}}\\\\t{{.Status}}\")",
+      "Bash(done)",
+      "Bash(python3 -c \"import json,sys; nets=json.load\\(sys.stdin\\); [print\\(k, v.get\\(''IPAddress''\\)\\) for k,v in nets.items\\(\\)]\")",
+      "Bash(docker exec homeassistant netstat -tlnp)",
+      "Bash(docker exec homeassistant cat /proc/net/tcp)",
+      "Bash(# Supervisor Addon Info via ha CLI ha apps info local_miniems)",
+      "Bash(docker exec hassio_supervisor grep -r \"homeassistant_api\" /usr/src/supervisor/ --include=\"*.py\")"
+    ]
+  }
+}

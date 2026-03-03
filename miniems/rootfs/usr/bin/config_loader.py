@@ -1,0 +1,117 @@
+"""Load add-on configuration with persistent storage and migration support.
+
+Priority (highest → lowest):
+  1. /data/options.json — supervisor-managed UI values that differ from defaults
+     (user actively changed them in the HA config page)
+  2. /data/config.json  — previously persisted values
+     (survives options.json resets caused by supervisor reloads / addon updates)
+  3. Dataclass defaults
+
+On every startup the merged result is written back to /data/config.json so the
+user's settings are never lost even if options.json is reset to defaults.
+"""
+import json
+import logging
+import os
+from dataclasses import dataclass, fields
+
+from migration import CURRENT_VERSION, migrate
+
+_LOGGER = logging.getLogger(__name__)
+
+OPTIONS_FILE = "/data/options.json"
+CONFIG_FILE = "/data/config.json"
+
+
+@dataclass
+class Config:
+    # Deye Inverter Entities
+    pv_power_entity: str = "sensor.deye_pv_total_power"
+    battery_soc_entity: str = "sensor.deye_battery_soc"
+    battery_power_entity: str = "sensor.deye_battery_power"
+    battery_voltage_entity: str = "sensor.deye_battery_voltage"
+    grid_power_entity: str = "sensor.deye_grid_power"
+    load_power_entity: str = "sensor.deye_load_power"
+    battery_capacity_kwh: float = 10.0
+    battery_min_soc: int = 15
+    battery_max_soc: int = 95
+    # Authentication
+    long_lived_token: str = ""
+    # Octopus Energy Entities
+    electricity_price_entity: str = "sensor.octopus_energy_electricity_current_rate"
+    cheap_rate_threshold_eur: float = 0.10
+    # EMS Parameters
+    pv_surplus_threshold_w: int = 200
+    update_interval_sec: int = 30
+
+    @property
+    def monitored_entities(self) -> list[str]:
+        return [
+            self.pv_power_entity,
+            self.battery_soc_entity,
+            self.battery_power_entity,
+            self.battery_voltage_entity,
+            self.grid_power_entity,
+            self.load_power_entity,
+            self.electricity_price_entity,
+        ]
+
+
+def _defaults() -> dict:
+    cfg = Config()
+    return {f.name: getattr(cfg, f.name) for f in fields(cfg)}
+
+
+def _load_json(path: str) -> dict:
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f) or {}
+    except (OSError, json.JSONDecodeError) as exc:
+        _LOGGER.error("Failed to read %s: %s – ignored", path, exc)
+        return {}
+
+
+def load_config() -> Config:
+    """Load, merge, migrate and persist configuration."""
+    defs = _defaults()
+
+    # Load both sources
+    stored = migrate(_load_json(CONFIG_FILE))
+    options = _load_json(OPTIONS_FILE)
+
+    merged: dict = {}
+    for key in defs:
+        opt_val = options.get(key)
+        if opt_val is None:
+            opt_val = ""
+
+        # options.json wins when the user explicitly changed the value
+        # (i.e. it differs from the dataclass default)
+        if opt_val != defs[key]:
+            merged[key] = opt_val
+        else:
+            # Fall back to persisted value; use default if not yet stored
+            merged[key] = stored.get(key, defs[key])
+
+    merged["_version"] = CURRENT_VERSION
+
+    # Persist so the next startup survives an options.json reset
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(merged, f, indent=2)
+    except OSError as exc:
+        _LOGGER.error("Failed to write %s: %s", CONFIG_FILE, exc)
+
+    cfg = Config()
+    for key, value in merged.items():
+        if not key.startswith("_") and hasattr(cfg, key):
+            setattr(cfg, key, value)
+
+    _LOGGER.info(
+        "Config loaded (v%d): %d entities monitored",
+        CURRENT_VERSION,
+        len(cfg.monitored_entities),
+    )
+    return cfg

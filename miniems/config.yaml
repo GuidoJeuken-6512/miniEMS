@@ -1,0 +1,56 @@
+name: miniEMS
+version: "0.1.0"
+slug: miniems
+description: Mini Energy Management System for Deye inverter + Octopus Energy
+url: https://github.com/your-repo/miniEMS
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+startup: application
+boot: auto
+homeassistant_api: true
+map:
+  - config:rw
+ingress: true
+ingress_port: 8080
+panel_icon: mdi:solar-panel-large
+panel_title: miniEMS
+
+options:
+  # Deye Inverter Entities
+  pv_power_entity: "sensor.deye_pv_total_power"
+  battery_soc_entity: "sensor.deye_battery_soc"
+  battery_power_entity: "sensor.deye_battery_power"
+  battery_voltage_entity: "sensor.deye_battery_voltage"
+  grid_power_entity: "sensor.deye_grid_power"
+  load_power_entity: "sensor.deye_load_power"
+  battery_capacity_kwh: 10.0
+  battery_min_soc: 15
+  battery_max_soc: 95
+  # Authentication
+  long_lived_token: ""
+  # Octopus Energy Entities
+  electricity_price_entity: "sensor.octopus_energy_electricity_current_rate"
+  cheap_rate_threshold_eur: 0.10
+  # EMS Parameters
+  pv_surplus_threshold_w: 200
+  update_interval_sec: 30
+
+schema:
+  pv_power_entity: str
+  battery_soc_entity: str
+  battery_power_entity: str
+  battery_voltage_entity: str
+  grid_power_entity: str
+  load_power_entity: str
+  battery_capacity_kwh: float
+  battery_min_soc: int(0,100)
+  battery_max_soc: int(0,100)
+  long_lived_token: str?
+  electricity_price_entity: str
+  cheap_rate_threshold_eur: float
+  pv_surplus_threshold_w: int
+  update_interval_sec: int(10,300)

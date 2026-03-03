@@ -1,0 +1,29 @@
+# Backup and copy files
+*.kopie
+* - Kopie.*
+*.bak
+*.backup
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/settings.json
+.idea/
+
+# Temporary files
+*.tmp
+*.log
+
+
+
+
+
+
+
+
+
+
+

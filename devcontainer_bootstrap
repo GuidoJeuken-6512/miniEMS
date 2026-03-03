@@ -1,0 +1,28 @@
+#!/bin/bash
+set -e
+
+echo "Setting up devcontainer..."
+
+# Get the workspace directory (where this script is located)
+WORKSPACE_DIR="${WORKSPACE_DIRECTORY:-$(pwd)}"
+ADDONS_DIR="/mnt/supervisor/addons/local"
+
+# Ensure the addons directory exists
+mkdir -p "$ADDONS_DIR"
+
+# Copy SimpleScheduler addon to the addons directory if it exists in workspace
+if [ -d "$WORKSPACE_DIR/SimpleScheduler" ]; then
+    echo "Copying SimpleScheduler addon to $ADDONS_DIR/SimpleScheduler..."
+    # Remove existing copy if it exists
+    rm -rf "$ADDONS_DIR/SimpleScheduler"
+    # Copy the addon
+    cp -r "$WORKSPACE_DIR/SimpleScheduler" "$ADDONS_DIR/SimpleScheduler"
+    echo "SimpleScheduler addon copied successfully."
+else
+    echo "Warning: SimpleScheduler directory not found in workspace at $WORKSPACE_DIR/SimpleScheduler"
+fi
+
+echo "Devcontainer setup complete."
+
+
+

@@ -1,0 +1,91 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Home Assistant",
+      "type": "shell",
+      "command": "if docker ps > /dev/null 2>&1 && docker ps | grep -q hassio_supervisor; then echo 'Home Assistant supervisor is already running'; docker ps | grep hassio_supervisor; elif docker ps > /dev/null 2>&1; then echo 'Docker is running but supervisor container not found. Starting...'; nohup supervisor_run > /tmp/supervisor.log 2>&1 & sleep 5; echo 'Supervisor starting. Check /tmp/supervisor.log for details.'; else echo 'Starting Home Assistant (Docker may take up to 30 seconds to start)...'; nohup supervisor_run > /tmp/supervisor.log 2>&1 & sleep 10; for i in {1..6}; do if docker ps > /dev/null 2>&1; then echo \"Docker started successfully\"; break; else echo \"Waiting for Docker... ($i/6)\"; sleep 5; fi; done; if docker ps > /dev/null 2>&1; then echo 'Home Assistant supervisor is starting. Check /tmp/supervisor.log for details.'; else echo 'Error: Docker failed to start. Check /tmp/supervisor.log'; fi; fi",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Restart Home Assistant",
+      "type": "shell",
+      "command": "echo 'Stopping Home Assistant...'; pkill -f 'supervisor_run|supervisor' || true; sleep 2; echo 'Starting Home Assistant...'; nohup supervisor_run > /tmp/supervisor.log 2>&1 & sleep 3; if pgrep -f 'supervisor_run|supervisor' > /dev/null; then echo 'Home Assistant restarted successfully'; else echo 'Failed to restart. Check /tmp/supervisor.log'; fi",
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Start Home Assistant (Foreground)",
+      "type": "shell",
+      "command": "supervisor_run",
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "focus": true
+      },
+      "problemMatcher": [],
+      "isBackground": false
+    },
+    {
+      "label": "Start Addon",
+      "type": "shell",
+      "command": "ha apps stop \"local_${input:addonName}\"; ha apps start \"local_${input:addonName}\"; docker logs --follow \"addon_local_${input:addonName}\"",
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "runOptions": {
+        "reevaluateOnRerun": false
+      }
+    },
+    {
+      "label": "Rebuild and Start Addon",
+      "type": "shell",
+      "command": "ha apps stop \"local_${input:addonName}\" 2>&1 || true; IMGID=$(docker inspect \"addon_local_${input:addonName}\" --format='{{.Image}}' 2>/dev/null); docker rm -f \"addon_local_${input:addonName}\" 2>/dev/null || true; [ -n \"$IMGID\" ] && docker rmi -f \"$IMGID\" 2>/dev/null || true; ha apps rebuild --force \"local_${input:addonName}\"; docker exec hassio_supervisor python3 -c \"import json; d=json.load(open('/data/addons.json')); s=d['system']['local_${input:addonName}']; s['schema']['long_lived_token']='str?'; s['options']['long_lived_token']=''; s['homeassistant_api']=True; json.dump(d,open('/data/addons.json','w')); print('Supervisor cache patched')\" 2>&1 || true; ha apps start \"local_${input:addonName}\"; docker logs --follow \"addon_local_${input:addonName}\"",
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "addonName",
+      "type": "pickString",
+      "description": "Name of addon (to add your addon to this list, please edit .vscode/tasks.json)",
+      "options": [
+        "miniems",
+        "SimpleScheduler"
+      ]
+    }
+  ]
+}

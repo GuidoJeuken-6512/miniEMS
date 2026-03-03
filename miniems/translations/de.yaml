@@ -1,0 +1,8 @@
+configuration:
+  message:
+    name: Nachricht
+    description: Die Nachricht, die beim Starten dieses miniEMS Add-ons im Log ausgegeben wird.
+
+
+
+

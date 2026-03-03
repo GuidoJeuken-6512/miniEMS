@@ -1,0 +1,35 @@
+{
+  "name": "Example devcontainer for add-on repositories",
+  "image": "ghcr.io/home-assistant/devcontainer:2-addons",
+  "appPort": ["7123:8123", "7357:4357"],
+  "postCreateCommand": "bash devcontainer_bootstrap",
+  "postStartCommand": "bash -c 'if docker ps > /dev/null 2>&1 && docker ps | grep -q hassio_supervisor; then echo \"Home Assistant supervisor is already running\"; elif docker ps > /dev/null 2>&1; then echo \"Docker is running but supervisor not found. Starting...\"; nohup supervisor_run > /tmp/supervisor.log 2>&1 & sleep 5; else echo \"Starting Home Assistant (Docker may take up to 30 seconds to start)...\"; nohup supervisor_run > /tmp/supervisor.log 2>&1 & sleep 10; for i in {1..6}; do if docker ps > /dev/null 2>&1; then echo \"Docker started successfully\"; break; else echo \"Waiting for Docker to start... ($i/6)\"; sleep 5; fi; done; if docker ps > /dev/null 2>&1; then echo \"Home Assistant supervisor starting...\"; else echo \"Warning: Docker may not have started yet. Check /tmp/supervisor.log\"; fi; fi'",
+  "runArgs": ["-e", "GIT_EDITOR=code --wait", "--privileged", "--name", "miniems-devcontainer"],
+  "containerEnv": {
+    "WORKSPACE_DIRECTORY": "${containerWorkspaceFolder}"
+  },
+  "workspaceFolder": "/mnt/supervisor/addons/local/${localWorkspaceFolderBasename}",
+  "workspaceMount": "source=${localWorkspaceFolder},target=${containerWorkspaceFolder},type=bind,consistency=consistent",
+  "customizations": {
+    "vscode": {
+      "extensions": ["timonwong.shellcheck", "esbenp.prettier-vscode"],
+      "settings": {
+        "terminal.integrated.profiles.linux": {
+          "zsh": {
+            "path": "/usr/bin/zsh"
+          }
+        },
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "editor.formatOnPaste": false,
+        "editor.formatOnSave": true,
+        "editor.formatOnType": true,
+        "files.trimTrailingWhitespace": true
+      }
+    }
+  },
+  "mounts": [
+    "type=volume,target=/var/lib/docker",
+    "type=volume,target=/mnt/supervisor",
+    "source=C:/Cursor/ems_config,target=/mnt/supervisor/homeassistant,type=bind,consistency=consistent"
+  ]
+}

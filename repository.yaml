@@ -1,0 +1,4 @@
+# https://developers.home-assistant.io/docs/add-ons/repository#repository-configuration
+name: miniEMS Home Assistant add-on repository
+url: 'https://github.com/GuidoJeuken-6512/miniEMS'
+maintainer: Guido Jeuken <guido@example.com>
