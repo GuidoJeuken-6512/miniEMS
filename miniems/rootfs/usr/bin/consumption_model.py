@@ -1,0 +1,137 @@
+"""Consumption and PV yield prediction model for miniEMS.
+
+Uses SQLite history + OpenWeatherMap forecast to predict:
+  - predicted_load_kwh  – expected daily energy consumption
+  - predicted_pv_kwh    – expected PV yield for the next day
+  - should_grid_charge  – whether grid charging is recommended
+
+Temperature-based matching: find historical days with similar night-temp and
+use their median load as the prediction.  Falls back to a 30-day rolling
+median when fewer than 3 similar days exist or when no temp entity is set.
+PV prediction uses the 75th-percentile peak PV power from the last 14 days
+scaled by cloud cover and day length from the weather forecast.
+"""
+import logging
+import statistics
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from config_loader import Config
+    from store import EnergyStore
+    from weather_client import ForecastSummary, WeatherClient
+
+_LOGGER = logging.getLogger(__name__)
+
+_LOOKBACK_DAYS = 60   # history window for temperature matching
+_TEMP_WINDOW = 4.0    # ±°C tolerance for "similar" day
+_MIN_SAMPLES = 3      # minimum matches before using temp-based prediction
+
+
+@dataclass
+class Prediction:
+    predicted_load_kwh: float
+    predicted_pv_kwh: float
+    should_grid_charge: bool
+    confidence: str   # "high" | "low" | "none"
+
+
+class ConsumptionModel:
+    """Predicts load and PV yield; recommends whether to grid-charge."""
+
+    def __init__(
+        self,
+        config: "Config",
+        store: "EnergyStore",
+        weather: "WeatherClient | None",
+    ) -> None:
+        self._cfg = config
+        self._store = store
+        self._weather = weather
+
+    async def predict(self, bat_soc: float | None) -> Prediction:
+        """Compute predictions and the grid-charge recommendation."""
+        forecast: ForecastSummary | None = None
+        if self._weather and self._weather.enabled:
+            forecast = await self._weather.fetch_forecast()
+
+        predicted_load = await self._predict_load(forecast)
+        predicted_pv = await self._predict_pv(forecast)
+
+        # Usable battery energy right now
+        cfg = self._cfg
+        if bat_soc is not None:
+            usable_kwh = cfg.battery_capacity_kwh * max(0.0, bat_soc - cfg.battery_min_soc) / 100
+        else:
+            usable_kwh = 0.0
+
+        # Recommend grid charge if battery + expected PV cannot cover expected load
+        should_charge = (
+            predicted_load > 0
+            and (usable_kwh + predicted_pv) < predicted_load
+        )
+
+        if predicted_load == 0:
+            confidence = "none"
+        elif forecast and forecast.avg_night_temp_c is not None:
+            confidence = "high"
+        else:
+            confidence = "low"
+
+        _LOGGER.debug(
+            "Prediction: load=%.2f kWh, pv=%.2f kWh, usable=%.2f kWh → grid_charge=%s (%s)",
+            predicted_load, predicted_pv, usable_kwh, should_charge, confidence,
+        )
+
+        return Prediction(
+            predicted_load_kwh=round(predicted_load, 2),
+            predicted_pv_kwh=round(predicted_pv, 2),
+            should_grid_charge=should_charge,
+            confidence=confidence,
+        )
+
+    # ------------------------------------------------------------------
+
+    async def _predict_load(self, forecast: "ForecastSummary | None") -> float:
+        history: list[dict] = []
+
+        if (
+            forecast is not None
+            and forecast.avg_night_temp_c is not None
+            and self._cfg.outdoor_temp_entity
+        ):
+            target = forecast.avg_night_temp_c
+            history = await self._store.query_days_similar_temp(
+                target, _TEMP_WINDOW, _LOOKBACK_DAYS
+            )
+            _LOGGER.debug("Temp-matched %d similar days (target=%.1f°C)", len(history), target)
+
+        if len(history) < _MIN_SAMPLES:
+            # Fall back to recent 30-day rolling median
+            recent = await self._store.query_recent_days(30)
+            history = [r for r in recent if r.get("load_total_kwh", 0) > 0]
+
+        loads = [r["load_total_kwh"] for r in history if (r.get("load_total_kwh") or 0) > 0]
+        return statistics.median(loads) if loads else 0.0
+
+    async def _predict_pv(self, forecast: "ForecastSummary | None") -> float:
+        recent = await self._store.query_recent_days(14)
+        peaks = [(r.get("peak_pv_w") or 0) for r in recent if (r.get("peak_pv_w") or 0) > 100]
+        if not peaks:
+            return 0.0
+
+        # 75th-percentile of recent peak PV power (conservative)
+        peaks.sort()
+        p75 = peaks[int(len(peaks) * 0.75)]
+
+        if forecast:
+            pv_factor = forecast.pv_factor
+            dl = forecast.daylight_hours
+        else:
+            import datetime
+            from weather_client import daylight_hours_approx
+            month = datetime.date.today().month
+            dl = daylight_hours_approx(month, self._cfg.openweathermap_lat or 51.0)
+            pv_factor = 0.5   # neutral assumption without forecast
+
+        return round(max(0.0, (p75 / 1000) * pv_factor * dl), 2)

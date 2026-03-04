@@ -8,10 +8,15 @@ import sys
 import uvicorn
 
 from config_loader import load_config
+from consumption_model import ConsumptionModel
 from cost_optimizer import CostOptimizer
 from ems_controller import EMSController
 from ha_sensor_publisher import HASensorPublisher
 from ha_ws_client import HAWebSocketClient
+from inverter_controller import InverterController
+from mqtt_publisher import MQTTPublisher
+from store import EnergyStore
+from weather_client import WeatherClient
 from web_server import create_app
 
 logging.basicConfig(
@@ -26,15 +31,20 @@ async def ems_loop(
     controller: EMSController,
     status_store: dict,
     interval: int,
-    publisher: HASensorPublisher,
+    mqtt: MQTTPublisher,
+    rest: HASensorPublisher,
 ) -> None:
     """Run EMS decision loop on a fixed interval."""
     while True:
         try:
-            data = controller.update()
+            data = await controller.update()
             status_store.clear()
             status_store.update(data)
-            await publisher.publish(data)
+            # Prefer MQTT (has unique_id); fall back to REST
+            if mqtt.available:
+                await mqtt.publish(data)
+            else:
+                await rest.publish(data)
         except Exception as exc:
             _LOGGER.error("EMS loop error: %s", exc, exc_info=True)
         await asyncio.sleep(interval)
@@ -43,20 +53,39 @@ async def ems_loop(
 async def main() -> None:
     cfg = load_config()
 
+    # Open SQLite store and restore today's accumulators
+    store = EnergyStore()
+    await store.open()
+
     status_store: dict = {}
 
-    # Build component graph
-    cost_optimizer = CostOptimizer(cfg)
     supervisor_token = os.environ.get("SUPERVISOR_TOKEN", "")
-    publisher = HASensorPublisher(supervisor_token, cfg.long_lived_token)
+
+    cost_optimizer = CostOptimizer(cfg, store)
+    await cost_optimizer.restore_today()
 
     async def on_state_change(entity_id: str, new_state: dict) -> None:
-        # Lightweight callback – EMS runs on its own timed loop
         pass
 
     ws_client = HAWebSocketClient(cfg.monitored_entities, on_state_change, cfg.long_lived_token)
-    controller = EMSController(cfg, ws_client, cost_optimizer)
-    app = create_app(status_store)
+
+    inverter = InverterController(cfg, supervisor_token, cfg.long_lived_token)
+    if cfg.battery_control_enabled:
+        sim_txt = " (SIMULATION)" if cfg.battery_control_simulation else ""
+        _LOGGER.info("Battery control enabled%s", sim_txt)
+
+    weather_client = WeatherClient(cfg.openweathermap_api_key, cfg.openweathermap_lat, cfg.openweathermap_lon)
+    if weather_client.enabled:
+        _LOGGER.info("OpenWeatherMap forecast enabled (lat=%.2f lon=%.2f)", cfg.openweathermap_lat, cfg.openweathermap_lon)
+    consumption_model = ConsumptionModel(cfg, store, weather_client if weather_client.enabled else None)
+
+    controller = EMSController(cfg, ws_client, cost_optimizer, inverter, consumption_model)
+    app = create_app(status_store, cfg, supervisor_token)
+
+    # Publisher setup: try MQTT, fall back to REST
+    mqtt_publisher = MQTTPublisher(supervisor_token)
+    rest_publisher = HASensorPublisher(supervisor_token, cfg.long_lived_token)
+    await mqtt_publisher.setup()
 
     # Uvicorn config (ingress port 8080)
     uvi_config = uvicorn.Config(
@@ -68,22 +97,20 @@ async def main() -> None:
     )
     uvi_server = uvicorn.Server(uvi_config)
 
-    _LOGGER.info("miniEMS starting up…")
+    _LOGGER.info("miniEMS starting up… MQTT=%s", mqtt_publisher.available)
 
     async def _ems_task() -> None:
         _LOGGER.info("Waiting for HA WebSocket initial states…")
         await ws_client.wait_ready()
         _LOGGER.info("HA WebSocket ready – starting EMS loop")
-        await ems_loop(controller, status_store, cfg.update_interval_sec, publisher)
+        await ems_loop(controller, status_store, cfg.update_interval_sec, mqtt_publisher, rest_publisher)
 
-    # Run all tasks concurrently
     tasks = [
         asyncio.create_task(ws_client.run(), name="ws_client"),
         asyncio.create_task(_ems_task(), name="ems_loop"),
         asyncio.create_task(uvi_server.serve(), name="web_server"),
     ]
 
-    # Graceful shutdown on SIGTERM / SIGINT
     loop = asyncio.get_running_loop()
 
     def _shutdown() -> None:
@@ -98,6 +125,7 @@ async def main() -> None:
     try:
         await asyncio.gather(*tasks, return_exceptions=True)
     finally:
+        await store.close()
         _LOGGER.info("miniEMS stopped")
 
 

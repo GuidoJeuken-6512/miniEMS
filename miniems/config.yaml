@@ -1,5 +1,5 @@
 name: miniEMS
-version: "1.0.1"
+version: "1.3.0"
 slug: miniems
 description: Mini Energy Management System for Deye inverter + Octopus Energy
 url: https://github.com/your-repo/miniEMS
@@ -12,6 +12,8 @@ arch:
 startup: application
 boot: auto
 homeassistant_api: true
+services:
+  - mqtt:need
 map:
   - config:rw
 ingress: true
@@ -38,6 +40,21 @@ options:
   # EMS Parameters
   pv_surplus_threshold_w: 200
   update_interval_sec: 30
+  # Battery Control
+  battery_control_enabled: false
+  battery_control_simulation: true
+  inverter_work_mode_entity: "select.deye_work_mode"
+  inverter_charge_power_entity: "number.deye_battery_charging_power"
+  inverter_discharge_power_entity: "number.deye_battery_discharging_power"
+  inverter_charge_mode_charge: "Charging Priority"
+  inverter_charge_mode_selfuse: "Self-Use"
+  battery_max_charge_power_w: 3000
+  battery_max_discharge_power_w: 3000
+  # Forecast / Prediction
+  outdoor_temp_entity: ""
+  openweathermap_api_key: ""
+  openweathermap_lat: 0.0
+  openweathermap_lon: 0.0
 
 schema:
   pv_power_entity: str
@@ -54,3 +71,16 @@ schema:
   cheap_rate_threshold_eur: float
   pv_surplus_threshold_w: int
   update_interval_sec: int(10,300)
+  battery_control_enabled: bool
+  battery_control_simulation: bool
+  inverter_work_mode_entity: str
+  inverter_charge_power_entity: str
+  inverter_discharge_power_entity: str
+  inverter_charge_mode_charge: str
+  inverter_charge_mode_selfuse: str
+  battery_max_charge_power_w: int
+  battery_max_discharge_power_w: int
+  outdoor_temp_entity: str?
+  openweathermap_api_key: str?
+  openweathermap_lat: float
+  openweathermap_lon: float

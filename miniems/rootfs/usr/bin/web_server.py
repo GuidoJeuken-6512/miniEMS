@@ -1,29 +1,70 @@
 """FastAPI ingress dashboard for miniEMS.
 
-HTML lives in templates/dashboard.html, CSS in static/style.css.
+HTML lives in templates/, CSS in static/style.css.
 """
+import asyncio
+import json
 import logging
+import os
+from dataclasses import fields as dc_fields
 from pathlib import Path
 from typing import Any
 
+import aiohttp
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from const import VERSION
+from const import CONFIG_FILE, SUPERVISOR_RESTART_URL, VERSION
 
 _LOGGER = logging.getLogger(__name__)
 
 _DIR = Path(__file__).parent
 _TEMPLATES = Jinja2Templates(directory=str(_DIR / "templates"))
 
+# Config field type map for coercion
+_BOOL_FIELDS = {"battery_control_enabled", "battery_control_simulation"}
+_INT_FIELDS = {
+    "battery_min_soc", "battery_max_soc", "pv_surplus_threshold_w",
+    "update_interval_sec", "battery_max_charge_power_w", "battery_max_discharge_power_w",
+}
+_FLOAT_FIELDS = {
+    "battery_capacity_kwh", "cheap_rate_threshold_eur",
+    "openweathermap_lat", "openweathermap_lon",
+}
 
-def create_app(status_store: dict[str, Any]) -> FastAPI:
+
+def _coerce(key: str, value: Any) -> Any:
+    """Convert a form/JSON value to the correct Python type for the config key."""
+    if key in _BOOL_FIELDS:
+        if isinstance(value, bool):
+            return value
+        return str(value).lower() in ("true", "1", "on", "yes")
+    if key in _INT_FIELDS:
+        try:
+            return int(value) if value is not None else 0
+        except (TypeError, ValueError):
+            return 0
+    if key in _FLOAT_FIELDS:
+        try:
+            return float(value) if value is not None else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+    return str(value) if value is not None else ""
+
+
+def create_app(
+    status_store: dict[str, Any],
+    config: Any = None,          # Config dataclass instance
+    supervisor_token: str = "",
+) -> FastAPI:
     """Create FastAPI app; status_store is the shared dict updated by EMS loop."""
     app = FastAPI(title="miniEMS", docs_url=None, redoc_url=None)
 
     app.mount("/static", StaticFiles(directory=str(_DIR / "static")), name="static")
+
+    # ── Dashboard ──────────────────────────────────────────────────────
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request) -> HTMLResponse:
@@ -34,5 +75,78 @@ def create_app(status_store: dict[str, Any]) -> FastAPI:
     @app.get("/api/status")
     async def api_status() -> dict[str, Any]:
         return status_store
+
+    # ── Settings ───────────────────────────────────────────────────────
+
+    @app.get("/settings", response_class=HTMLResponse)
+    async def settings_page(request: Request) -> HTMLResponse:
+        return _TEMPLATES.TemplateResponse(
+            "settings.html", {"request": request, "version": VERSION}
+        )
+
+    @app.get("/api/config")
+    async def api_config() -> dict[str, Any]:
+        """Return current config from disk (config.json or dataclass defaults)."""
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, encoding="utf-8") as f:
+                    data = json.load(f)
+                data.pop("_version", None)
+                return data
+            except Exception:
+                pass
+        # Fall back to in-memory config
+        if config is not None:
+            return {
+                f.name: getattr(config, f.name)
+                for f in dc_fields(config)
+            }
+        return {}
+
+    @app.post("/api/config")
+    async def save_config(request: Request) -> JSONResponse:
+        """Save updated config to disk and restart the addon via Supervisor."""
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+        # Load existing config to preserve unknown/internal keys
+        existing: dict = {}
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, encoding="utf-8") as f:
+                    existing = json.load(f)
+            except Exception:
+                pass
+
+        # Merge and coerce types
+        for key, value in body.items():
+            if not key.startswith("_"):
+                existing[key] = _coerce(key, value)
+
+        try:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(existing, f, indent=2)
+        except OSError as exc:
+            _LOGGER.error("Failed to write config: %s", exc)
+            return JSONResponse({"error": f"Write failed: {exc}"}, status_code=500)
+
+        _LOGGER.info("Config saved – scheduling addon restart")
+
+        async def _do_restart() -> None:
+            await asyncio.sleep(0.4)   # let the response reach the browser first
+            try:
+                async with aiohttp.ClientSession() as session:
+                    await session.post(
+                        SUPERVISOR_RESTART_URL,
+                        headers={"Authorization": f"Bearer {supervisor_token}"},
+                        timeout=aiohttp.ClientTimeout(total=5),
+                    )
+            except Exception:
+                pass   # process will be killed before the response comes back
+
+        asyncio.create_task(_do_restart())
+        return JSONResponse({"status": "restarting"})
 
     return app

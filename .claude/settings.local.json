@@ -37,7 +37,21 @@
       "Bash(docker exec homeassistant netstat -tlnp)",
       "Bash(docker exec homeassistant cat /proc/net/tcp)",
       "Bash(# Supervisor Addon Info via ha CLI ha apps info local_miniems)",
-      "Bash(docker exec hassio_supervisor grep -r \"homeassistant_api\" /usr/src/supervisor/ --include=\"*.py\")"
+      "Bash(docker exec hassio_supervisor grep -r \"homeassistant_api\" /usr/src/supervisor/ --include=\"*.py\")",
+      "Bash(claude mcp list)",
+      "Bash(curl -s -H \"Authorization: Bearer DVG_05ax9i5n9be3sRg0Kd4lpdwsbLCkt4_eOXjcYk8\" \"http://127.0.0.1:8099/api/states\")",
+      "Bash(python3 -c \":*)",
+      "Bash(python -c \":*)",
+      "Bash(node --version)",
+      "Bash(jq --version)",
+      "Bash(curl -sv -H \"Authorization: Bearer DVG_05ax9i5n9be3sRg0Kd4lpdwsbLCkt4_eOXjcYk8\" \"http://127.0.0.1:8099/api/\")",
+      "Bash(# Look at the actual npm package to understand its routes ls /root/.npm/_npx/)",
+      "Read(//home/vscode/.npm/**)",
+      "Read(//home/vscode/**)",
+      "Read(//root/**)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -s -H \"Authorization: Bearer DVG_05ax9i5n9be3sRg0Kd4lpdwsbLCkt4_eOXjcYk8\" \"http://127.0.0.1:8099/api/registries/entities/list\" -o /tmp/entity_registry.json)",
+      "Bash(curl -s -H \"Authorization: Bearer DVG_05ax9i5n9be3sRg0Kd4lpdwsbLCkt4_eOXjcYk8\" \"http://127.0.0.1:8099/api/registries/entities/list\")"
     ]
   }
 }

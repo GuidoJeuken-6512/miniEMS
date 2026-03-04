@@ -11,6 +11,10 @@
     <h1>&#9889; miniEMS Dashboard</h1>
     <span class="version-badge">v{{ version }}</span>
   </header>
+  <nav class="tab-nav">
+    <a href="." class="tab-link active">Dashboard</a>
+    <a href="settings" class="tab-link">Settings</a>
+  </nav>
   <p class="refresh-hint">Auto-refreshes every 5 seconds</p>
   <div id="dashboard">Loading…</div>
   <footer>miniEMS v{{ version }} &middot; Home Assistant Add-on</footer>
@@ -37,8 +41,10 @@
     }
 
     function renderDashboard(d) {
+      const simBadge = (d.battery_control_active && d.battery_control_simulation)
+        ? '<span class="sim-badge">SIM</span>' : '';
       return `
-        <div class="mode-badge ${fmtMode(d.mode)}">${d.mode || 'Unknown'}</div>
+        <div class="mode-badge ${fmtMode(d.mode)}">${d.mode || 'Unknown'}${simBadge}</div>
 
         <div class="grid">
           <div class="card">
@@ -100,6 +106,21 @@
             <div class="svalue negative">€${fmt(d.week_grid_cost_eur, 4)}</div>
           </div>
         </div>
+
+        ${(d.predicted_load_kwh !== undefined || d.predicted_pv_kwh !== undefined) ? `
+        <p class="section-title">Forecast &amp; Prediction
+          ${d.prediction_confidence ? '<span class="conf-badge conf-' + d.prediction_confidence + '">' + d.prediction_confidence + '</span>' : ''}
+        </p>
+        <div class="savings-grid">
+          <div class="savings-card">
+            <div class="slabel">Predicted Load</div>
+            <div class="svalue muted">${fmt(d.predicted_load_kwh, 2)} kWh</div>
+          </div>
+          <div class="savings-card">
+            <div class="slabel">Predicted PV Yield</div>
+            <div class="svalue">${fmt(d.predicted_pv_kwh, 2)} kWh</div>
+          </div>
+        </div>` : ''}
       `;
     }
 

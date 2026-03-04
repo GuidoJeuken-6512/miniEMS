@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "home-assistant": {
+      "command": "npx",
+      "args": ["-y", "@coolver/home-assistant-mcp@latest"],
+      "env": {
+        "HA_AGENT_URL": "http://127.0.0.1:8099",
+        "HA_AGENT_KEY": "DVG_05ax9i5n9be3sRg0Kd4lpdwsbLCkt4_eOXjcYk8"
+      }
+    }
+  }
+}

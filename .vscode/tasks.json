@@ -63,9 +63,23 @@
       }
     },
     {
+      "label": "Update and Start Addon",
+      "type": "shell",
+      "command": "ha apps stop \"local_${input:addonName}\" 2>&1 || true; ha apps update \"local_${input:addonName}\"; docker exec hassio_supervisor python3 -c \"import json; d=json.load(open('/data/addons.json')); s=d['system']['local_${input:addonName}']; s['schema']['long_lived_token']='str?'; s['options']['long_lived_token']=''; s['homeassistant_api']=True; svcs=s.setdefault('services',[]); svcs_names=[x.get('name','') if isinstance(x,dict) else x for x in svcs]; svcs.append({'name':'mqtt','protocol':'tcp'}) if 'mqtt' not in svcs_names else None; json.dump(d,open('/data/addons.json','w')); print('Supervisor cache patched')\" 2>&1 || true; ha apps start \"local_${input:addonName}\"; docker logs --follow \"addon_local_${input:addonName}\"",
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Rebuild and Start Addon",
       "type": "shell",
-      "command": "ha apps stop \"local_${input:addonName}\" 2>&1 || true; IMGID=$(docker inspect \"addon_local_${input:addonName}\" --format='{{.Image}}' 2>/dev/null); docker rm -f \"addon_local_${input:addonName}\" 2>/dev/null || true; [ -n \"$IMGID\" ] && docker rmi -f \"$IMGID\" 2>/dev/null || true; ha apps rebuild --force \"local_${input:addonName}\"; docker exec hassio_supervisor python3 -c \"import json; d=json.load(open('/data/addons.json')); s=d['system']['local_${input:addonName}']; s['schema']['long_lived_token']='str?'; s['options']['long_lived_token']=''; s['homeassistant_api']=True; json.dump(d,open('/data/addons.json','w')); print('Supervisor cache patched')\" 2>&1 || true; ha apps start \"local_${input:addonName}\"; docker logs --follow \"addon_local_${input:addonName}\"",
+      "command": "ha apps stop \"local_${input:addonName}\" 2>&1 || true; IMGID=$(docker inspect \"addon_local_${input:addonName}\" --format='{{.Image}}' 2>/dev/null); docker rm -f \"addon_local_${input:addonName}\" 2>/dev/null || true; [ -n \"$IMGID\" ] && docker rmi -f \"$IMGID\" 2>/dev/null || true; ha apps rebuild --force \"local_${input:addonName}\"; docker exec hassio_supervisor python3 -c \"import json; d=json.load(open('/data/addons.json')); s=d['system']['local_${input:addonName}']; s['schema']['long_lived_token']='str?'; s['options']['long_lived_token']=''; s['homeassistant_api']=True; svcs=s.setdefault('services',[]); svcs_names=[x.get('name','') if isinstance(x,dict) else x for x in svcs]; svcs.append({'name':'mqtt','protocol':'tcp'}) if 'mqtt' not in svcs_names else None; json.dump(d,open('/data/addons.json','w')); print('Supervisor cache patched')\" 2>&1 || true; ha apps start \"local_${input:addonName}\"; docker logs --follow \"addon_local_${input:addonName}\"",
       "group": {
         "kind": "test",
         "isDefault": false

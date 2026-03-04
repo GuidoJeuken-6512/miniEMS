@@ -91,6 +91,138 @@ _SENSORS: list[tuple[str, str, dict]] = [
             "icon": "mdi:piggy-bank-outline",
         },
     ),
+    (
+        "sensor.miniems_today_load_total_kwh",
+        "today_load_total_kwh",
+        {
+            "friendly_name": "miniEMS Today Load Total",
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "state_class": "total_increasing",
+            "icon": "mdi:lightning-bolt",
+        },
+    ),
+    (
+        "sensor.miniems_today_load_cost_eur",
+        "today_load_cost_eur",
+        {
+            "friendly_name": "miniEMS Today Load Cost",
+            "unit_of_measurement": "€",
+            "device_class": "monetary",
+            "state_class": "total_increasing",
+            "icon": "mdi:cash",
+        },
+    ),
+    (
+        "sensor.miniems_month_grid_cost_eur",
+        "month_grid_cost_eur",
+        {
+            "friendly_name": "miniEMS Month Grid Cost",
+            "unit_of_measurement": "€",
+            "device_class": "monetary",
+            "state_class": "measurement",
+            "icon": "mdi:calendar-month",
+        },
+    ),
+    (
+        "sensor.miniems_month_pv_savings_eur",
+        "month_pv_savings_eur",
+        {
+            "friendly_name": "miniEMS Month PV Savings",
+            "unit_of_measurement": "€",
+            "device_class": "monetary",
+            "state_class": "measurement",
+            "icon": "mdi:calendar-month",
+        },
+    ),
+    (
+        "sensor.miniems_month_load_cost_eur",
+        "month_load_cost_eur",
+        {
+            "friendly_name": "miniEMS Month Load Cost",
+            "unit_of_measurement": "€",
+            "device_class": "monetary",
+            "state_class": "measurement",
+            "icon": "mdi:calendar-month",
+        },
+    ),
+    (
+        "sensor.miniems_year_grid_cost_eur",
+        "year_grid_cost_eur",
+        {
+            "friendly_name": "miniEMS Year Grid Cost",
+            "unit_of_measurement": "€",
+            "device_class": "monetary",
+            "state_class": "measurement",
+            "icon": "mdi:calendar",
+        },
+    ),
+    (
+        "sensor.miniems_year_pv_savings_eur",
+        "year_pv_savings_eur",
+        {
+            "friendly_name": "miniEMS Year PV Savings",
+            "unit_of_measurement": "€",
+            "device_class": "monetary",
+            "state_class": "measurement",
+            "icon": "mdi:calendar",
+        },
+    ),
+    (
+        "sensor.miniems_year_load_cost_eur",
+        "year_load_cost_eur",
+        {
+            "friendly_name": "miniEMS Year Load Cost",
+            "unit_of_measurement": "€",
+            "device_class": "monetary",
+            "state_class": "measurement",
+            "icon": "mdi:calendar",
+        },
+    ),
+    (
+        "sensor.miniems_charge_power_limit_w",
+        "charge_power_limit_w",
+        {
+            "friendly_name": "miniEMS Charge Power Limit",
+            "unit_of_measurement": "W",
+            "device_class": "power",
+            "state_class": "measurement",
+            "icon": "mdi:battery-arrow-up",
+        },
+    ),
+    (
+        "sensor.miniems_discharge_power_limit_w",
+        "discharge_power_limit_w",
+        {
+            "friendly_name": "miniEMS Discharge Power Limit",
+            "unit_of_measurement": "W",
+            "device_class": "power",
+            "state_class": "measurement",
+            "icon": "mdi:battery-arrow-down",
+        },
+    ),
+    (
+        "sensor.miniems_predicted_load_kwh",
+        "predicted_load_kwh",
+        {
+            "friendly_name": "miniEMS Predicted Load",
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "state_class": "measurement",
+            "icon": "mdi:chart-line",
+        },
+    ),
+    (
+        "sensor.miniems_predicted_pv_kwh",
+        "predicted_pv_kwh",
+        {
+            "friendly_name": "miniEMS Predicted PV Yield",
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "state_class": "measurement",
+            "icon": "mdi:weather-sunny",
+        },
+    ),
 ]
 
 

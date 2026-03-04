@@ -43,10 +43,25 @@ class Config:
     # EMS Parameters
     pv_surplus_threshold_w: int = 200
     update_interval_sec: int = 30
+    # Battery Control (Phase 2)
+    battery_control_enabled: bool = False
+    battery_control_simulation: bool = True
+    inverter_work_mode_entity: str = "select.deye_work_mode"
+    inverter_charge_power_entity: str = "number.deye_battery_charging_power"
+    inverter_discharge_power_entity: str = "number.deye_battery_discharging_power"
+    inverter_charge_mode_charge: str = "Charging Priority"
+    inverter_charge_mode_selfuse: str = "Self-Use"
+    battery_max_charge_power_w: int = 3000
+    battery_max_discharge_power_w: int = 3000
+    # Forecast / Prediction (Phase 3)
+    outdoor_temp_entity: str = ""
+    openweathermap_api_key: str = ""
+    openweathermap_lat: float = 0.0
+    openweathermap_lon: float = 0.0
 
     @property
     def monitored_entities(self) -> list[str]:
-        return [
+        entities = [
             self.pv_power_entity,
             self.battery_soc_entity,
             self.battery_power_entity,
@@ -55,6 +70,9 @@ class Config:
             self.load_power_entity,
             self.electricity_price_entity,
         ]
+        if self.outdoor_temp_entity:
+            entities.append(self.outdoor_temp_entity)
+        return entities
 
 
 def _defaults() -> dict:

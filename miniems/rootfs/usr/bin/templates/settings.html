@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>miniEMS Settings</title>
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+  <header>
+    <h1>&#9889; miniEMS Settings</h1>
+    <span class="version-badge">v{{ version }}</span>
+  </header>
+  <nav class="tab-nav">
+    <a href="." class="tab-link">Dashboard</a>
+    <a href="settings" class="tab-link active">Settings</a>
+  </nav>
+
+  <div id="settings-form">Loading…</div>
+
+  <script>
+    const BOOL_FIELDS = new Set([
+      'battery_control_enabled', 'battery_control_simulation'
+    ]);
+    const INT_FIELDS = new Set([
+      'battery_min_soc', 'battery_max_soc', 'pv_surplus_threshold_w',
+      'update_interval_sec', 'battery_max_charge_power_w', 'battery_max_discharge_power_w'
+    ]);
+    const FLOAT_FIELDS = new Set([
+      'battery_capacity_kwh', 'cheap_rate_threshold_eur',
+      'openweathermap_lat', 'openweathermap_lon'
+    ]);
+
+    const SECTIONS = [
+      {
+        title: 'Inverter Entities',
+        fields: [
+          { key: 'pv_power_entity',      label: 'PV Power Entity' },
+          { key: 'battery_soc_entity',   label: 'Battery SoC Entity' },
+          { key: 'battery_power_entity', label: 'Battery Power Entity' },
+          { key: 'battery_voltage_entity',label:'Battery Voltage Entity' },
+          { key: 'grid_power_entity',    label: 'Grid Power Entity' },
+          { key: 'load_power_entity',    label: 'Load Power Entity' },
+        ]
+      },
+      {
+        title: 'Battery Settings',
+        fields: [
+          { key: 'battery_capacity_kwh', label: 'Capacity (kWh)' },
+          { key: 'battery_min_soc',      label: 'Min SoC (%)' },
+          { key: 'battery_max_soc',      label: 'Max SoC (%)' },
+        ]
+      },
+      {
+        title: 'Authentication',
+        fields: [
+          { key: 'long_lived_token', label: 'Long-Lived Token (optional)', type: 'password' },
+        ]
+      },
+      {
+        title: 'Octopus Energy',
+        fields: [
+          { key: 'electricity_price_entity',  label: 'Price Entity' },
+          { key: 'cheap_rate_threshold_eur',  label: 'Cheap Rate Threshold (€/kWh)' },
+        ]
+      },
+      {
+        title: 'EMS Parameters',
+        fields: [
+          { key: 'pv_surplus_threshold_w', label: 'PV Surplus Threshold (W)' },
+          { key: 'update_interval_sec',    label: 'Update Interval (s, 10–300)' },
+        ]
+      },
+      {
+        title: 'Battery Control',
+        fields: [
+          { key: 'battery_control_enabled',          label: 'Enable Battery Control' },
+          { key: 'battery_control_simulation',       label: 'Simulation Mode (log only)' },
+          { key: 'inverter_work_mode_entity',        label: 'Work Mode Entity' },
+          { key: 'inverter_charge_power_entity',     label: 'Charge Power Entity' },
+          { key: 'inverter_discharge_power_entity',  label: 'Discharge Power Entity' },
+          { key: 'inverter_charge_mode_charge',      label: 'Grid-Charge Mode Value' },
+          { key: 'inverter_charge_mode_selfuse',     label: 'Self-Use Mode Value' },
+          { key: 'battery_max_charge_power_w',       label: 'Max Charge Power (W)' },
+          { key: 'battery_max_discharge_power_w',    label: 'Max Discharge Power (W)' },
+        ]
+      },
+      {
+        title: 'Forecast & Prediction',
+        fields: [
+          { key: 'outdoor_temp_entity',      label: 'Outdoor Temp Entity (optional)' },
+          { key: 'openweathermap_api_key',   label: 'OpenWeatherMap API Key', type: 'password' },
+          { key: 'openweathermap_lat',       label: 'Latitude' },
+          { key: 'openweathermap_lon',       label: 'Longitude' },
+        ]
+      },
+    ];
+
+    let currentConfig = {};
+
+    function buildField(f, value) {
+      const key = f.key;
+      const isBool = BOOL_FIELDS.has(key);
+      if (isBool) {
+        const checked = value ? 'checked' : '';
+        return `
+          <div class="field-row">
+            <label class="field-label" for="${key}">${f.label}</label>
+            <label class="toggle">
+              <input type="checkbox" id="${key}" name="${key}" ${checked}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>`;
+      }
+      const inputType = f.type || 'text';
+      return `
+        <div class="field-row">
+          <label class="field-label" for="${key}">${f.label}</label>
+          <input class="field-input" type="${inputType}" id="${key}" name="${key}"
+                 value="${String(value ?? '').replace(/"/g, '&quot;')}">
+        </div>`;
+    }
+
+    function renderForm(cfg) {
+      currentConfig = cfg;
+      let html = '';
+      for (const section of SECTIONS) {
+        html += `<div class="settings-section"><h2 class="section-heading">${section.title}</h2>`;
+        for (const f of section.fields) {
+          html += buildField(f, cfg[f.key]);
+        }
+        html += '</div>';
+      }
+      html += `
+        <div class="save-bar">
+          <button id="save-btn" class="btn-save" onclick="saveSettings()">Save &amp; Restart</button>
+          <span id="save-msg" class="save-msg"></span>
+        </div>`;
+      document.getElementById('settings-form').innerHTML = html;
+    }
+
+    function collectValues() {
+      const result = {};
+      for (const section of SECTIONS) {
+        for (const f of section.fields) {
+          const el = document.getElementById(f.key);
+          if (!el) continue;
+          const key = f.key;
+          if (BOOL_FIELDS.has(key)) {
+            result[key] = el.checked;
+          } else if (INT_FIELDS.has(key)) {
+            result[key] = parseInt(el.value, 10);
+          } else if (FLOAT_FIELDS.has(key)) {
+            result[key] = parseFloat(el.value);
+          } else {
+            result[key] = el.value;
+          }
+        }
+      }
+      return result;
+    }
+
+    async function saveSettings() {
+      const btn = document.getElementById('save-btn');
+      const msg = document.getElementById('save-msg');
+      btn.disabled = true;
+      msg.textContent = 'Saving…';
+      msg.className = 'save-msg';
+      try {
+        const payload = collectValues();
+        const r = await fetch('api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await r.json();
+        if (data.status === 'restarting') {
+          msg.textContent = '✓ Saved – addon is restarting…';
+          msg.className = 'save-msg ok';
+          setTimeout(() => { window.location.href = '.'; }, 6000);
+        } else {
+          msg.textContent = 'Error: ' + (data.error || 'Unknown');
+          msg.className = 'save-msg err';
+          btn.disabled = false;
+        }
+      } catch(e) {
+        msg.textContent = 'Request failed: ' + e;
+        msg.className = 'save-msg err';
+        btn.disabled = false;
+      }
+    }
+
+    async function load() {
+      try {
+        const r = await fetch('api/config');
+        const cfg = await r.json();
+        renderForm(cfg);
+      } catch(e) {
+        document.getElementById('settings-form').textContent = 'Failed to load config: ' + e;
+      }
+    }
+
+    window.onload = load;
+  </script>
+</body>
+</html>
