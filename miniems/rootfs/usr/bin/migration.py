@@ -5,9 +5,11 @@ Add a new function and increment CURRENT_VERSION whenever the config schema chan
 """
 import logging
 
+from const import CONFIG_SCHEMA_VERSION
+
 _LOGGER = logging.getLogger(__name__)
 
-CURRENT_VERSION = 1
+CURRENT_VERSION = CONFIG_SCHEMA_VERSION
 
 
 def migrate(data: dict) -> dict:

@@ -1,7 +1,8 @@
 """EMS decision logic – determines operating mode and triggers cost accounting."""
 import logging
-from enum import Enum
 from typing import TYPE_CHECKING
+
+from const import EMSMode
 
 if TYPE_CHECKING:
     from config_loader import Config
@@ -9,13 +10,6 @@ if TYPE_CHECKING:
     from ha_ws_client import HAWebSocketClient
 
 _LOGGER = logging.getLogger(__name__)
-
-
-class EMSMode(str, Enum):
-    IDLE = "Idle"
-    PV_CHARGING = "PV Charging"
-    GRID_CHARGING = "Grid Charging (Cheap Rate)"
-    PROTECT_BATTERY = "Battery Protection (Min SoC)"
 
 
 class EMSController:

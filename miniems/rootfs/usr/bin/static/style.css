@@ -1,0 +1,98 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, sans-serif;
+  background: #0d1117;
+  color: #e6edf3;
+  min-height: 100vh;
+  padding: 1.5rem;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+h1 {
+  font-size: 1.5rem;
+  color: #58a6ff;
+}
+
+.version-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: monospace;
+  background: #21262d;
+  color: #8b949e;
+  border: 1px solid #30363d;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  letter-spacing: 0.03em;
+}
+
+/* ── Mode badge ─────────────────────────────────────────── */
+.mode-badge {
+  display: inline-block;
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+.mode-IDLE    { background: #21262d; color: #8b949e; }
+.mode-PV      { background: #1a4a1a; color: #3fb950; }
+.mode-GRID    { background: #1a2a4a; color: #58a6ff; }
+.mode-PROTECT { background: #4a1a1a; color: #f85149; }
+
+/* ── Live-values grid ───────────────────────────────────── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 1rem;
+}
+.card .label { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; }
+.card .value { font-size: 1.75rem; font-weight: 700; margin-top: 0.25rem; }
+.card .unit  { font-size: 0.8rem; color: #8b949e; }
+
+/* ── Cost & Savings grid ────────────────────────────────── */
+.section-title {
+  font-size: 0.9rem;
+  color: #8b949e;
+  margin-bottom: 0.75rem;
+}
+
+.savings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.savings-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 1rem;
+}
+.savings-card .slabel { font-size: 0.75rem; color: #8b949e; }
+.savings-card .svalue { font-size: 1.25rem; font-weight: 700; color: #3fb950; margin-top: 0.25rem; }
+
+/* ── Value colour helpers ───────────────────────────────── */
+.cheap      { color: #3fb950; }
+.expensive  { color: #f85149; }
+.negative   { color: #f85149; }
+.muted      { color: #8b949e; }
+
+/* ── Misc ───────────────────────────────────────────────── */
+.refresh-hint { font-size: 0.75rem; color: #8b949e; margin-bottom: 1rem; }
+footer        { font-size: 0.75rem; color: #8b949e; margin-top: 2rem; }

@@ -15,12 +15,12 @@ import logging
 import os
 from dataclasses import dataclass, fields
 
-from migration import CURRENT_VERSION, migrate
+from const import CONFIG_FILE, CONFIG_SCHEMA_VERSION, OPTIONS_FILE
+from migration import migrate
 
 _LOGGER = logging.getLogger(__name__)
 
-OPTIONS_FILE = "/data/options.json"
-CONFIG_FILE = "/data/config.json"
+CURRENT_VERSION = CONFIG_SCHEMA_VERSION
 
 
 @dataclass

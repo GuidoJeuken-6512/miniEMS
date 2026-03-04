@@ -10,6 +10,7 @@ import uvicorn
 from config_loader import load_config
 from cost_optimizer import CostOptimizer
 from ems_controller import EMSController
+from ha_sensor_publisher import HASensorPublisher
 from ha_ws_client import HAWebSocketClient
 from web_server import create_app
 
@@ -21,13 +22,19 @@ logging.basicConfig(
 _LOGGER = logging.getLogger("miniems.main")
 
 
-async def ems_loop(controller: EMSController, status_store: dict, interval: int) -> None:
+async def ems_loop(
+    controller: EMSController,
+    status_store: dict,
+    interval: int,
+    publisher: HASensorPublisher,
+) -> None:
     """Run EMS decision loop on a fixed interval."""
     while True:
         try:
             data = controller.update()
             status_store.clear()
             status_store.update(data)
+            await publisher.publish(data)
         except Exception as exc:
             _LOGGER.error("EMS loop error: %s", exc, exc_info=True)
         await asyncio.sleep(interval)
@@ -40,6 +47,8 @@ async def main() -> None:
 
     # Build component graph
     cost_optimizer = CostOptimizer(cfg)
+    supervisor_token = os.environ.get("SUPERVISOR_TOKEN", "")
+    publisher = HASensorPublisher(supervisor_token, cfg.long_lived_token)
 
     async def on_state_change(entity_id: str, new_state: dict) -> None:
         # Lightweight callback – EMS runs on its own timed loop
@@ -65,7 +74,7 @@ async def main() -> None:
         _LOGGER.info("Waiting for HA WebSocket initial states…")
         await ws_client.wait_ready()
         _LOGGER.info("HA WebSocket ready – starting EMS loop")
-        await ems_loop(controller, status_store, cfg.update_interval_sec)
+        await ems_loop(controller, status_store, cfg.update_interval_sec, publisher)
 
     # Run all tasks concurrently
     tasks = [

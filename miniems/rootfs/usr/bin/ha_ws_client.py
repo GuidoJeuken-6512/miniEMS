@@ -7,10 +7,9 @@ from typing import Any
 
 import aiohttp
 
-_LOGGER = logging.getLogger(__name__)
+from const import HA_STATES_URL, HA_POLL_INTERVAL_SEC, HA_RETRY_INTERVAL_SEC
 
-HA_STATES_URL = "http://hassio/homeassistant/api/states"
-_POLL_INTERVAL = 15  # seconds between state refreshes
+_LOGGER = logging.getLogger(__name__)
 StateCallback = Callable[[str, dict[str, Any]], Awaitable[None]]
 
 
@@ -61,14 +60,14 @@ class HAWebSocketClient:
             return None
 
     async def run(self) -> None:
-        """Poll HA states every _POLL_INTERVAL seconds with token fallback."""
+        """Poll HA states every HA_POLL_INTERVAL_SEC seconds with token fallback."""
         self._running = True
         while self._running:
             success = await self._fetch_states()
             if not success:
-                await asyncio.sleep(10)
+                await asyncio.sleep(HA_RETRY_INTERVAL_SEC)
                 continue
-            await asyncio.sleep(_POLL_INTERVAL)
+            await asyncio.sleep(HA_POLL_INTERVAL_SEC)
 
     async def stop(self) -> None:
         self._running = False
