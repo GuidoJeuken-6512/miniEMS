@@ -79,3 +79,69 @@ energy had been bought from the grid at the current spot price.
 > **Note**: Accumulated values are in-memory only. They reset on add-on restart.
 > For long-term persistence, use HA's built-in statistics on the published
 > `total_increasing` sensors.
+
+---
+
+## Prognose & Vorhersage (`ConsumptionModel`)
+
+Berechnet einmal pro EMS-Tick (30 s) in `consumption_model.py`.
+Datenquelle: SQLite-Tageshistorie (`store.py`) + optionaler HA-Wetterforecast.
+
+### Prognostizierter Verbrauch (`predicted_load_kwh`)
+
+```
+Wenn weather_entity konfiguriert UND Forecast verfügbar:
+  target_temp   = Tageshöchstwert von morgen (forecast.temp_tomorrow_c)
+  similar_days  = Tage der letzten 60 Tage mit |avg_night_temp − target| ≤ 4 °C
+  Falls |similar_days| ≥ 3:
+    predicted_load = Median(load_total_kwh aller similar_days)   → Confidence "high"
+  Sonst:
+    predicted_load = Median(load_total_kwh der letzten 30 Tage)  → Confidence "low"
+Sonst (kein Wetter):
+  predicted_load = Median(load_total_kwh der letzten 30 Tage)    → Confidence "low"
+Keine Historie:
+  predicted_load = 0,0 kWh                                       → Confidence "none"
+```
+
+### Prognostizierter PV-Ertrag (`predicted_pv_kwh`)
+
+```
+peaks     = [peak_pv_w | letzte 14 Tage, peak_pv_w > 100 W]
+p75       = 75. Perzentil(peaks)   (konservative Schätzung)
+
+Mit Forecast:
+  clear_frac  = Ø(1 − cloud_coverage / 100) über alle Forecast-Slots
+  daylight_h  = astronomische Tageslänge für HA-Breitengrad + aktuellen Monat
+  pv_factor   = clear_frac × min(1,0 ; daylight_h / 12,0)
+
+Ohne Forecast:
+  pv_factor   = 0,5          (neutrale Annahme)
+  daylight_h  = Näherung für 51 °N + aktuellen Monat
+
+predicted_pv = max(0 ; (p75 / 1000) × pv_factor × daylight_h)
+```
+
+**Tageslängenformel** (`daylight_hours_approx` in `weather_client.py`):
+
+```
+day_of_year = (month − 1) × 30 + 15
+decl        = 23,45° × sin(360° × (284 + day_of_year) / 365)
+cos_ha      = −tan(lat) × tan(decl)   [geclampt auf −1 … 1]
+daylight_h  = 2 × arccos(cos_ha) / 15
+```
+
+### Grid-Charge-Empfehlung (`should_grid_charge`)
+
+```
+usable_kwh         = battery_capacity_kwh × max(0 ; soc − battery_min_soc) / 100
+should_grid_charge = (predicted_load > 0)
+                     AND (usable_kwh + predicted_pv) < predicted_load
+```
+
+Wenn Batterie + erwarteter PV-Ertrag den prognostizierten Verbrauch nicht
+decken, empfiehlt miniEMS das Nachladen aus dem Netz.
+
+### Wetterdaten-Cache
+
+`WeatherClient` cached das Ergebnis von `weather.get_forecasts` für **30 Minuten**.
+Der HA-Breitengrad wird einmalig von `http://supervisor/core/api/config` gelesen.

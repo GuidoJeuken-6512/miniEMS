@@ -348,6 +348,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#prognose-berechnung-consumptionmodel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prognose-Berechnung (ConsumptionModel)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prognose-Berechnung (ConsumptionModel)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prognostizierter-verbrauch-predicted_load_kwh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prognostizierter Verbrauch (predicted_load_kwh)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prognostizierter-pv-ertrag-predicted_pv_kwh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prognostizierter PV-Ertrag (predicted_pv_kwh)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#grid-charge-empfehlung-should_grid_charge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Grid-Charge-Empfehlung (should_grid_charge)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wetterdaten-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wetterdaten-Cache
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#internationalisation-i18n" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -481,35 +542,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../markdown/" class="md-nav__link">
-        
-  
-  
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.27 19.385H1.73A1.73 1.73 0 0 1 0 17.655V6.345a1.73 1.73 0 0 1 1.73-1.73h20.54A1.73 1.73 0 0 1 24 6.345v11.308a1.73 1.73 0 0 1-1.73 1.731zM5.769 15.923v-4.5l2.308 2.885 2.307-2.885v4.5h2.308V8.078h-2.308l-2.307 2.885-2.308-2.885H3.46v7.847zM21.232 12h-2.309V8.077h-2.307V12h-2.308l3.461 4.039z"/></svg>
-  
-  <span class="md-ellipsis">
-    
-  
-    Markdown in 5min
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../sensors/" class="md-nav__link">
         
   
@@ -598,6 +630,67 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prognose-berechnung-consumptionmodel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prognose-Berechnung (ConsumptionModel)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prognose-Berechnung (ConsumptionModel)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prognostizierter-verbrauch-predicted_load_kwh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prognostizierter Verbrauch (predicted_load_kwh)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prognostizierter-pv-ertrag-predicted_pv_kwh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prognostizierter PV-Ertrag (predicted_pv_kwh)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#grid-charge-empfehlung-should_grid_charge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Grid-Charge-Empfehlung (should_grid_charge)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#wetterdaten-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wetterdaten-Cache
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -774,6 +867,56 @@ this fallback independently so each can switch tokens at runtime.</p>
 <li><code>web_server.py</code> — to query <code>http://supervisor/core/api/config</code> for the HA
   language setting (de/en auto-detection)</li>
 </ul>
+<h2 id="prognose-berechnung-consumptionmodel">Prognose-Berechnung (ConsumptionModel)<a class="headerlink" href="#prognose-berechnung-consumptionmodel" title="Permanent link">&para;</a></h2>
+<p>Die Prognosen werden in <code>consumption_model.py</code> berechnet und einmal pro EMS-Tick
+(30 s) aktualisiert.  Das Ergebnis fließt in die Grid-Charge-Empfehlung ein und
+wird im Dashboard unter <strong>Prognose &amp; Vorhersage</strong> angezeigt.</p>
+<h3 id="prognostizierter-verbrauch-predicted_load_kwh">Prognostizierter Verbrauch (<code>predicted_load_kwh</code>)<a class="headerlink" href="#prognostizierter-verbrauch-predicted_load_kwh" title="Permanent link">&para;</a></h3>
+<p>Der erwartete Tagesverbrauch wird temperaturbasiert oder als rollender Median
+aus der SQLite-Historie ermittelt:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Wenn Wetter-Entity konfiguriert UND Forecast verfügbar:
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  target_temp  = Tageshöchstwert von morgen (aus HA-Forecast)
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>  ähnliche Tage = Einträge der letzten 60 Tage mit |temp − target| ≤ 4 °C
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>  Falls ≥ 3 ähnliche Tage gefunden:
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    → Median(load_total_kwh) dieser Tage  [Confidence: &quot;high&quot;]
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>  Sonst:
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    → 30-Tage-Rolling-Median aller Tage mit Verbrauch &gt; 0 [Confidence: &quot;low&quot;]
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>Sonst (kein Wetter):
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>  → 30-Tage-Rolling-Median                                [Confidence: &quot;low&quot;]
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>Keine Historie:
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>  → 0.0 kWh                                               [Confidence: &quot;none&quot;]
+</span></code></pre></div>
+<h3 id="prognostizierter-pv-ertrag-predicted_pv_kwh">Prognostizierter PV-Ertrag (<code>predicted_pv_kwh</code>)<a class="headerlink" href="#prognostizierter-pv-ertrag-predicted_pv_kwh" title="Permanent link">&para;</a></h3>
+<p>Der erwartete PV-Ertrag basiert auf dem historischen Peak-Leistungswert der
+letzten 14 Tage, skaliert mit Bewölkung und Tageslänge:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>peaks        = peak_pv_w aller Tage der letzten 14 Tage (nur Werte &gt; 100 W)
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>p75          = 75. Perzentil von peaks  (konservative Schätzung)
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>Mit Forecast:
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>  clear_frac  = Ø(1 − cloud_coverage/100) über alle Forecast-Slots
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>  pv_factor   = clear_frac × min(1,0 ; daylight_h / 12,0)
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>  daylight_h  = astronomische Tageslänge (Breitengrad der HA-Instanz, aktueller Monat)
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>Ohne Forecast:
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>  pv_factor   = 0,5   (neutrale Annahme)
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>  daylight_h  = geschätzte Tageslänge für Breite 51 °N
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>Ertrag = (p75 / 1000 kW) × pv_factor × daylight_h
+</span></code></pre></div>
+<h3 id="grid-charge-empfehlung-should_grid_charge">Grid-Charge-Empfehlung (<code>should_grid_charge</code>)<a class="headerlink" href="#grid-charge-empfehlung-should_grid_charge" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>usable_kwh = Batteriekapazität × max(0 ; SoC − min_SoC) / 100
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>should_grid_charge = (predicted_load &gt; 0)
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>                   AND (usable_kwh + predicted_pv) &lt; predicted_load
+</span></code></pre></div>
+<p>Wenn Batterie + erwarteter PV-Ertrag den erwarteten Verbrauch nicht decken
+können, empfiehlt miniEMS das Nachladen aus dem Netz.</p>
+<h3 id="wetterdaten-cache">Wetterdaten-Cache<a class="headerlink" href="#wetterdaten-cache" title="Permanent link">&para;</a></h3>
+<p><code>WeatherClient</code> ruft <code>weather.get_forecasts</code> (HA-Action-API) mit <code>type: daily</code>
+ab und cached das Ergebnis für <strong>30 Minuten</strong> — passend zur typischen
+Aktualisierungsrate der HA OpenWeatherMap-Integration.  Der Breitengrad der
+HA-Instanz wird einmalig von <code>http://supervisor/core/api/config</code> gelesen und
+für die Tageslängenberechnung gecacht.</p>
 <h2 id="internationalisation-i18n">Internationalisation (i18n)<a class="headerlink" href="#internationalisation-i18n" title="Permanent link">&para;</a></h2>
 <p>The dashboard and settings page are fully translated.  On each page request,
 <code>web_server.py</code> queries <code>http://supervisor/core/api/config</code> to determine the
