@@ -1,0 +1,1295 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A new project generated from the default template project.">
+      
+      
+        <meta name="author" content="<your name here>">
+      
+      
+      
+        <link rel="prev" href="../calculations/">
+      
+      
+        <link rel="next" href="../data-storage/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.24">
+    
+    
+      
+        <title>Configuration - Documentation</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.28978c9b.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../assets/stylesheets/modern/palette.dfe2e883.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,a=__md_scope)=>JSON.parse(t.getItem(a.pathname+"."+e)),__md_set=(e,t,a=localStorage,_=__md_scope)=>{try{a.setItem(_.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#configuration" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="Documentation" class="md-header__button md-logo" aria-label="Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Configuration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="Documentation" class="md-nav__button md-logo" aria-label="Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+
+    </a>
+    Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    miniEMS – Mini Energy Management System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calculations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calculations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#inverter-entities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inverter Entities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#octopus-energy-electricity-price" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Octopus Energy / Electricity Price
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ems-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EMS Parameters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#battery-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Battery Control
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Battery Control">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#inverter-control-entities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inverter Control Entities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mode-value-strings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mode Value Strings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mode-behaviour-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mode Behaviour Summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#forecast-prediction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forecast &amp; Prediction
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Forecast &amp; Prediction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-the-prediction-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the Prediction Works
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config Persistence
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-storage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Storage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../markdown/" class="md-nav__link">
+        
+  
+  
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M22.27 19.385H1.73A1.73 1.73 0 0 1 0 17.655V6.345a1.73 1.73 0 0 1 1.73-1.73h20.54A1.73 1.73 0 0 1 24 6.345v11.308a1.73 1.73 0 0 1-1.73 1.731zM5.769 15.923v-4.5l2.308 2.885 2.307-2.885v4.5h2.308V8.078h-2.308l-2.307 2.885-2.308-2.885H3.46v7.847zM21.232 12h-2.309V8.077h-2.307V12h-2.308l3.461 4.039z"/></svg>
+  
+  <span class="md-ellipsis">
+    
+  
+    Markdown in 5min
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home Assistant Sensors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#inverter-entities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inverter Entities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authentication
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#octopus-energy-electricity-price" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Octopus Energy / Electricity Price
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ems-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EMS Parameters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#battery-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Battery Control
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Battery Control">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#inverter-control-entities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inverter Control Entities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mode-value-strings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mode Value Strings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mode-behaviour-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mode Behaviour Summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#forecast-prediction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forecast &amp; Prediction
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Forecast &amp; Prediction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-the-prediction-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the Prediction Works
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config-persistence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config Persistence
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+<h1 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h1>
+<p>All options can be set via the <strong>Settings</strong> page in the miniEMS dashboard
+(click the Settings tab) or via the add-on <strong>Configuration</strong> page in Home
+Assistant.  Values are stored in <code>/data/config.json</code> and survive restarts,
+updates, and supervisor reloads.</p>
+<hr />
+<h2 id="inverter-entities">Inverter Entities<a class="headerlink" href="#inverter-entities" title="Permanent link">&para;</a></h2>
+<p>These entity IDs come from the <strong>ha-solarman</strong> integration.
+Open <strong>Developer Tools → States</strong> in HA and filter by <code>deye</code> to find your exact names.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pv_power_entity</code></td>
+<td>string</td>
+<td><code>sensor.deye_pv_total_power</code></td>
+<td>Total PV output power (W). Sum of all strings.</td>
+</tr>
+<tr>
+<td><code>battery_soc_entity</code></td>
+<td>string</td>
+<td><code>sensor.deye_battery_soc</code></td>
+<td>Battery state of charge (%).</td>
+</tr>
+<tr>
+<td><code>battery_power_entity</code></td>
+<td>string</td>
+<td><code>sensor.deye_battery_power</code></td>
+<td>Battery charge/discharge power (W, positive = charging).</td>
+</tr>
+<tr>
+<td><code>battery_voltage_entity</code></td>
+<td>string</td>
+<td><code>sensor.deye_battery_voltage</code></td>
+<td>Battery terminal voltage (V).</td>
+</tr>
+<tr>
+<td><code>grid_power_entity</code></td>
+<td>string</td>
+<td><code>sensor.deye_grid_power</code></td>
+<td>Grid power (W, positive = import from grid, negative = export).</td>
+</tr>
+<tr>
+<td><code>load_power_entity</code></td>
+<td>string</td>
+<td><code>sensor.deye_load_power</code></td>
+<td>House load power (W).</td>
+</tr>
+<tr>
+<td><code>battery_capacity_kwh</code></td>
+<td>float</td>
+<td><code>10.0</code></td>
+<td>Usable battery capacity in kWh (nameplate × usable fraction).</td>
+</tr>
+<tr>
+<td><code>battery_min_soc</code></td>
+<td>int (0–100)</td>
+<td><code>15</code></td>
+<td>Minimum SoC (%). The addon will not discharge below this and will switch to Battery Protection mode.</td>
+</tr>
+<tr>
+<td><code>battery_max_soc</code></td>
+<td>int (0–100)</td>
+<td><code>95</code></td>
+<td>Maximum SoC (%). Charging stops when reached.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>long_lived_token</code></td>
+<td>string</td>
+<td><em>(empty)</em></td>
+<td>HA long-lived access token. Used as fallback when the Supervisor token is rejected (401). Create one under <strong>Profile → Long-Lived Access Tokens</strong> in HA. Usually not needed.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="octopus-energy-electricity-price">Octopus Energy / Electricity Price<a class="headerlink" href="#octopus-energy-electricity-price" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>electricity_price_entity</code></td>
+<td>string</td>
+<td><code>sensor.octopus_energy_electricity_current_rate</code></td>
+<td>Current spot price (€/kWh). Any sensor with a numeric price in €/kWh works.</td>
+</tr>
+<tr>
+<td><code>cheap_rate_threshold_eur</code></td>
+<td>float</td>
+<td><code>0.10</code></td>
+<td>Grid charging is triggered when the price is <strong>below</strong> this value (€/kWh). Set to your typical off-peak rate.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="ems-parameters">EMS Parameters<a class="headerlink" href="#ems-parameters" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pv_surplus_threshold_w</code></td>
+<td>int</td>
+<td><code>200</code></td>
+<td>Minimum PV surplus over load (W) to switch into <strong>PV Charging</strong> mode. Prevents mode flip-flop on cloud shadows.</td>
+</tr>
+<tr>
+<td><code>update_interval_sec</code></td>
+<td>int (10–300)</td>
+<td><code>30</code></td>
+<td>How often the EMS decision loop runs and costs are accumulated (s).</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="battery-control">Battery Control<a class="headerlink" href="#battery-control" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Requires ha-solarman integration.</strong>
+Battery control is <strong>off by default</strong>. Enable <code>battery_control_enabled</code> only
+after verifying the entity names and mode values are correct.
+Use <strong>Simulation Mode</strong> first to test the logic without touching the inverter.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>battery_control_enabled</code></td>
+<td>bool</td>
+<td><code>false</code></td>
+<td>Enable active inverter control. When <code>false</code>, the addon only monitors and calculates; it does not send any commands to the inverter.</td>
+</tr>
+<tr>
+<td><code>battery_control_simulation</code></td>
+<td>bool</td>
+<td><code>true</code></td>
+<td><strong>Simulation mode</strong>: control commands are logged with <code>[SIM]</code> but <strong>not</strong> sent to HA. Safe for testing. A <code>SIM</code> badge appears in the dashboard.</td>
+</tr>
+<tr>
+<td><code>battery_max_charge_power_w</code></td>
+<td>int</td>
+<td><code>3000</code></td>
+<td>Maximum battery charging power (W). Must not exceed the inverter's rated charge capacity.</td>
+</tr>
+<tr>
+<td><code>battery_max_discharge_power_w</code></td>
+<td>int</td>
+<td><code>3000</code></td>
+<td>Maximum battery discharging power (W). Must not exceed the inverter's rated discharge capacity.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="inverter-control-entities">Inverter Control Entities<a class="headerlink" href="#inverter-control-entities" title="Permanent link">&para;</a></h3>
+<p>These are the ha-solarman entities the addon writes to when battery control is
+enabled.  Find them in <strong>Developer Tools → States</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inverter_work_mode_entity</code></td>
+<td>string</td>
+<td><code>select.deye_work_mode</code></td>
+<td>The <strong>select</strong> entity that controls the Deye inverter's operating mode. This is written by the addon to switch between self-use and grid-charge modes. Find it by searching for <code>work_mode</code> in HA states.</td>
+</tr>
+<tr>
+<td><code>inverter_charge_power_entity</code></td>
+<td>string</td>
+<td><code>number.deye_battery_charging_power</code></td>
+<td>The <strong>number</strong> entity that sets the maximum charging power (W). The addon writes this to cap or maximise the charge rate depending on the EMS mode.</td>
+</tr>
+<tr>
+<td><code>inverter_discharge_power_entity</code></td>
+<td>string</td>
+<td><code>number.deye_battery_discharging_power</code></td>
+<td>The <strong>number</strong> entity that sets the maximum discharging power (W). The addon sets this to <code>0</code> when it wants to prevent discharge (e.g. during grid charging or battery protection).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mode-value-strings">Mode Value Strings<a class="headerlink" href="#mode-value-strings" title="Permanent link">&para;</a></h3>
+<p>The Deye inverter's work mode is controlled via a <code>select</code> entity.
+The <strong>exact string values</strong> depend on your inverter model and firmware version.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inverter_charge_mode_charge</code></td>
+<td>string</td>
+<td><code>Charging Priority</code></td>
+<td>Value written to the work mode entity when the addon wants to <strong>charge from the grid</strong> (cheap rate). The inverter will draw from the grid to charge the battery. Common values: <code>"Charging Priority"</code>, <code>"Grid Charge"</code>.</td>
+</tr>
+<tr>
+<td><code>inverter_charge_mode_selfuse</code></td>
+<td>string</td>
+<td><code>Self-Use</code></td>
+<td>Value written to the work mode entity for <strong>normal operation</strong> (PV charging, self-use). The inverter uses PV first, then battery, then grid. Common values: <code>"Self-Use"</code>, <code>"Self Use"</code>.</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>How to find the correct values for your inverter:</strong>
+1. Open <strong>HA → Developer Tools → States</strong>
+2. Find your <code>select.deye_work_mode</code> entity
+3. In the entity's <strong>attributes</strong>, look for the <code>options</code> list
+4. Copy the exact strings for charge and self-use modes</p>
+<p>The values are <strong>case-sensitive</strong> and must match exactly what HA shows.</p>
+</blockquote>
+<h3 id="mode-behaviour-summary">Mode Behaviour Summary<a class="headerlink" href="#mode-behaviour-summary" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>EMS Mode</th>
+<th>Work Mode</th>
+<th>Charge Power</th>
+<th>Discharge Power</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Grid Charging</code></td>
+<td><code>inverter_charge_mode_charge</code></td>
+<td><code>battery_max_charge_power_w</code></td>
+<td><code>0</code> W (no discharge while grid-charging)</td>
+</tr>
+<tr>
+<td><code>PV Charging</code></td>
+<td><code>inverter_charge_mode_selfuse</code></td>
+<td><code>battery_max_charge_power_w</code></td>
+<td><code>battery_max_discharge_power_w</code></td>
+</tr>
+<tr>
+<td><code>Battery Protection</code></td>
+<td><code>inverter_charge_mode_selfuse</code></td>
+<td><code>battery_max_charge_power_w</code></td>
+<td><code>0</code> W (protect depleted battery)</td>
+</tr>
+<tr>
+<td><code>Idle</code></td>
+<td><code>inverter_charge_mode_selfuse</code></td>
+<td><code>battery_max_charge_power_w</code></td>
+<td><code>battery_max_discharge_power_w</code></td>
+</tr>
+</tbody>
+</table>
+<p>Commands are <strong>idempotent</strong>: the addon only sends a service call when the value
+actually changes, to avoid flooding the inverter with repeated writes.</p>
+<hr />
+<h2 id="forecast-prediction">Forecast &amp; Prediction<a class="headerlink" href="#forecast-prediction" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>Optional.</strong> If neither <code>outdoor_temp_entity</code> nor <code>openweathermap_api_key</code>
+are set, the prediction model falls back to a 30-day rolling median load —
+still useful for the <code>should_grid_charge</code> recommendation.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>outdoor_temp_entity</code></td>
+<td>string</td>
+<td><em>(empty)</em></td>
+<td>Optional HA sensor for outdoor temperature (°C). When set, the prediction model matches historical days with similar night temperatures for a more accurate load forecast. Example: <code>sensor.outdoor_temperature</code>.</td>
+</tr>
+<tr>
+<td><code>openweathermap_api_key</code></td>
+<td>string</td>
+<td><em>(empty)</em></td>
+<td>Free OpenWeatherMap API key. Register at <a href="https://openweathermap.org/api">openweathermap.org</a>. With the free tier (1 000 calls/day), the addon fetches a new forecast every 3 hours. Leave empty to disable weather forecast.</td>
+</tr>
+<tr>
+<td><code>openweathermap_lat</code></td>
+<td>float</td>
+<td><code>0.0</code></td>
+<td>Your latitude in decimal degrees (e.g. <code>51.5</code>). Find it in HA under <strong>Settings → System → General</strong>.</td>
+</tr>
+<tr>
+<td><code>openweathermap_lon</code></td>
+<td>float</td>
+<td><code>0.0</code></td>
+<td>Your longitude in decimal degrees (e.g. <code>7.4</code>).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="how-the-prediction-works">How the Prediction Works<a class="headerlink" href="#how-the-prediction-works" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>Load prediction</strong>: Finds historical days in the last 60 days where the
+   forecast night temperature is within ±4 °C of tonight's.
+   The <strong>median load</strong> of those days is used as the prediction.
+   Falls back to a 30-day rolling median when fewer than 3 matching days exist.</p>
+</li>
+<li>
+<p><strong>PV yield prediction</strong>: Takes the 75<sup>th</sup>-percentile peak PV power from the
+   last 14 days, scaled by today's cloud cover and day length.</p>
+</li>
+<li>
+<p><strong>Grid-charge recommendation</strong>:
+   <code>should_grid_charge = (usable_battery_kwh + predicted_pv_kwh) &lt; predicted_load_kwh</code>
+   When the recommendation is <code>false</code> and a reliable prediction exists, the
+   addon <strong>skips</strong> grid charging even during cheap rates — saving money when
+   the battery is already sufficient.
+   When <code>confidence = none</code> (not enough history yet), the addon always charges
+   during cheap rates (safe default).</p>
+</li>
+</ol>
+<hr />
+<h2 id="config-persistence">Config Persistence<a class="headerlink" href="#config-persistence" title="Permanent link">&para;</a></h2>
+<p>Settings survive:</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Mechanism</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Addon <strong>restart</strong></td>
+<td><code>/data/config.json</code> is read on startup</td>
+</tr>
+<tr>
+<td>Supervisor <strong>reload</strong> / <code>options.json</code> reset</td>
+<td><code>config.json</code> fallback wins over changed defaults</td>
+</tr>
+<tr>
+<td>Addon <strong>update</strong></td>
+<td>Schema migration runs automatically (v1 → v2 → v3)</td>
+</tr>
+</tbody>
+</table>
+<p>To fully reset to defaults, delete <code>/data/config.json</code> via the HA Terminal addon or SSH.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../calculations/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Calculations">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Calculations
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../data-storage/" class="md-footer__link md-footer__link--next" aria-label="Next: Data Storage">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Data Storage
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 The authors
+
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":["announce.dismiss","content.code.annotate","content.code.copy","content.code.select","content.footnote.tooltips","content.tabs.link","content.tooltips","navigation.footer","navigation.indexes","navigation.instant","navigation.instant.prefetch","navigation.path","navigation.sections","navigation.top","navigation.tracking","search.highlight"],"search":"../assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.16f8adc2.min.js"></script>
+      
+    
+  </body>
+</html>
