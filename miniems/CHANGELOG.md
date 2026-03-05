@@ -1,163 +1,97 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
-## 1.8.1
-
-### Bugfixes:
-- **Behobene Berechtigungen**: `run`-Skripte haben jetzt korrekte Ausführungsrechte im Docker-Container
-- **Optimierte Installation**: Verbesserte Dockerfile-Struktur für besseres Caching und schnellere Builds
-- **requirements.txt**: Python-Abhängigkeiten in separater Datei für optimiertes Layer-Caching
-
-### Technische Verbesserungen:
-- Dockerfile optimiert: Separate RUN-Layer für besseres Caching
-- requirements.txt hinzugefügt für bessere Build-Performance
-- Automatische Berechtigungsvergabe für run-Skripte und Python-Dateien im Container
-
-## 1.8.0
-
-### Neue Features:
-- **Grid Import/Export Trennung**: Separate Sensoren für Grid-Import und Grid-Export
-- **Sensor-Typ Konfiguration**: Checkboxen für jeden Sensor zur expliziten Konfiguration (täglich zurückgesetzt vs. kumulativ)
-- **Intelligente Auto-Erkennung**: Automatische Erkennung basierend auf Sensornamen ("today" = daily) und Tag-Grenzen
-- **Datenbank-Housekeeping**: Automatische Löschung alter Daten basierend auf konfigurierbarer Aufbewahrungsdauer
-
-### Technische Verbesserungen:
-- Separate Datenbankfelder für Grid-Import und Grid-Export
-- Konfigurierbare Sensor-Typen mit Fallback auf Auto-Erkennung
-- UI: Checkboxen mit Erklärungen für jeden Sensor
-- Automatische Erkennung: Sensorname (z.B. "today") und Tag-Grenzen-Analyse
-
-### Datenbank-Änderungen:
-- Migration 1.8.0: `grid_energy_kwh` aufgeteilt in `grid_import_energy_kwh` und `grid_export_energy_kwh`
-- Neue Konfigurationsfelder: `grid_import_energy_sensor_daily`, `grid_export_energy_sensor_daily`, etc.
-
-## 1.7.0
-
-### Neue Features:
-- **Energie-Sensoren statt Power-Sensoren**: Umstellung auf kumulative Energie-Sensoren (kWh) für genauere Berechnungen
-- **Automatische Sensor-Typ-Erkennung**: System erkennt automatisch, ob Sensoren kumulativ (total) oder täglich zurückgesetzt (daily) sind
-- **Automatische Einheiten-Umrechnung**: Unterstützt kWh, Wh (automatisch zu kWh) und MWh (automatisch zu kWh)
-- **Datenbank-Migrationssystem**: Versionsbasiertes System für Datenbank-Schema-Änderungen
-- **Robuste Berechnung**: Unterstützt sowohl kumulative als auch täglich zurückgesetzte Sensoren in derselben Installation
-
-### Technische Verbesserungen:
-- Umstellung von Power-Sensoren (Watt) auf Energie-Sensoren (kWh, kumulativ)
-- Automatische Erkennung von Sensor-Typen (total vs. daily) basierend auf historischen Daten
-- Automatische Normalisierung von Energie-Einheiten (Wh → kWh, MWh → kWh)
-- Verbesserte Kostenberechnung mit direkten Energie-Differenzen statt Zeitintegration
-- Migrationssystem für zukünftige Datenbank-Änderungen
-- Bereinigung alter Power-Sensor-Konfigurationen
-
-### Datenbank-Änderungen:
-- Neue Felder in `energy_readings`: `grid_energy_kwh`, `battery_charge_energy_kwh`, `battery_discharge_energy_kwh`, `pv_energy_kwh`, `house_energy_kwh`
-- Entfernte Felder: `grid_power`, `battery_power`, `pv_power`
-- Neue Tabelle: `schema_migrations` für Migrations-Tracking
-
-### Konfiguration:
-- Neue Optionen: `grid_energy_sensor`, `pv_energy_sensor`, `battery_charge_energy_sensor`, `battery_discharge_energy_sensor`, `house_energy_sensor`
-- Entfernte Optionen: `grid_power_sensor`, `pv_power_string1/2/3`, `battery_power_sensor`
-- Automatische Bereinigung alter Konfigurationsfelder
-
-### API-Änderungen:
-- `GET /api/sensors/energy` - Neue Endpunkt für Energie-Sensoren (ersetzt `/api/sensors/power`)
-
-### Migration:
-- Alte Datenbank wird automatisch migriert (alte Power-Daten werden gelöscht)
-- Alte Konfigurationsfelder werden automatisch bereinigt
-- Siehe [docs/migrations.md](../docs/migrations.md) für Details zum Migrationssystem
-
-## 1.6.0
-
-### Neue Features:
-- **Energiekosten-Management System**: Umfassende Kostenanalyse mit Vergleich mit/ohne Batterie-Strategie
-- **SQLite-Datenbank**: Persistente Speicherung historischer Sensordaten und Kostenberechnungen
-- **Grafische Visualisierung**: Chart.js-basierte Diagramme für Kostenvergleiche
-- **Flexible Batterie-Strategien**:
-  - Schwellwert-basierte Strategie (Preis unter Schwellwert)
-  - Zeitplan-basierte Strategie mit mehreren Zeitslots
-- **Zeitplan-Konfiguration**:
-  - Mehrere Zeitslots mit individuellen Preisen pro kWh
-  - Wochentage-Auswahl pro Zeitslot
-  - Automatische Validierung (Überschneidungen, Lücken)
-- **Home Assistant Sensoren**: Automatische Erstellung von Kosten-Sensoren als Entities
-- **Verbesserte Kostenberechnung**: Präzise Berechnung mit Zeitdifferenzen und korrekter Batterie-Logik
-- **Modulare Code-Struktur**: Refactoring in separate Module (config.py, database.py, cost_calculation.py, ha_integration.py, utils.py)
-- **UI-Verbesserungen**:
-  - Kompakterer Header mit Logo
-  - Verbesserte Navigation
-  - Neue Energiekosten-Seite
-
-### Technische Verbesserungen:
-- Refactoring der Python-Codebasis in modulare Struktur
-- Verbesserte Kostenberechnungslogik mit korrekter Zeitberechnung
-- Schedule-Validierung in utils.py zentralisiert
-- Atomare Datei-Schreibvorgänge für Konfiguration
-- Erweiterte API-Endpunkte für Kostenanalyse
-
-### API-Erweiterungen:
-- `GET /energy-costs` - Neue Energiekosten-Seite
-- `GET /api/energy-costs/compare` - Kostenvergleich für Zeitraum
-- `GET /api/energy-costs/sensors` - Liste aller Kosten-Sensoren
-- `POST /api/energy-costs/calculate` - Kosten berechnen
-- `POST /api/schedule/validate` - Zeitplan validieren
-
-### Konfiguration:
-- Neue Option: `battery_strategy_type` (threshold/schedule)
-- Neue Option: `schedule_config` (flexibler Zeitplan)
-- Neue Option: `update_interval` (Aktualisierungsintervall)
-
-## 1.5.0
-
-- Added electricity price sensor configuration option
-- Display electricity price sensor value on main dashboard
-- Added new API endpoint `/api/sensors/all` to get all sensors (for price sensor selection)
-- Updated configuration page to include electricity price sensor dropdown
-
-## 1.4.0
-
-- Replaced single PV Power sensor with three configurable PV Power Strings (String 1, 2, 3)
-- Added virtual PV Power Total sensor that automatically sums all configured strings
-- Fault-tolerant: Missing or unavailable strings are ignored (0 added)
-- Updated dashboard to display all three strings and total
-- Backward compatibility: Old `pv_power_sensor` config is automatically migrated to `pv_power_string1`
-
-## 1.3.1
-
-- Fixed configuration persistence issue - configuration now survives addon updates and restarts
-- Improved configuration loading with automatic sync from bashio to file
-- Added atomic file writes for configuration to prevent corruption
-- Added startup logging for configuration status
-
 ## 1.3.0
 
-- Added PV Power sensor configuration option
-- Display PV Power sensor value on main dashboard
-- Updated configuration page to include PV Power sensor selection
+### New Features
+- **Settings page** in the miniEMS dashboard: all config options are editable
+  in the browser; *Save & Restart* writes `/data/config.json` and triggers an
+  addon restart via the Supervisor API.
+- **Forecast & Prediction** (Phase 3):
+  - `weather_client.py`: fetches 24 h OpenWeatherMap forecast (8 × 3 h slots),
+    derives average night temperature, PV yield factor and day length.
+    Cache TTL: 3 hours.
+  - `consumption_model.py`: predicts today's load (temperature-matched
+    historical days → 30-day median fallback) and PV yield (75th-percentile
+    peak PV × cloud factor × daylight hours).
+  - Smart grid-charge gating: `GRID_CHARGING` mode is only triggered when the
+    model recommends it (`battery + predicted_pv < predicted_load`).
+    Falls back to always-charge during cheap rates when not enough history
+    exists (`confidence = none`).
+  - SQLite: new `peak_pv_w` and `avg_outdoor_temp_c` columns in `daily_stats`.
+- **2 new HA sensors**: `sensor.miniems_predicted_load_kwh`,
+  `sensor.miniems_predicted_pv_kwh` (MQTT + REST fallback).
+- **Confidence badge** on dashboard: `high` / `low` / `none`.
+- **SIM badge** on dashboard mode indicator when battery control is in
+  simulation mode.
 
-## 1.2.1
+### Config additions
+- `outdoor_temp_entity` – optional HA temperature sensor for historical matching
+- `openweathermap_api_key` – OWM API key (leave empty to disable forecast)
+- `openweathermap_lat` / `openweathermap_lon` – location for forecast queries
 
-- Improved error messages for API token issues
-- Updated documentation for development environment token requirements
+### Schema migration
+Config schema v2 → v3 (adds 4 new forecast fields with safe defaults).
+
+---
 
 ## 1.2.0
 
-- Added support for Long-Lived Access Token configuration
-- Added configuration page for sensor selection
-- Display configured sensor values on main dashboard
-- Implemented API endpoints for sensor listing and configuration management
+### New Features
+- **Battery control** (Phase 2): addon actively controls the Deye inverter via
+  HA service calls based on EMS mode.
+  - Sets inverter work mode, max charge power, and max discharge power.
+  - **Simulation mode** (`battery_control_simulation: true`, default): all
+    commands are logged as `[SIM]` but not executed. Safe for testing.
+  - **Idempotent**: service calls only sent when value actually changes.
+- **4 new config fields**: `battery_control_enabled`,
+  `battery_control_simulation`, `battery_max_charge_power_w`,
+  `battery_max_discharge_power_w`.
+- **5 new entity config fields**: `inverter_work_mode_entity`,
+  `inverter_charge_power_entity`, `inverter_discharge_power_entity`,
+  `inverter_charge_mode_charge`, `inverter_charge_mode_selfuse`.
+- **2 new HA sensors**: `sensor.miniems_charge_power_limit_w`,
+  `sensor.miniems_discharge_power_limit_w` (MQTT + REST).
+
+### Schema migration
+Config schema v1 → v2 (adds battery control fields with safe defaults).
+
+---
 
 ## 1.1.0
 
-- Added configuration page for sensor selection
-- Added three sensor dropdowns: Grid Power, Battery Power, Battery SOC
-- Added sensor value display on main page
-- Integrated Home Assistant API for sensor data
-- Auto-refresh of sensor values every 5 seconds
-- Filter sensors by type (power, SOC)
+### New Features
+- **MQTT Discovery**: sensors published via MQTT with `unique_id`, device
+  grouping and long-term statistics support. Falls back to REST when Mosquitto
+  is not installed.
+- **SQLite persistence** (`/data/miniems.db`): daily stats survive restarts.
+  Running totals restored from DB on startup — values no longer reset to 0.
+- **7 new HA sensors**: `today_load_total_kwh`, `today_load_cost_eur`,
+  `month_grid_cost_eur`, `month_pv_savings_eur`, `month_load_cost_eur`,
+  `year_grid_cost_eur`, `year_pv_savings_eur`.
+- VS Code task "Update and Start Addon" for fast code-only redeployment.
+
+### Bugfixes
+- Entity IDs were doubling the device name prefix
+  (`sensor.miniems_miniems_…`) — fixed by using short sensor names in MQTT
+  Discovery and relying on HA's device-name prepending.
+
+---
+
+## 1.0.1
+
+### Bugfixes
+- Rebuild / Update VS Code tasks now patch `homeassistant_api` and
+  `services: mqtt:need` into the supervisor in-memory cache to work around
+  a supervisor bug in dev builds.
+
+---
 
 ## 1.0.0
 
-- Initial release
-- Added FastAPI and Uvicorn web server
-- Added Hello World web interface
-- Integrated Home Assistant Ingress for web UI access
-- Web interface accessible through Home Assistant menu
+- Initial release of miniEMS
+- WebSocket client for live HA entity states (no polling)
+- EMS decision logic: Idle / PV Charging / Grid Charging / Battery Protection
+- Cost accounting: grid import cost, PV savings, grid import kWh, PV used kWh
+- Weekly aggregated cost/savings sensors
+- FastAPI ingress dashboard with auto-refresh
+- Config persistence with schema migration (`options.json` → `config.json`)

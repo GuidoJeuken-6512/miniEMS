@@ -10,7 +10,7 @@
 | Python | 3.12 (Alpine in container) |
 
 The workspace is mounted into the HA Supervisor at
-`/data/addons/local/testEMS/miniems/`.
+`/data/addons/local/miniEMS/miniems/`.
 
 ## VSCode Tasks
 

@@ -13,6 +13,9 @@ Thumbs.db
 .vscode/settings.json
 .idea/
 
+# Python
+.venv/
+
 # Temporary files
 *.tmp
 *.log
