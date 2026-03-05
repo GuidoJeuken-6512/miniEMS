@@ -4,16 +4,16 @@
 
 ## Features
 
-| Feature | Details |
-|---|---|
-| Mode control | Idle / PV Charging / Grid Charging / Battery Protection |
-| Cost tracking | Daily & weekly grid cost and PV savings in € |
-| HA sensors | Sensors published under the `sensor.miniems_*` prefix |
-| Web dashboard | Ingress panel auto-refreshing every 5 s |
-| Forecast & prediction | Load and PV yield forecast via `weather.get_forecasts` HA action |
-| i18n | Dashboard and settings fully translated (de / en, auto-detected from HA) |
-| Config persistence | Settings survive supervisor reloads via `/data/config.json` |
-| Token fallback | SUPERVISOR_TOKEN → Long-lived token on 401 |
+| Feature               | Details                                                                  |
+| --------------------- | ------------------------------------------------------------------------ |
+| Mode control          | Idle / PV Charging / Grid Charging / Battery Protection                  |
+| Cost tracking         | Daily & weekly grid cost and PV savings in €                             |
+| HA sensors            | Sensors published under the `sensor.miniems_*` prefix                    |
+| Web dashboard         | Ingress panel auto-refreshing every 5 s                                  |
+| Forecast & prediction | Load and PV yield forecast via `weather.get_forecasts` HA action         |
+| i18n                  | Dashboard and settings fully translated (de / en, auto-detected from HA) |
+| Config persistence    | Settings survive supervisor reloads via `/data/config.json`              |
+| Token fallback        | SUPERVISOR_TOKEN → Long-lived token on 401                               |
 
 ## Quick Start
 
@@ -30,3 +30,8 @@
 - [Configuration](configuration.md) — all configuration options explained
 - [HA Sensors](sensors.md) — sensors published to Home Assistant
 - [Development](development.md) — dev environment, rebuild workflow, debugging
+
+## Source Code
+
+The project is hosted on GitHub:
+[github.com/GuidoJeuken-6512/miniEMS](https://github.com/GuidoJeuken-6512/miniEMS)
