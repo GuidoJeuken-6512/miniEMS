@@ -6,10 +6,10 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="A new project generated from the default template project.">
+        <meta name="description" content="miniEMS – Mini Energy Management System for Home Assistant. Manages Deye solar inverters with dynamic electricity tariffs.">
       
       
-        <meta name="author" content="<your name here>">
+        <meta name="author" content="miniEMS contributors">
       
       
       
@@ -25,7 +25,7 @@
     
     
       
-        <title>Home Assistant Sensors - Documentation</title>
+        <title>Home Assistant Sensors - miniEMS Documentation</title>
       
     
     
@@ -97,7 +97,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./.." title="Documentation" class="md-header__button md-logo" aria-label="Documentation" data-md-component="logo">
+    <a href="./.." title="miniEMS Documentation" class="md-header__button md-logo" aria-label="miniEMS Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -111,7 +111,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Documentation
+            miniEMS Documentation
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -196,13 +196,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./.." title="Documentation" class="md-nav__button md-logo" aria-label="Documentation" data-md-component="logo">
+    <a href="./.." title="miniEMS Documentation" class="md-nav__button md-logo" aria-label="miniEMS Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Documentation
+    miniEMS Documentation
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -780,10 +780,8 @@
 <h1 id="home-assistant-sensors">Home Assistant Sensors<a class="headerlink" href="#home-assistant-sensors" title="Permanent link">&para;</a></h1>
 <p>miniEMS publishes <strong>21 sensor entities</strong> to Home Assistant after every EMS
 tick.  All entity IDs use the prefix <code>sensor.miniems_</code>.</p>
-<p>Sensors are published via <strong>MQTT Discovery</strong> (requires the Mosquitto broker
-add-on) which gives every entity a <code>unique_id</code>, device grouping, and
-long-term statistics support.  When MQTT is unavailable, the addon falls back
-to the HA REST API (<code>POST /api/states/…</code>).</p>
+<p>Sensors are published via the HA REST API (<code>POST /api/states/…</code>) after every
+EMS tick using the <code>SUPERVISOR_TOKEN</code>.</p>
 <blockquote>
 <p><strong>Design decision</strong>: Only addon-<em>calculated</em> values are published.
 Input sensors (PV power, load, grid, battery SoC, price) already exist

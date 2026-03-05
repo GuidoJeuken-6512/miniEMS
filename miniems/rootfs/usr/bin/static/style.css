@@ -1,3 +1,158 @@
+/* miniEMS blue theme based on provided screenshot */
+
+body {
+  font-family: system-ui, sans-serif;
+  background: linear-gradient(180deg, #00aaff 0%, #0077cc 100%);
+  color: #222;
+  min-height: 100vh;
+  padding: 1.5rem;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+h1 {
+  font-size: 2.2rem;
+  color: #0099ff;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.version-badge {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: monospace;
+  background: #fff;
+  color: #0099ff;
+  border: 1px solid #b3e0ff;
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  letter-spacing: 0.03em;
+}
+
+.tab-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 2px solid #b3e0ff;
+  padding-bottom: 0.5rem;
+  background: none;
+}
+.tab-link {
+  text-decoration: none;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #0077cc;
+  padding: 0.3rem 1.2rem;
+  border-radius: 8px 8px 0 0;
+  background: none;
+  transition: background 0.2s, color 0.2s;
+}
+.tab-link:hover { color: #fff; background: #0099ff; }
+.tab-link.active { color: #fff; background: #0099ff; }
+
+.grid, .savings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1.2rem;
+  margin-bottom: 1.5rem;
+}
+
+.card, .savings-card, .settings-section {
+  background: #fff;
+  border: 1px solid #b3e0ff;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0,128,255,0.07);
+  padding: 1.2rem;
+}
+.card .label, .savings-card .slabel {
+  font-size: 0.95rem;
+  color: #0077cc;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+.card .value, .savings-card .svalue {
+  font-size: 2.1rem;
+  font-weight: 700;
+  margin-top: 0.25rem;
+  color: #0099ff;
+}
+.card .unit {
+  font-size: 1rem;
+  color: #0077cc;
+}
+.savings-card .svalue.negative { color: #ff3b3b; }
+.savings-card .svalue.muted { color: #888; }
+.savings-card .svalue { color: #0099ff; }
+
+.section-title {
+  font-size: 1.1rem;
+  color: #0077cc;
+  margin-bottom: 0.75rem;
+  font-weight: 700;
+}
+
+.mode-badge {
+  display: inline-block;
+  padding: 0.5rem 1.2rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
+  background: #fff;
+  color: #0099ff;
+  border: 2px solid #b3e0ff;
+}
+.mode-PV { background: #e0f7fa; color: #009688; }
+.mode-GRID { background: #e3f2fd; color: #1976d2; }
+.mode-PROTECT { background: #ffebee; color: #d32f2f; }
+.mode-IDLE { background: #fff; color: #0099ff; }
+
+.refresh-hint {
+  font-size: 0.95rem;
+  color: #0077cc;
+  margin-bottom: 1rem;
+}
+footer {
+  font-size: 0.95rem;
+  color: #0077cc;
+  margin-top: 2rem;
+}
+
+.btn-save {
+  background: #0099ff;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.6rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-save:hover:not(:disabled) { background: #0077cc; }
+
+.save-msg { font-size: 1rem; color: #0077cc; }
+.save-msg.ok { color: #009688; }
+.save-msg.err { color: #d32f2f; }
+
+/* Toggle switch */
+.toggle-slider { background: #b3e0ff; }
+.toggle input:checked + .toggle-slider { background: #0099ff; }
+.toggle input:checked + .toggle-slider:before { background: #fff; }
+
+/* Custom scrollbar for blue theme */
+::-webkit-scrollbar { width: 10px; background: #b3e0ff; }
+::-webkit-scrollbar-thumb { background: #0099ff; border-radius: 8px; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {

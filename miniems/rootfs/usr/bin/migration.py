@@ -29,6 +29,12 @@ def migrate(data: dict) -> dict:
     if version < 3:
         data = _v2_to_v3(data)
 
+    if version < 4:
+        data = _v3_to_v4(data)
+
+    if version < 5:
+        data = _v4_to_v5(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -77,4 +83,35 @@ def _v2_to_v3(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v2→v3: set %s = %r", key, default)
+    return data
+
+
+def _v4_to_v5(data: dict) -> dict:
+    """v4 → v5: replace sensor entity fields with single weather entity."""
+    if "weather_entity" not in data:
+        data["weather_entity"] = "weather.openweathermap"
+        _LOGGER.info("Migration v4→v5: set weather_entity = %r", data["weather_entity"])
+    for key in ("weather_temperature_entity", "weather_cloud_coverage_entity"):
+        if key in data:
+            data.pop(key)
+            _LOGGER.info("Migration v4→v5: removed %s", key)
+    return data
+
+
+def _v3_to_v4(data: dict) -> dict:
+    """v3 → v4: replace OWM API fields with HA sensor entity fields."""
+    # Migrate outdoor_temp_entity → weather_temperature_entity
+    if "weather_temperature_entity" not in data:
+        old = data.pop("outdoor_temp_entity", "")
+        data["weather_temperature_entity"] = old or "sensor.openweathermap_temperature"
+        _LOGGER.info("Migration v3→v4: outdoor_temp_entity → weather_temperature_entity = %r", data["weather_temperature_entity"])
+    # Add cloud coverage entity
+    if "weather_cloud_coverage_entity" not in data:
+        data["weather_cloud_coverage_entity"] = "sensor.openweathermap_cloud_coverage"
+        _LOGGER.info("Migration v3→v4: set weather_cloud_coverage_entity = %r", data["weather_cloud_coverage_entity"])
+    # Remove old OWM API fields
+    for key in ("openweathermap_api_key", "openweathermap_lat", "openweathermap_lon"):
+        if key in data:
+            data.pop(key)
+            _LOGGER.info("Migration v3→v4: removed %s", key)
     return data

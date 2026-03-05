@@ -6,10 +6,10 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="A new project generated from the default template project.">
+        <meta name="description" content="miniEMS – Mini Energy Management System for Home Assistant. Manages Deye solar inverters with dynamic electricity tariffs.">
       
       
-        <meta name="author" content="<your name here>">
+        <meta name="author" content="miniEMS contributors">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Development - Documentation</title>
+        <title>Development - miniEMS Documentation</title>
       
     
     
@@ -99,7 +99,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./.." title="Documentation" class="md-header__button md-logo" aria-label="Documentation" data-md-component="logo">
+    <a href="./.." title="miniEMS Documentation" class="md-header__button md-logo" aria-label="miniEMS Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -113,7 +113,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Documentation
+            miniEMS Documentation
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -198,13 +198,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./.." title="Documentation" class="md-nav__button md-logo" aria-label="Documentation" data-md-component="logo">
+    <a href="./.." title="miniEMS Documentation" class="md-nav__button md-logo" aria-label="miniEMS Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Documentation
+    miniEMS Documentation
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -492,6 +492,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Debugging">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#test-weather-forecast-manually" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test weather forecast manually
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -677,6 +694,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Debugging">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#test-weather-forecast-manually" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test weather forecast manually
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -798,30 +832,47 @@ supervisor container. A full HA restart permanently fixes this.</p>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>├── config.yaml                   # Add-on manifest
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>├── Dockerfile                    # Build instructions
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>├── requirements.txt              # Python dependencies
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>├── docs/                         # This documentation
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>└── rootfs/
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    └── usr/
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>        └── bin/
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>            ├── main.py           # Entry point
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>            ├── config_loader.py  # Config + migration
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>            ├── migration.py      # Schema migrations
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>            ├── ha_ws_client.py   # HA state reader
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>            ├── ha_sensor_publisher.py  # HA state writer
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>            ├── ems_controller.py # Mode decision logic
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>            ├── cost_optimizer.py # Cost/savings accumulator
-</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>            ├── web_server.py     # FastAPI dashboard
-</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>            ├── templates/
-</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>            │   └── dashboard.html
-</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>            └── static/
-</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>                └── style.css
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>├── translations/                 # UI translation source files
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>│   ├── de.yaml
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>│   └── en.yaml
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>└── rootfs/
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    └── usr/
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>        └── bin/
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>            ├── main.py                    # Entry point
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>            ├── const.py                   # Shared constants &amp; EMSMode enum
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>            ├── config_loader.py           # Config + migration runner
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>            ├── migration.py               # Schema migrations (v0→v5)
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>            ├── ha_ws_client.py            # HA state reader (REST poll)
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>            ├── ha_sensor_publisher.py     # HA state writer (REST POST)
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>            ├── ems_controller.py          # Mode decision logic
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>            ├── cost_optimizer.py          # Cost/savings accumulator
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>            ├── consumption_model.py       # Load &amp; PV yield prediction
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>            ├── weather_client.py          # weather.get_forecasts client
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>            ├── inverter_controller.py     # Inverter work-mode &amp; power control
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>            ├── store.py                   # SQLite daily energy history
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>            ├── web_server.py              # FastAPI dashboard + i18n
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>            ├── translations/              # UI strings (copied from source)
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>            │   ├── de.yaml
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>            │   └── en.yaml
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>            ├── templates/
+</span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a>            │   ├── dashboard.html         # Dashboard (Jinja2 + JS)
+</span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a>            │   └── settings.html          # Settings page
+</span><span id="__span-1-30"><a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>            └── static/
+</span><span id="__span-1-31"><a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a>                ├── style.css
+</span><span id="__span-1-32"><a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a>                └── icon.svg
 </span></code></pre></div>
 <h2 id="adding-a-new-config-field">Adding a New Config Field<a class="headerlink" href="#adding-a-new-config-field" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Add the field (with default) to the <code>Config</code> dataclass in <code>config_loader.py</code></li>
 <li>Add it to <code>options:</code> and <code>schema:</code> in <code>config.yaml</code></li>
 <li>If renaming or transforming an existing field, add a migration step in
-   <code>migration.py</code> and increment <code>CURRENT_VERSION</code></li>
+   <code>migration.py</code>, increment <code>CONFIG_SCHEMA_VERSION</code> in <code>const.py</code>, and add
+   the new migration function to the <code>_MIGRATIONS</code> chain</li>
 </ol>
+<blockquote>
+<p>The current schema version is <strong>v5</strong>.  The migration chain is:
+<code>v0→v1→v2→v3→v4→v5</code></p>
+</blockquote>
 <h2 id="adding-a-new-ha-sensor">Adding a New HA Sensor<a class="headerlink" href="#adding-a-new-ha-sensor" title="Permanent link">&para;</a></h2>
 <p>Add a tuple to the <code>_SENSORS</code> list in <code>ha_sensor_publisher.py</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">(</span>
@@ -852,6 +903,17 @@ supervisor container. A full HA restart permanently fixes this.</p>
 </span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="c1"># Check persisted config</span>
 </span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>addon_local_miniems<span class="w"> </span>cat<span class="w"> </span>/data/config.json
 </span></code></pre></div>
+<h3 id="test-weather-forecast-manually">Test weather forecast manually<a class="headerlink" href="#test-weather-forecast-manually" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># From inside the container – replace TOKEN and ENTITY as needed</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nv">TOKEN</span><span class="o">=</span><span class="k">$(</span>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>addon_local_miniems<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;echo $SUPERVISOR_TOKEN&#39;</span><span class="k">)</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>addon_local_miniems<span class="w"> </span>wget<span class="w"> </span>-qO-<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>--header<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$TOKEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span>--header<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span>--post-data<span class="w"> </span><span class="s1">&#39;{&quot;entity_id&quot;:&quot;weather.openweathermap&quot;,&quot;type&quot;:&quot;daily&quot;}&#39;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="s2">&quot;http://hassio/homeassistant/api/services/weather/get_forecasts?return_response=true&quot;</span>
+</span></code></pre></div>
+<p>A successful response contains <code>service_response → weather.openweathermap → forecast</code>.</p>
+<hr />
 <h2 id="known-supervisor-dev-issue">Known Supervisor Dev Issue<a class="headerlink" href="#known-supervisor-dev-issue" title="Permanent link">&para;</a></h2>
 <p>The Supervisor version <code>2026.03.0.dev</code> does not update the in-memory addon
 config from <code>config.yaml</code> on <code>ha supervisor reload</code>. Workaround:</p>

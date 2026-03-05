@@ -53,15 +53,12 @@ class Config:
     inverter_charge_mode_selfuse: str = "Self-Use"
     battery_max_charge_power_w: int = 3000
     battery_max_discharge_power_w: int = 3000
-    # Forecast / Prediction (Phase 3)
-    outdoor_temp_entity: str = ""
-    openweathermap_api_key: str = ""
-    openweathermap_lat: float = 0.0
-    openweathermap_lon: float = 0.0
+    # Forecast / Prediction (Phase 5)
+    weather_entity: str = "weather.openweathermap"
 
     @property
     def monitored_entities(self) -> list[str]:
-        entities = [
+        return [
             self.pv_power_entity,
             self.battery_soc_entity,
             self.battery_power_entity,
@@ -70,9 +67,6 @@ class Config:
             self.load_power_entity,
             self.electricity_price_entity,
         ]
-        if self.outdoor_temp_entity:
-            entities.append(self.outdoor_temp_entity)
-        return entities
 
 
 def _defaults() -> dict:
@@ -101,13 +95,12 @@ def load_config() -> Config:
 
     merged: dict = {}
     for key in defs:
-        opt_val = options.get(key)
-        if opt_val is None:
-            opt_val = ""
+        opt_val = options.get(key)  # None = key not present in options.json
 
-        # options.json wins when the user explicitly changed the value
-        # (i.e. it differs from the dataclass default)
-        if opt_val != defs[key]:
+        # options.json wins only when the key is explicitly present AND differs
+        # from the dataclass default (i.e. the user actively changed it via UI).
+        # A missing key (None) must NOT win over a previously saved value.
+        if opt_val is not None and opt_val != defs[key]:
             merged[key] = opt_val
         else:
             # Fall back to persisted value; use default if not yet stored

@@ -6,10 +6,10 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="A new project generated from the default template project.">
+        <meta name="description" content="miniEMS – Mini Energy Management System for Home Assistant. Manages Deye solar inverters with dynamic electricity tariffs.">
       
       
-        <meta name="author" content="<your name here>">
+        <meta name="author" content="miniEMS contributors">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Architecture - Documentation</title>
+        <title>Architecture - miniEMS Documentation</title>
       
     
     
@@ -99,7 +99,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./.." title="Documentation" class="md-header__button md-logo" aria-label="Documentation" data-md-component="logo">
+    <a href="./.." title="miniEMS Documentation" class="md-header__button md-logo" aria-label="miniEMS Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -113,7 +113,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Documentation
+            miniEMS Documentation
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -198,13 +198,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./.." title="Documentation" class="md-nav__button md-logo" aria-label="Documentation" data-md-component="logo">
+    <a href="./.." title="miniEMS Documentation" class="md-nav__button md-logo" aria-label="miniEMS Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Documentation
+    miniEMS Documentation
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -341,6 +341,17 @@
     <span class="md-ellipsis">
       
         Authentication Flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#internationalisation-i18n" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internationalisation (i18n)
       
     </span>
   </a>
@@ -590,6 +601,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#internationalisation-i18n" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internationalisation (i18n)
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -615,31 +637,32 @@
 
 <h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h1>
 <h2 id="component-overview">Component Overview<a class="headerlink" href="#component-overview" title="Permanent link">&para;</a></h2>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌─────────────────────────────────────────────────────┐
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│                   miniEMS Add-on                    │
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│                                                     │
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│  ┌─────────────┐    ┌──────────────┐               │
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│  │HAWebSocket  │    │  EMS Loop    │               │
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│  │Client       │───▶│  (30 s tick) │               │
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>│  │(REST poll)  │    └──────┬───────┘               │
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>│  └─────────────┘           │                       │
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>│                            ▼                       │
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>│                   ┌────────────────┐               │
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>│                   │ EMSController  │               │
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>│                   │ + CostOptimizer│               │
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>│                   └───────┬────────┘               │
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>│                           │ status_store {}        │
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>│              ┌────────────┴────────────┐           │
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>│              ▼                         ▼           │
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>│  ┌─────────────────┐      ┌──────────────────────┐ │
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>│  │HASensorPublisher│      │  FastAPI / Uvicorn   │ │
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>│  │(REST POST)      │      │  Ingress Dashboard   │ │
-</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>│  └────────┬────────┘      └──────────────────────┘ │
-</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>└───────────┼─────────────────────────────────────────┘
-</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>            │
-</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>            ▼
-</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>   HA Core API  (http://hassio/homeassistant/api)
-</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>   sensor.miniems_* entities
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌───────────────────────────────────────────────────────────┐
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>│                      miniEMS Add-on                       │
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>│                                                           │
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>│  ┌─────────────┐    ┌──────────────────────────────────┐ │
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>│  │HAWebSocket  │    │          EMS Loop (30 s tick)    │ │
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>│  │Client       │───▶│  EMSController                   │ │
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>│  │(REST poll)  │    │  + CostOptimizer                 │ │
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>│  └─────────────┘    │  + ConsumptionModel              │ │
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>│                     └──────────────┬─────────────────── ┘ │
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>│  ┌──────────────┐                  │                      │
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>│  │WeatherClient │──────────────────┘                      │
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>│  │(HA forecast  │   weather.get_forecasts (daily, 30 m)   │
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>│  │ action API)  │                                         │
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>│  └──────────────┘                                         │
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>│                        status_store {}                     │
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>│              ┌─────────────────────────────┐              │
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>│              ▼                             ▼              │
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>│  ┌─────────────────┐      ┌───────────────────────────┐  │
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>│  │HASensorPublisher│      │  FastAPI / Uvicorn        │  │
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>│  │(REST POST)      │      │  Ingress Dashboard        │  │
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>│  └────────┬────────┘      │  (de/en i18n via YAML)    │  │
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>└───────────┼───────────────┴───────────────────────────┘  │
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>            │
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>            ▼
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>   HA Core API  (http://hassio/homeassistant/api)
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>   sensor.miniems_* entities
 </span></code></pre></div>
 <h2 id="modules">Modules<a class="headerlink" href="#modules" title="Permanent link">&para;</a></h2>
 <table>
@@ -660,7 +683,11 @@
 </tr>
 <tr>
 <td><code>migration.py</code></td>
-<td>Schema version migrations for <code>config.json</code></td>
+<td>Schema version migrations for <code>config.json</code> (v0 → v5)</td>
+</tr>
+<tr>
+<td><code>const.py</code></td>
+<td>Shared constants: <code>EMSMode</code> enum, schema version, API URLs</td>
 </tr>
 <tr>
 <td><code>ha_ws_client.py</code></td>
@@ -675,20 +702,48 @@
 <td>Accumulates daily/weekly energy cost &amp; savings</td>
 </tr>
 <tr>
+<td><code>consumption_model.py</code></td>
+<td>Predicts load &amp; PV yield; recommends grid-charge</td>
+</tr>
+<tr>
+<td><code>weather_client.py</code></td>
+<td>Calls <code>weather.get_forecasts</code> HA action; 30-min cache</td>
+</tr>
+<tr>
+<td><code>store.py</code></td>
+<td>SQLite persistence for daily energy history</td>
+</tr>
+<tr>
 <td><code>ha_sensor_publisher.py</code></td>
-<td>Pushes 13 computed sensor states to HA Core</td>
+<td>Pushes computed sensor states to HA Core</td>
+</tr>
+<tr>
+<td><code>inverter_controller.py</code></td>
+<td>Writes work-mode &amp; power-limit entities to the inverter</td>
 </tr>
 <tr>
 <td><code>web_server.py</code></td>
-<td>FastAPI app; serves ingress dashboard + <code>/api/status</code></td>
+<td>FastAPI app; serves ingress dashboard + <code>/api/status</code>; i18n</td>
 </tr>
 <tr>
 <td><code>templates/dashboard.html</code></td>
-<td>Dashboard HTML (Jinja2 template)</td>
+<td>Dashboard HTML (Jinja2 + JS; translations via <code>T</code> object)</td>
+</tr>
+<tr>
+<td><code>templates/settings.html</code></td>
+<td>Settings page HTML</td>
 </tr>
 <tr>
 <td><code>static/style.css</code></td>
 <td>Dashboard CSS</td>
+</tr>
+<tr>
+<td><code>translations/de.yaml</code></td>
+<td>German UI strings</td>
+</tr>
+<tr>
+<td><code>translations/en.yaml</code></td>
+<td>English UI strings</td>
 </tr>
 </tbody>
 </table>
@@ -713,6 +768,20 @@ starting, preventing the EMS from running on stale/empty state.</p>
 </span></code></pre></div>
 <p>Both <code>HAWebSocketClient</code> (reads) and <code>HASensorPublisher</code> (writes) implement
 this fallback independently so each can switch tokens at runtime.</p>
+<p>The <code>SUPERVISOR_TOKEN</code> is also used by:</p>
+<ul>
+<li><code>WeatherClient</code> — to call <code>weather.get_forecasts</code> and fetch HA instance latitude</li>
+<li><code>web_server.py</code> — to query <code>http://supervisor/core/api/config</code> for the HA
+  language setting (de/en auto-detection)</li>
+</ul>
+<h2 id="internationalisation-i18n">Internationalisation (i18n)<a class="headerlink" href="#internationalisation-i18n" title="Permanent link">&para;</a></h2>
+<p>The dashboard and settings page are fully translated.  On each page request,
+<code>web_server.py</code> queries <code>http://supervisor/core/api/config</code> to determine the
+HA language (<code>language</code> field).  The corresponding YAML file
+(<code>translations/de.yaml</code> or <code>translations/en.yaml</code>) is loaded and injected
+into both Jinja2 templates and the JavaScript <code>const T</code> object so that
+dynamically rendered cards are also translated.</p>
+<p>Fallback order: HA Supervisor API → <code>Accept-Language</code> header → English.</p>
 
 
 

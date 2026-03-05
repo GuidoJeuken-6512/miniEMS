@@ -74,9 +74,9 @@ async def main() -> None:
         sim_txt = " (SIMULATION)" if cfg.battery_control_simulation else ""
         _LOGGER.info("Battery control enabled%s", sim_txt)
 
-    weather_client = WeatherClient(cfg.openweathermap_api_key, cfg.openweathermap_lat, cfg.openweathermap_lon)
+    weather_client = WeatherClient(cfg.weather_entity, supervisor_token)
     if weather_client.enabled:
-        _LOGGER.info("OpenWeatherMap forecast enabled (lat=%.2f lon=%.2f)", cfg.openweathermap_lat, cfg.openweathermap_lon)
+        _LOGGER.info("Weather forecast enabled (%s)", cfg.weather_entity)
     consumption_model = ConsumptionModel(cfg, store, weather_client if weather_client.enabled else None)
 
     controller = EMSController(cfg, ws_client, cost_optimizer, inverter, consumption_model)

@@ -2,6 +2,7 @@
 
 HTML lives in templates/, CSS in static/style.css.
 """
+
 import asyncio
 import json
 import logging
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
+import yaml
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -22,6 +24,45 @@ _LOGGER = logging.getLogger(__name__)
 
 _DIR = Path(__file__).parent
 _TEMPLATES = Jinja2Templates(directory=str(_DIR / "templates"))
+
+
+async def get_ha_language(request: Request) -> str:
+    """Determine UI language from HA Supervisor API or Accept-Language header."""
+    supervisor_token = getattr(request.app.state, "supervisor_token", "")
+    if supervisor_token:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    "http://supervisor/core/api/config",
+                    headers={"Authorization": f"Bearer {supervisor_token}"},
+                    timeout=aiohttp.ClientTimeout(total=3),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        lang = data.get("language", "en")
+                        if lang not in ("de", "en"):
+                            lang = "en"
+                        return lang
+        except Exception:
+            pass
+    # Fallback: Accept-Language header
+    accept = request.headers.get("accept-language", "")
+    if accept:
+        lang = accept.split(",")[0].split("-")[0]
+        if lang in ("de", "en"):
+            return lang
+    return "en"
+
+
+def load_translations(lang: str) -> dict:
+    tfile = _DIR / 'translations' / f'{lang}.yaml'
+    if not tfile.exists():
+        tfile = _DIR / 'translations' / 'en.yaml'
+    try:
+        with open(tfile, encoding='utf-8') as f:
+            return yaml.safe_load(f) or {}
+    except Exception:
+        return {}
 
 # Config field type map for coercion
 _BOOL_FIELDS = {"battery_control_enabled", "battery_control_simulation"}
@@ -61,6 +102,7 @@ def create_app(
 ) -> FastAPI:
     """Create FastAPI app; status_store is the shared dict updated by EMS loop."""
     app = FastAPI(title="miniEMS", docs_url=None, redoc_url=None)
+    app.state.supervisor_token = supervisor_token
 
     app.mount("/static", StaticFiles(directory=str(_DIR / "static")), name="static")
 
@@ -68,8 +110,10 @@ def create_app(
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request) -> HTMLResponse:
+        lang = await get_ha_language(request)
+        translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            "dashboard.html", {"request": request, "version": VERSION}
+            "dashboard.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/api/status")
@@ -80,8 +124,10 @@ def create_app(
 
     @app.get("/settings", response_class=HTMLResponse)
     async def settings_page(request: Request) -> HTMLResponse:
+        lang = await get_ha_language(request)
+        translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            "settings.html", {"request": request, "version": VERSION}
+            "settings.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/api/config")

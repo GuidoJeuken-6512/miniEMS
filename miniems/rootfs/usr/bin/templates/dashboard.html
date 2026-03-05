@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,18 +8,21 @@
 </head>
 <body>
   <header>
-    <h1>&#9889; miniEMS Dashboard</h1>
+    <img src="static/icon.svg" alt="miniEMS" style="height:2.2rem;width:2.2rem;vertical-align:middle;">
+    <h1>{{ translations.ui_title or 'miniEMS Dashboard' }}</h1>
     <span class="version-badge">v{{ version }}</span>
   </header>
   <nav class="tab-nav">
-    <a href="." class="tab-link active">Dashboard</a>
-    <a href="settings" class="tab-link">Settings</a>
+    <a href="." class="tab-link active">{{ translations.tab_dashboard or 'Dashboard' }}</a>
+    <a href="settings" class="tab-link">{{ translations.tab_settings or 'Settings' }}</a>
   </nav>
-  <p class="refresh-hint">Auto-refreshes every 5 seconds</p>
+  <p class="refresh-hint">{{ translations.refresh_hint or 'Auto-refreshes every 5 seconds' }}</p>
   <div id="dashboard">Loading…</div>
-  <footer>miniEMS v{{ version }} &middot; Home Assistant Add-on</footer>
+  <footer>{{ translations.footer or 'miniEMS v' }}{{ version }} &middot; Home Assistant Add-on</footer>
 
   <script>
+    const T = {{ translations | tojson }};
+
     async function refresh() {
       try {
         const r = await fetch('api/status');
@@ -48,78 +51,88 @@
 
         <div class="grid">
           <div class="card">
-            <div class="label">PV Power</div>
+            <div class="label">${T.pv_power || 'PV Power'}</div>
             <div class="value">${fmt(d.pv_power_w, 0)}</div>
             <div class="unit">W</div>
           </div>
           <div class="card">
-            <div class="label">Load Power</div>
+            <div class="label">${T.load_power || 'Load Power'}</div>
             <div class="value">${fmt(d.load_power_w, 0)}</div>
             <div class="unit">W</div>
           </div>
           <div class="card">
-            <div class="label">Grid Power</div>
+            <div class="label">${T.grid_power || 'Grid Power'}</div>
             <div class="value">${fmt(d.grid_power_w, 0)}</div>
             <div class="unit">W</div>
           </div>
           <div class="card">
-            <div class="label">Battery SoC</div>
+            <div class="label">${T.battery_soc || 'Battery SoC'}</div>
             <div class="value">${fmt(d.battery_soc_pct, 0)}</div>
             <div class="unit">%</div>
           </div>
           <div class="card">
-            <div class="label">Battery Power</div>
+            <div class="label">${T.battery_power || 'Battery Power'}</div>
             <div class="value">${fmt(d.battery_power_w, 0)}</div>
             <div class="unit">W</div>
           </div>
           <div class="card">
-            <div class="label">Electricity Price</div>
+            <div class="label">${T.electricity_price || 'Electricity Price'}</div>
             <div class="value ${d.is_cheap_rate ? 'cheap' : 'expensive'}">${fmt(d.electricity_price_eur, 4)}</div>
-            <div class="unit">€/kWh ${d.is_cheap_rate ? '&#10003; cheap' : ''}</div>
+            <div class="unit">€/kWh ${d.is_cheap_rate ? '&#10003; ' + (T.cheap || 'cheap') : ''}</div>
           </div>
         </div>
 
-        <p class="section-title">Cost &amp; Savings</p>
+        <p class="section-title">${T.cost_savings || 'Cost &amp; Savings'}</p>
         <div class="savings-grid">
           <div class="savings-card">
-            <div class="slabel">Saved Today (PV)</div>
+            <div class="slabel">${T.saved_today || 'Saved Today (PV)'}</div>
             <div class="svalue">€${fmt(d.today_pv_saved_eur, 4)}</div>
           </div>
           <div class="savings-card">
-            <div class="slabel">Grid Cost Today</div>
+            <div class="slabel">${T.grid_cost_today || 'Grid Cost Today'}</div>
             <div class="svalue negative">€${fmt(d.today_grid_cost_eur, 4)}</div>
           </div>
           <div class="savings-card">
-            <div class="slabel">PV Used Today</div>
+            <div class="slabel">${T.pv_used_today || 'PV Used Today'}</div>
             <div class="svalue">${fmt(d.today_pv_used_kwh, 3)} kWh</div>
           </div>
           <div class="savings-card">
-            <div class="slabel">Grid Import Today</div>
+            <div class="slabel">${T.grid_import_today || 'Grid Import Today'}</div>
             <div class="svalue muted">${fmt(d.today_grid_import_kwh, 3)} kWh</div>
           </div>
           <div class="savings-card">
-            <div class="slabel">Saved This Week</div>
+            <div class="slabel">${T.saved_week || 'Saved This Week'}</div>
             <div class="svalue">€${fmt(d.week_pv_saved_eur, 4)}</div>
           </div>
           <div class="savings-card">
-            <div class="slabel">Grid Cost This Week</div>
+            <div class="slabel">${T.grid_cost_week || 'Grid Cost This Week'}</div>
             <div class="svalue negative">€${fmt(d.week_grid_cost_eur, 4)}</div>
           </div>
         </div>
 
         ${(d.predicted_load_kwh !== undefined || d.predicted_pv_kwh !== undefined) ? `
-        <p class="section-title">Forecast &amp; Prediction
+        <p class="section-title">${T.forecast_prediction || 'Forecast &amp; Prediction'}
           ${d.prediction_confidence ? '<span class="conf-badge conf-' + d.prediction_confidence + '">' + d.prediction_confidence + '</span>' : ''}
         </p>
         <div class="savings-grid">
           <div class="savings-card">
-            <div class="slabel">Predicted Load</div>
+            <div class="slabel">${T.predicted_load || 'Predicted Load'}</div>
             <div class="svalue muted">${fmt(d.predicted_load_kwh, 2)} kWh</div>
           </div>
           <div class="savings-card">
-            <div class="slabel">Predicted PV Yield</div>
+            <div class="slabel">${T.predicted_pv || 'Predicted PV Yield'}</div>
             <div class="svalue">${fmt(d.predicted_pv_kwh, 2)} kWh</div>
           </div>
+          ${d.temp_today_c !== null && d.temp_today_c !== undefined ? `
+          <div class="savings-card">
+            <div class="slabel">${T.temp_today || 'Temp Today'}</div>
+            <div class="svalue muted">${fmt(d.temp_today_c, 1)} °C</div>
+          </div>` : ''}
+          ${d.temp_tomorrow_c !== null && d.temp_tomorrow_c !== undefined ? `
+          <div class="savings-card">
+            <div class="slabel">${T.temp_tomorrow || 'Temp Tomorrow'}</div>
+            <div class="svalue muted">${fmt(d.temp_tomorrow_c, 1)} °C</div>
+          </div>` : ''}
         </div>` : ''}
       `;
     }

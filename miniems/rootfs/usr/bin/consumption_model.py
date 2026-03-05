@@ -34,6 +34,8 @@ class Prediction:
     predicted_pv_kwh: float
     should_grid_charge: bool
     confidence: str   # "high" | "low" | "none"
+    temp_today_c: float | None = None
+    temp_tomorrow_c: float | None = None
 
 
 class ConsumptionModel:
@@ -87,6 +89,8 @@ class ConsumptionModel:
             predicted_load_kwh=round(predicted_load, 2),
             predicted_pv_kwh=round(predicted_pv, 2),
             should_grid_charge=should_charge,
+            temp_today_c=forecast.temp_today_c if forecast else None,
+            temp_tomorrow_c=forecast.temp_tomorrow_c if forecast else None,
             confidence=confidence,
         )
 
@@ -98,7 +102,7 @@ class ConsumptionModel:
         if (
             forecast is not None
             and forecast.avg_night_temp_c is not None
-            and self._cfg.outdoor_temp_entity
+            and self._cfg.weather_entity
         ):
             target = forecast.avg_night_temp_c
             history = await self._store.query_days_similar_temp(
@@ -131,7 +135,7 @@ class ConsumptionModel:
             import datetime
             from weather_client import daylight_hours_approx
             month = datetime.date.today().month
-            dl = daylight_hours_approx(month, self._cfg.openweathermap_lat or 51.0)
+            dl = daylight_hours_approx(month, 51.0)
             pv_factor = 0.5   # neutral assumption without forecast
 
         return round(max(0.0, (p75 / 1000) * pv_factor * dl), 2)

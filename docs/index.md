@@ -8,8 +8,10 @@
 |---|---|
 | Mode control | Idle / PV Charging / Grid Charging / Battery Protection |
 | Cost tracking | Daily & weekly grid cost and PV savings in € |
-| HA sensors | 13 sensors published under the `miniems_` prefix |
+| HA sensors | Sensors published under the `sensor.miniems_*` prefix |
 | Web dashboard | Ingress panel auto-refreshing every 5 s |
+| Forecast & prediction | Load and PV yield forecast via `weather.get_forecasts` HA action |
+| i18n | Dashboard and settings fully translated (de / en, auto-detected from HA) |
 | Config persistence | Settings survive supervisor reloads via `/data/config.json` |
 | Token fallback | SUPERVISOR_TOKEN → Long-lived token on 401 |
 
@@ -26,5 +28,5 @@
 - [Calculations](calculations.md) — EMS decision logic and cost formulas
 - [Data Storage](data-storage.md) — where state and config are persisted
 - [Configuration](configuration.md) — all configuration options explained
-- [HA Sensors](sensors.md) — the 13 sensors published to Home Assistant
+- [HA Sensors](sensors.md) — sensors published to Home Assistant
 - [Development](development.md) — dev environment, rebuild workflow, debugging

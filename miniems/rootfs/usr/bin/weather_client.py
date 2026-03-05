@@ -1,12 +1,15 @@
-"""OpenWeatherMap forecast client for miniEMS.
+"""HA weather.get_forecasts client for miniEMS.
 
-Fetches the next 24 h weather forecast (8 × 3 h slots) and derives:
-  - avg_night_temp_c  – average temperature for 18:00–06:00 UTC slots
-  - pv_factor         – expected PV yield factor 0.0–1.0
-  - daylight_hours    – approximate astronomical day length
+Fetches daily forecast data from a HA weather entity (e.g. weather.openweathermap)
+via the HA service call API.  No external API key or coordinates needed — the
+existing HA OpenWeatherMap integration provides all required data.
 
-Caches the API response for 3 hours to stay within the free OWM quota.
-If no API key is configured the client is disabled and returns None silently.
+Derived values:
+  - avg_night_temp_c  – templow of the next day's forecast slot
+  - pv_factor         – cloud_coverage of upcoming day slots → 0.0–1.0 PV yield
+  - daylight_hours    – from HA instance latitude (fetched once, cached)
+
+Cache TTL: 30 minutes (matching typical HA forecast update rate).
 """
 import logging
 import math
@@ -17,29 +20,32 @@ import aiohttp
 
 _LOGGER = logging.getLogger(__name__)
 
-_OWM_URL = "https://api.openweathermap.org/data/2.5/forecast"
-_CACHE_TTL_SEC = 3 * 3600  # 3 hours
+_CACHE_TTL_SEC = 30 * 60   # 30 minutes
+_HA_FORECAST_URL = "http://hassio/homeassistant/api/services/weather/get_forecasts"
+_HA_CONFIG_URL   = "http://supervisor/core/api/config"
 
 
 @dataclass
 class WeatherSlot:
     dt: datetime
     temp_c: float
-    cloud_pct: float   # 0–100
+    cloud_pct: float
     rain_mm: float = 0.0
 
 
 @dataclass
 class ForecastSummary:
     slots: list[WeatherSlot] = field(default_factory=list)
-    avg_night_temp_c: float | None = None   # mean of 18:00–06:00 UTC slots
-    pv_factor: float = 0.5                  # 0.0–1.0 expected PV yield factor
-    daylight_hours: float = 12.0            # astronomical day length
+    avg_night_temp_c: float | None = None
+    pv_factor: float = 0.5
+    daylight_hours: float = 12.0
+    temp_today_c: float | None = None      # daytime high today
+    temp_tomorrow_c: float | None = None   # daytime high tomorrow
 
 
 def daylight_hours_approx(month: int, lat_deg: float) -> float:
     """Approximate day length using solar declination (±20 min accuracy)."""
-    day_of_year = (month - 1) * 30 + 15   # mid-month approximation
+    day_of_year = (month - 1) * 30 + 15
     lat = math.radians(lat_deg)
     decl = math.radians(23.45 * math.sin(math.radians(360 * (284 + day_of_year) / 365)))
     cos_ha = -math.tan(lat) * math.tan(decl)
@@ -48,21 +54,41 @@ def daylight_hours_approx(month: int, lat_deg: float) -> float:
 
 
 class WeatherClient:
-    """Fetches and caches OpenWeatherMap 24 h forecast."""
+    """Fetches daily forecast from a HA weather entity via service call."""
 
-    def __init__(self, api_key: str, lat: float, lon: float) -> None:
-        self._api_key = api_key
-        self._lat = lat
-        self._lon = lon
+    def __init__(self, weather_entity: str, supervisor_token: str = "") -> None:
+        self._entity = weather_entity
+        self._token = supervisor_token
         self._cache: ForecastSummary | None = None
         self._cache_time: datetime | None = None
+        self._lat: float | None = None
 
     @property
     def enabled(self) -> bool:
-        return bool(self._api_key)
+        return bool(self._entity)
+
+    async def _fetch_lat(self) -> float:
+        if self._lat is not None:
+            return self._lat
+        if self._token:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        _HA_CONFIG_URL,
+                        headers={"Authorization": f"Bearer {self._token}"},
+                        timeout=aiohttp.ClientTimeout(total=3),
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            self._lat = float(data.get("latitude", 51.0))
+                            _LOGGER.debug("HA latitude: %.4f", self._lat)
+                            return self._lat
+            except Exception as exc:
+                _LOGGER.debug("Could not fetch HA latitude: %s", exc)
+        self._lat = 51.0
+        return self._lat
 
     async def fetch_forecast(self) -> ForecastSummary | None:
-        """Return forecast summary, hitting OWM only if cache is stale."""
         if not self.enabled:
             return None
 
@@ -76,32 +102,37 @@ class WeatherClient:
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    _OWM_URL,
-                    params={
-                        "lat": self._lat,
-                        "lon": self._lon,
-                        "appid": self._api_key,
-                        "units": "metric",
-                        "cnt": 8,   # 8 × 3 h = 24 h ahead
+                async with session.post(
+                    _HA_FORECAST_URL,
+                    params={"return_response": "true"},
+                    json={"entity_id": self._entity, "type": "daily"},
+                    headers={
+                        "Authorization": f"Bearer {self._token}",
+                        "Content-Type": "application/json",
                     },
                     timeout=aiohttp.ClientTimeout(total=10),
                 ) as resp:
                     if resp.status != 200:
                         body = await resp.text()
-                        _LOGGER.warning("OWM API %d: %s", resp.status, body[:200])
-                        return self._cache   # return stale cache on error
+                        _LOGGER.warning("weather.get_forecasts %d: %s", resp.status, body[:200])
+                        return self._cache
                     data = await resp.json()
         except Exception as exc:
-            _LOGGER.warning("OWM fetch failed: %s", exc)
+            _LOGGER.warning("weather.get_forecasts failed: %s", exc)
             return self._cache
 
-        slots = self._parse_slots(data)
-        summary = self._summarise(slots)
+        raw_slots = data.get("service_response", data).get(self._entity, {}).get("forecast", [])
+        if not raw_slots:
+            _LOGGER.warning("weather.get_forecasts: empty forecast for %s", self._entity)
+            return self._cache
+
+        slots = self._parse_slots(raw_slots)
+        summary = await self._summarise(slots)
         self._cache = summary
         self._cache_time = now
         _LOGGER.info(
-            "OWM forecast updated: night_temp=%s°C pv_factor=%.2f daylight=%.1f h",
+            "Forecast updated (%s): night_temp=%s°C pv_factor=%.2f daylight=%.1f h",
+            self._entity,
             f"{summary.avg_night_temp_c:.1f}" if summary.avg_night_temp_c is not None else "n/a",
             summary.pv_factor,
             summary.daylight_hours,
@@ -110,31 +141,42 @@ class WeatherClient:
 
     # ------------------------------------------------------------------
 
-    def _parse_slots(self, data: dict) -> list[WeatherSlot]:
+    def _parse_slots(self, raw: list[dict]) -> list[WeatherSlot]:
         slots = []
-        for entry in data.get("list", []):
-            dt = datetime.fromtimestamp(entry["dt"], tz=timezone.utc)
-            slots.append(WeatherSlot(
-                dt=dt,
-                temp_c=entry["main"]["temp"],
-                cloud_pct=entry.get("clouds", {}).get("all", 0),
-                rain_mm=entry.get("rain", {}).get("3h", 0.0),
-            ))
+        for entry in raw:
+            try:
+                dt = datetime.fromisoformat(entry["datetime"])
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                slots.append(WeatherSlot(
+                    dt=dt,
+                    temp_c=float(entry.get("temperature") or 0),
+                    cloud_pct=float(entry.get("cloud_coverage") or 0),
+                    rain_mm=float(entry.get("precipitation") or 0),
+                ))
+            except Exception as exc:
+                _LOGGER.debug("Skipping forecast slot: %s", exc)
         return slots
 
-    def _summarise(self, slots: list[WeatherSlot]) -> ForecastSummary:
+    async def _summarise(self, slots: list[WeatherSlot]) -> ForecastSummary:
+        lat = await self._fetch_lat()
         month = datetime.now().month
-        dl = daylight_hours_approx(month, self._lat)
+        dl = daylight_hours_approx(month, lat)
 
-        night_temps = [s.temp_c for s in slots if s.dt.hour >= 18 or s.dt.hour < 6]
-        avg_night = sum(night_temps) / len(night_temps) if night_temps else None
+        today = datetime.now(timezone.utc).date()
+        today_slots = [s for s in slots if s.dt.date() == today]
+        tomorrow_slots = [s for s in slots if s.dt.date() > today]
 
-        day_slots = [s for s in slots if 6 <= s.dt.hour < 18]
-        if day_slots:
-            clear_frac = sum(1 - s.cloud_pct / 100 for s in day_slots) / len(day_slots)
+        temp_today = float(today_slots[0].temp_c) if today_slots else None
+        temp_tomorrow = float(tomorrow_slots[0].temp_c) if tomorrow_slots else None
+        # avg_night_temp: daytime high of tomorrow as proxy for load matching
+        avg_night = temp_tomorrow
+
+        # pv_factor: average clear-sky fraction of all available day slots
+        if slots:
+            clear_frac = sum(1 - s.cloud_pct / 100 for s in slots) / len(slots)
         else:
-            clear_frac = 0.5   # neutral if no daytime slots in window
-
+            clear_frac = 0.5
         pv_factor = round(clear_frac * min(1.0, dl / 12.0), 3)
 
         return ForecastSummary(
@@ -142,4 +184,6 @@ class WeatherClient:
             avg_night_temp_c=avg_night,
             pv_factor=pv_factor,
             daylight_hours=dl,
+            temp_today_c=temp_today,
+            temp_tomorrow_c=temp_tomorrow,
         )

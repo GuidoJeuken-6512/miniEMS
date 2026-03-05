@@ -57,22 +57,34 @@ miniems/
 ├── config.yaml                   # Add-on manifest
 ├── Dockerfile                    # Build instructions
 ├── requirements.txt              # Python dependencies
-├── docs/                         # This documentation
+├── translations/                 # UI translation source files
+│   ├── de.yaml
+│   └── en.yaml
 └── rootfs/
     └── usr/
         └── bin/
-            ├── main.py           # Entry point
-            ├── config_loader.py  # Config + migration
-            ├── migration.py      # Schema migrations
-            ├── ha_ws_client.py   # HA state reader
-            ├── ha_sensor_publisher.py  # HA state writer
-            ├── ems_controller.py # Mode decision logic
-            ├── cost_optimizer.py # Cost/savings accumulator
-            ├── web_server.py     # FastAPI dashboard
+            ├── main.py                    # Entry point
+            ├── const.py                   # Shared constants & EMSMode enum
+            ├── config_loader.py           # Config + migration runner
+            ├── migration.py               # Schema migrations (v0→v5)
+            ├── ha_ws_client.py            # HA state reader (REST poll)
+            ├── ha_sensor_publisher.py     # HA state writer (REST POST)
+            ├── ems_controller.py          # Mode decision logic
+            ├── cost_optimizer.py          # Cost/savings accumulator
+            ├── consumption_model.py       # Load & PV yield prediction
+            ├── weather_client.py          # weather.get_forecasts client
+            ├── inverter_controller.py     # Inverter work-mode & power control
+            ├── store.py                   # SQLite daily energy history
+            ├── web_server.py              # FastAPI dashboard + i18n
+            ├── translations/              # UI strings (copied from source)
+            │   ├── de.yaml
+            │   └── en.yaml
             ├── templates/
-            │   └── dashboard.html
+            │   ├── dashboard.html         # Dashboard (Jinja2 + JS)
+            │   └── settings.html          # Settings page
             └── static/
-                └── style.css
+                ├── style.css
+                └── icon.svg
 ```
 
 ## Adding a New Config Field
@@ -80,7 +92,11 @@ miniems/
 1. Add the field (with default) to the `Config` dataclass in `config_loader.py`
 2. Add it to `options:` and `schema:` in `config.yaml`
 3. If renaming or transforming an existing field, add a migration step in
-   `migration.py` and increment `CURRENT_VERSION`
+   `migration.py`, increment `CONFIG_SCHEMA_VERSION` in `const.py`, and add
+   the new migration function to the `_MIGRATIONS` chain
+
+> The current schema version is **v5**.  The migration chain is:
+> `v0→v1→v2→v3→v4→v5`
 
 ## Adding a New HA Sensor
 
@@ -119,6 +135,22 @@ docker exec addon_local_miniems wget -qO- \
 # Check persisted config
 docker exec addon_local_miniems cat /data/config.json
 ```
+
+### Test weather forecast manually
+
+```bash
+# From inside the container – replace TOKEN and ENTITY as needed
+TOKEN=$(docker exec addon_local_miniems sh -c 'echo $SUPERVISOR_TOKEN')
+docker exec addon_local_miniems wget -qO- \
+  --header "Authorization: Bearer $TOKEN" \
+  --header "Content-Type: application/json" \
+  --post-data '{"entity_id":"weather.openweathermap","type":"daily"}' \
+  "http://hassio/homeassistant/api/services/weather/get_forecasts?return_response=true"
+```
+
+A successful response contains `service_response → weather.openweathermap → forecast`.
+
+---
 
 ## Known Supervisor Dev Issue
 

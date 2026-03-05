@@ -3,10 +3,8 @@
 miniEMS publishes **21 sensor entities** to Home Assistant after every EMS
 tick.  All entity IDs use the prefix `sensor.miniems_`.
 
-Sensors are published via **MQTT Discovery** (requires the Mosquitto broker
-add-on) which gives every entity a `unique_id`, device grouping, and
-long-term statistics support.  When MQTT is unavailable, the addon falls back
-to the HA REST API (`POST /api/states/…`).
+Sensors are published via the HA REST API (`POST /api/states/…`) after every
+EMS tick using the `SUPERVISOR_TOKEN`.
 
 > **Design decision**: Only addon-*calculated* values are published.
 > Input sensors (PV power, load, grid, battery SoC, price) already exist

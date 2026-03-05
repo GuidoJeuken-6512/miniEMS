@@ -111,16 +111,35 @@ actually changes, to avoid flooding the inverter with repeated writes.
 
 ## Forecast & Prediction
 
-> **Optional.** If neither `outdoor_temp_entity` nor `openweathermap_api_key`
-> are set, the prediction model falls back to a 30-day rolling median load —
-> still useful for the `should_grid_charge` recommendation.
+> **Optional.** If `weather_entity` is left empty, the prediction model falls
+> back to a 30-day rolling median load — still useful for the
+> `should_grid_charge` recommendation.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `outdoor_temp_entity` | string | *(empty)* | Optional HA sensor for outdoor temperature (°C). When set, the prediction model matches historical days with similar night temperatures for a more accurate load forecast. Example: `sensor.outdoor_temperature`. |
-| `openweathermap_api_key` | string | *(empty)* | Free OpenWeatherMap API key. Register at [openweathermap.org](https://openweathermap.org/api). With the free tier (1 000 calls/day), the addon fetches a new forecast every 3 hours. Leave empty to disable weather forecast. |
-| `openweathermap_lat` | float | `0.0` | Your latitude in decimal degrees (e.g. `51.5`). Find it in HA under **Settings → System → General**. |
-| `openweathermap_lon` | float | `0.0` | Your longitude in decimal degrees (e.g. `7.4`). |
+| `weather_entity` | string | *(empty)* | HA weather entity provided by the OpenWeatherMap integration (e.g. `weather.openweathermap`). The addon calls the `weather.get_forecasts` HA action to retrieve up to 7 days of daily forecast data — no API key or coordinates needed. Leave empty to disable weather forecast. |
+
+### How to find your weather entity
+
+1. Make sure the **OpenWeatherMap** integration is installed in HA.
+2. Open **Developer Tools → States** and search for `weather.`.
+3. The entity is typically `weather.openweathermap` or `weather.home`.
+
+### What forecast data is used
+
+The addon calls `weather.get_forecasts` (daily type) once per EMS cycle and
+caches the result for 30 minutes.  From the response it extracts:
+
+| Value | Source | Used for |
+|-------|--------|----------|
+| `avg_night_temp_c` | `temperature` of tomorrow's forecast slot | Load prediction (temperature matching) |
+| `temp_today_c` | `temperature` of today's forecast slot | Dashboard display |
+| `temp_tomorrow_c` | `temperature` of tomorrow's forecast slot | Dashboard display |
+| `pv_factor` | Average `(1 − cloud_coverage/100)` across all slots | PV yield scaling |
+| `daylight_hours` | Computed from HA instance latitude + current month | PV yield scaling |
+
+The addon fetches your HA latitude once from `http://supervisor/core/api/config`
+(using `SUPERVISOR_TOKEN`) and caches it for the lifetime of the process.
 
 ### How the Prediction Works
 
@@ -150,6 +169,6 @@ Settings survive:
 |-------|-----------|
 | Addon **restart** | `/data/config.json` is read on startup |
 | Supervisor **reload** / `options.json` reset | `config.json` fallback wins over changed defaults |
-| Addon **update** | Schema migration runs automatically (v1 → v2 → v3) |
+| Addon **update** | Schema migration runs automatically (v1 → … → v5) |
 
 To fully reset to defaults, delete `/data/config.json` via the HA Terminal addon or SSH.

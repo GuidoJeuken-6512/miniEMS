@@ -6,10 +6,10 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="A new project generated from the default template project.">
+        <meta name="description" content="miniEMS – Mini Energy Management System for Home Assistant. Manages Deye solar inverters with dynamic electricity tariffs.">
       
       
-        <meta name="author" content="<your name here>">
+        <meta name="author" content="miniEMS contributors">
       
       
       
@@ -27,7 +27,7 @@
     
     
       
-        <title>Configuration - Documentation</title>
+        <title>Configuration - miniEMS Documentation</title>
       
     
     
@@ -99,7 +99,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="./.." title="Documentation" class="md-header__button md-logo" aria-label="Documentation" data-md-component="logo">
+    <a href="./.." title="miniEMS Documentation" class="md-header__button md-logo" aria-label="miniEMS Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
@@ -113,7 +113,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            Documentation
+            miniEMS Documentation
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -198,13 +198,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="./.." title="Documentation" class="md-nav__button md-logo" aria-label="Documentation" data-md-component="logo">
+    <a href="./.." title="miniEMS Documentation" class="md-nav__button md-logo" aria-label="miniEMS Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
 
     </a>
-    Documentation
+    miniEMS Documentation
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -462,6 +462,28 @@
   
     <nav class="md-nav" aria-label="Forecast &amp; Prediction">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-to-find-your-weather-entity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to find your weather entity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-forecast-data-is-used" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What forecast data is used
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#how-the-prediction-works" class="md-nav__link">
@@ -740,6 +762,28 @@
   
     <nav class="md-nav" aria-label="Forecast &amp; Prediction">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-to-find-your-weather-entity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to find your weather entity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-forecast-data-is-used" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What forecast data is used
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#how-the-prediction-works" class="md-nav__link">
@@ -1092,9 +1136,9 @@ actually changes, to avoid flooding the inverter with repeated writes.</p>
 <hr />
 <h2 id="forecast-prediction">Forecast &amp; Prediction<a class="headerlink" href="#forecast-prediction" title="Permanent link">&para;</a></h2>
 <blockquote>
-<p><strong>Optional.</strong> If neither <code>outdoor_temp_entity</code> nor <code>openweathermap_api_key</code>
-are set, the prediction model falls back to a 30-day rolling median load —
-still useful for the <code>should_grid_charge</code> recommendation.</p>
+<p><strong>Optional.</strong> If <code>weather_entity</code> is left empty, the prediction model falls
+back to a 30-day rolling median load — still useful for the
+<code>should_grid_charge</code> recommendation.</p>
 </blockquote>
 <table>
 <thead>
@@ -1107,31 +1151,60 @@ still useful for the <code>should_grid_charge</code> recommendation.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>outdoor_temp_entity</code></td>
+<td><code>weather_entity</code></td>
 <td>string</td>
 <td><em>(empty)</em></td>
-<td>Optional HA sensor for outdoor temperature (°C). When set, the prediction model matches historical days with similar night temperatures for a more accurate load forecast. Example: <code>sensor.outdoor_temperature</code>.</td>
-</tr>
-<tr>
-<td><code>openweathermap_api_key</code></td>
-<td>string</td>
-<td><em>(empty)</em></td>
-<td>Free OpenWeatherMap API key. Register at <a href="https://openweathermap.org/api">openweathermap.org</a>. With the free tier (1 000 calls/day), the addon fetches a new forecast every 3 hours. Leave empty to disable weather forecast.</td>
-</tr>
-<tr>
-<td><code>openweathermap_lat</code></td>
-<td>float</td>
-<td><code>0.0</code></td>
-<td>Your latitude in decimal degrees (e.g. <code>51.5</code>). Find it in HA under <strong>Settings → System → General</strong>.</td>
-</tr>
-<tr>
-<td><code>openweathermap_lon</code></td>
-<td>float</td>
-<td><code>0.0</code></td>
-<td>Your longitude in decimal degrees (e.g. <code>7.4</code>).</td>
+<td>HA weather entity provided by the OpenWeatherMap integration (e.g. <code>weather.openweathermap</code>). The addon calls the <code>weather.get_forecasts</code> HA action to retrieve up to 7 days of daily forecast data — no API key or coordinates needed. Leave empty to disable weather forecast.</td>
 </tr>
 </tbody>
 </table>
+<h3 id="how-to-find-your-weather-entity">How to find your weather entity<a class="headerlink" href="#how-to-find-your-weather-entity" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Make sure the <strong>OpenWeatherMap</strong> integration is installed in HA.</li>
+<li>Open <strong>Developer Tools → States</strong> and search for <code>weather.</code>.</li>
+<li>The entity is typically <code>weather.openweathermap</code> or <code>weather.home</code>.</li>
+</ol>
+<h3 id="what-forecast-data-is-used">What forecast data is used<a class="headerlink" href="#what-forecast-data-is-used" title="Permanent link">&para;</a></h3>
+<p>The addon calls <code>weather.get_forecasts</code> (daily type) once per EMS cycle and
+caches the result for 30 minutes.  From the response it extracts:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Source</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>avg_night_temp_c</code></td>
+<td><code>temperature</code> of tomorrow's forecast slot</td>
+<td>Load prediction (temperature matching)</td>
+</tr>
+<tr>
+<td><code>temp_today_c</code></td>
+<td><code>temperature</code> of today's forecast slot</td>
+<td>Dashboard display</td>
+</tr>
+<tr>
+<td><code>temp_tomorrow_c</code></td>
+<td><code>temperature</code> of tomorrow's forecast slot</td>
+<td>Dashboard display</td>
+</tr>
+<tr>
+<td><code>pv_factor</code></td>
+<td>Average <code>(1 − cloud_coverage/100)</code> across all slots</td>
+<td>PV yield scaling</td>
+</tr>
+<tr>
+<td><code>daylight_hours</code></td>
+<td>Computed from HA instance latitude + current month</td>
+<td>PV yield scaling</td>
+</tr>
+</tbody>
+</table>
+<p>The addon fetches your HA latitude once from <code>http://supervisor/core/api/config</code>
+(using <code>SUPERVISOR_TOKEN</code>) and caches it for the lifetime of the process.</p>
 <h3 id="how-the-prediction-works">How the Prediction Works<a class="headerlink" href="#how-the-prediction-works" title="Permanent link">&para;</a></h3>
 <ol>
 <li>
@@ -1175,7 +1248,7 @@ still useful for the <code>should_grid_charge</code> recommendation.</p>
 </tr>
 <tr>
 <td>Addon <strong>update</strong></td>
-<td>Schema migration runs automatically (v1 → v2 → v3)</td>
+<td>Schema migration runs automatically (v1 → … → v5)</td>
 </tr>
 </tbody>
 </table>
