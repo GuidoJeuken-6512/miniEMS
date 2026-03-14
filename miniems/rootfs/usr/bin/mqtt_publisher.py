@@ -48,10 +48,15 @@ _SENSOR_DEFS: list[tuple[str, str, str | None, str | None, str, str]] = [
     ("year_grid_cost_eur",     "Year Grid Cost",     "€",   "monetary",  "measurement",    "mdi:calendar"),
     ("year_pv_savings_eur",    "Year PV Savings",    "€",   "monetary",  "measurement",    "mdi:calendar"),
     ("year_load_cost_eur",     "Year Load Cost",      "€",  "monetary",  "measurement",    "mdi:calendar"),
-    ("charge_power_limit_w",   "Charge Power Limit",  "W",  "power",     "measurement",    "mdi:battery-arrow-up"),
-    ("discharge_power_limit_w","Discharge Power Limit","W",  "power",     "measurement",    "mdi:battery-arrow-down"),
-    ("predicted_load_kwh",     "Predicted Load",      "kWh","energy",    "measurement",    "mdi:chart-line"),
-    ("predicted_pv_kwh",       "Predicted PV Yield",  "kWh","energy",    "measurement",    "mdi:weather-sunny"),
+    ("predicted_load_kwh",               "Predicted Load",               "kWh", "energy",   "measurement",      "mdi:chart-line"),
+    ("predicted_pv_kwh",                 "Predicted PV Yield",           "kWh", "energy",   "measurement",      "mdi:weather-sunny"),
+    ("battery_kwh_freetochange",         "Battery Free to Charge",       "kWh", "energy",   "measurement",      "mdi:battery-plus"),
+    ("battery_kwh_useable",              "Battery Useable",              "kWh", "energy",   "measurement",      "mdi:battery-minus"),
+    ("today_cost_without_grid_charge",   "Today Cost Without Grid Charge","€",  "monetary", "total_increasing", "mdi:cash-minus"),
+    ("today_cost_fix_price_tarif",       "Today Cost Fix Price Tariff",  "€",   "monetary", "total_increasing", "mdi:cash"),
+    ("today_feed_in_kwh",                "Today Feed-in",                "kWh", "energy",   "total_increasing", "mdi:solar-power-variant"),
+    ("today_feed_in_revenue_eur",        "Today Feed-in Revenue",        "€",   "monetary", "total_increasing", "mdi:cash-plus"),
+    ("today_grid_charge_kwh",            "Today Grid Charge",            "kWh", "energy",   "total_increasing", "mdi:battery-charging"),
 ]
 
 
@@ -75,8 +80,7 @@ def _discovery_payload(key: str, name: str, unit: str | None, device_class: str 
                        state_class: str, icon: str) -> dict:
     payload: dict[str, Any] = {
         "unique_id":   f"miniems_{key}",
-        "name":        name,           # short label; HA prepends device name in device view
-        "object_id":   f"miniems_{key}",  # → entity_id: sensor.miniems_{key}
+        "name":        name,
         "state_topic": _state_topic(key),
         "icon":        icon,
         "state_class": state_class,

@@ -55,34 +55,51 @@ class InverterController:
 
         match mode:
             case EMSMode.GRID_CHARGING:
-                # Charge from grid at max rate; block discharging
-                await self._set_work_mode(cfg.inverter_charge_mode_charge, sim)
+                # Enable grid charge switch + block discharging
+                await self._enable_grid_charge(sim)
                 await self._set_charge_power(cfg.battery_max_charge_power_w, sim)
-                await self._set_discharge_power(0, sim)
 
             case EMSMode.PV_CHARGING:
-                # Self-use: inverter handles PV priority, allow full charge/discharge
-                await self._set_work_mode(cfg.inverter_charge_mode_selfuse, sim)
+                # Disable grid charge; allow full discharge
+                await self._disable_grid_charge(sim)
                 await self._set_charge_power(cfg.battery_max_charge_power_w, sim)
-                await self._set_discharge_power(cfg.battery_max_discharge_power_w, sim)
 
             case EMSMode.PROTECT_BATTERY:
-                # SoC below minimum: charge only, no discharging
-                await self._set_work_mode(cfg.inverter_charge_mode_selfuse, sim)
+                # SoC below minimum: disable grid charge, block discharging
+                await self._disable_grid_charge(sim)
                 await self._set_charge_power(cfg.battery_max_charge_power_w, sim)
                 await self._set_discharge_power(0, sim)
 
             case EMSMode.IDLE:
                 # Normal self-use operation
-                await self._set_work_mode(cfg.inverter_charge_mode_selfuse, sim)
+                await self._disable_grid_charge(sim)
                 await self._set_charge_power(cfg.battery_max_charge_power_w, sim)
-                await self._set_discharge_power(cfg.battery_max_discharge_power_w, sim)
 
         self._last_mode = mode
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    async def _enable_grid_charge(self, sim: bool) -> None:
+        """Turn on grid charge switch and set discharge power to 0."""
+        entity = self._cfg.grid_charge_switch_entity
+        if entity:
+            if sim:
+                _LOGGER.info("[SIM] switch.turn_on(%s)", entity)
+            else:
+                await self._call_service("switch", "turn_on", {"entity_id": entity})
+        await self._set_discharge_power(0, sim)
+
+    async def _disable_grid_charge(self, sim: bool) -> None:
+        """Turn off grid charge switch and restore default discharge power."""
+        entity = self._cfg.grid_charge_switch_entity
+        if entity:
+            if sim:
+                _LOGGER.info("[SIM] switch.turn_off(%s)", entity)
+            else:
+                await self._call_service("switch", "turn_off", {"entity_id": entity})
+        await self._set_discharge_power(self._cfg.default_discharge_power_w, sim)
 
     async def _set_work_mode(self, option: str, sim: bool) -> None:
         entity = self._cfg.inverter_work_mode_entity
@@ -115,7 +132,7 @@ class InverterController:
     async def _set_discharge_power(self, value_w: int, sim: bool) -> None:
         if value_w == self._last_discharge_w:
             return
-        entity = self._cfg.inverter_discharge_power_entity
+        entity = self._cfg.battery_discharging_power_entity or self._cfg.inverter_discharge_power_entity
         if not entity:
             return
         if sim:

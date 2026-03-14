@@ -1,13 +1,14 @@
-
 # UI translations for miniEMS WebUI
 ui_title: miniEMS Dashboard
 ui_settings: miniEMS Settings
+ui_log: miniEMS Log
 tab_dashboard: Dashboard
 tab_settings: Settings
+tab_log: Log
 refresh_hint: Auto-refreshes every 5 seconds
 footer: miniEMS v
 
-# Dashboard cards
+# Dashboard – live power cards
 pv_power: PV Power
 load_power: Load Power
 grid_power: Grid Power
@@ -15,6 +16,8 @@ battery_soc: Battery SoC
 battery_power: Battery Power
 electricity_price: Electricity Price
 cheap: cheap
+
+# Cost & Savings
 cost_savings: Cost & Savings
 saved_today: Saved Today (PV)
 grid_cost_today: Grid Cost Today
@@ -22,18 +25,53 @@ pv_used_today: PV Used Today
 grid_import_today: Grid Import Today
 saved_week: Saved This Week
 grid_cost_week: Grid Cost This Week
+
+# Cost Details (Phase 6)
+cost_savings_extended: Cost Details
+cost_without_grid_charge: Cost Without Grid Charge
+cost_fix_price: Cost at Fix Price
+feed_in_today: Feed-in Today
+feed_in_revenue: Feed-in Revenue
+grid_charge_today: Grid Charge Today
+
+# Battery State (Phase 6)
+battery_state: Battery State
+battery_free_to_charge: Free to Charge
+battery_useable: Useable
+
+# Solcast PV Forecast (Phase 6)
+solcast: Solcast PV Forecast
+solcast_remaining: Remaining Today
+solcast_today: Today Total
+solcast_tomorrow: Tomorrow
+
+# Forecast & Prediction
 forecast_prediction: Forecast & Prediction
 predicted_load: Predicted Load
-predicted_pv: Predicted PV Yield
+predicted_pv: Predicted PV Yield (fallback)
 temp_today: Temp Today
 temp_tomorrow: Temp Tomorrow
+pred_source_historical: historically estimated
+pred_source_fallback: fallback estimation
+
+# Mode Change Log (Phase 6)
+mode_change_log: Mode Change Log
+log_state: State
+log_time: Time
+log_free: Free (kWh)
+log_useable: Useable (kWh)
+log_pred_load: Pred. Load (kWh)
+log_empty: No mode changes recorded yet.
+log_page_hint: Shows the last 100 grid-charge mode changes.
+
+# Warnings
+warnings_title: Warnings
 
 # Settings page
 inverter_entities: Inverter Entities
 pv_power_entity: PV Power Entity
 battery_soc_entity: Battery SoC Entity
 battery_power_entity: Battery Power Entity
-battery_voltage_entity: Battery Voltage Entity
 grid_power_entity: Grid Power Entity
 load_power_entity: Load Power Entity
 battery_settings: Battery Settings
@@ -45,25 +83,24 @@ long_lived_token: Long-Lived Token (optional)
 octopus_energy: Octopus Energy
 price_entity: Price Entity
 cheap_rate_threshold: Cheap Rate Threshold (€/kWh)
+feed_in_tariff: Feed-in Tariff (€/kWh)
+fix_price_tariff: Fixed Price Tariff (€/kWh)
 ems_parameters: EMS Parameters
 pv_surplus_threshold: PV Surplus Threshold (W)
 update_interval: Update Interval (s, 10–300)
 battery_control: Battery Control
 enable_battery_control: Enable Battery Control
 simulation_mode: Simulation Mode (log only)
-work_mode_entity: Work Mode Entity
 charge_power_entity: Charge Power Entity
-discharge_power_entity: Discharge Power Entity
-charge_mode_charge: Grid-Charge Mode Value
-charge_mode_selfuse: Self-Use Mode Value
+grid_charge_switch: Grid Charge Switch Entity
+battery_discharge_entity: Discharge Power Entity
+default_discharge_power: Default Discharge Power (W)
 max_charge_power: Max Charge Power (W)
 max_discharge_power: Max Discharge Power (W)
 forecast_prediction_section: Forecast & Prediction
 weather_entity: Weather Entity (e.g. weather.openweathermap)
+solcast_section: Solcast PV Forecast
+solcast_today_entity: Solcast Today Entity
+solcast_tomorrow_entity: Solcast Tomorrow Entity
+solcast_remaining_entity: Solcast Remaining Today Entity
 save_restart: Save & Restart
-
-
-
-
-
-

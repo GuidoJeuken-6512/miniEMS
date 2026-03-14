@@ -1,0 +1,11 @@
+.md-doc-meta {
+    display: inline-block;
+    margin-bottom: 1.25rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 0.25rem;
+    background: var(--md-default-fg-color--lightest);
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--md-default-fg-color--light);
+    letter-spacing: 0.01em;
+}

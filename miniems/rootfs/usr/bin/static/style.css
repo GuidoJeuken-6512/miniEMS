@@ -296,6 +296,95 @@ footer        { font-size: 0.75rem; color: #8b949e; margin-top: 2rem; }
 .conf-low  { background: #4a3a1a; color: #e3b341; }
 .conf-none { background: #21262d; color: #8b949e; }
 
+/* ── Warnings banner ────────────────────────────────────── */
+.warnings-banner {
+  background: #3a2a1a;
+  border: 1px solid #e3b341;
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 1rem;
+}
+.warn-item {
+  font-size: 0.82rem;
+  color: #e3b341;
+  padding: 0.15rem 0;
+}
+
+/* ── Mode change log panel ──────────────────────────────── */
+.log-panel {
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+.log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.log-table-full {
+  min-width: 520px;
+}
+.log-table th {
+  background: #21262d;
+  color: #8b949e;
+  text-align: left;
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid #30363d;
+}
+.log-table td {
+  padding: 0.25rem 0.6rem;
+  border-bottom: 1px solid #21262d;
+  color: #c9d1d9;
+}
+.log-on  { color: #3fb950; font-weight: 700; }
+.log-off { color: #8b949e; }
+
+/* ── Log preview widget (dashboard compact view) ────────── */
+.log-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  margin-bottom: 1rem;
+  font-size: 0.82rem;
+}
+.log-preview-state { font-weight: 700; min-width: 4rem; }
+.log-preview-time  { color: #8b949e; }
+.log-preview-detail { color: #c9d1d9; flex: 1; }
+.log-preview-link  {
+  color: #58a6ff;
+  text-decoration: none;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.log-preview-link:hover { text-decoration: underline; }
+.log-empty-msg { font-size: 0.82rem; color: #8b949e; margin-bottom: 1rem; }
+
+/* ── Log page summary bar ───────────────────────────────── */
+.log-summary {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 1.25rem;
+}
+.log-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.log-summary-label { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.04em; }
+.log-summary-value { font-size: 0.95rem; font-weight: 600; color: #e6edf3; }
+.log-summary-mode  { font-size: 0.85rem; padding: 0.2rem 0.6rem; }
+.log-hint { font-size: 0.75rem; color: #8b949e; margin-bottom: 0.5rem; }
+
 /* ── Settings page ──────────────────────────────────────── */
 .settings-section {
   background: #161b22;

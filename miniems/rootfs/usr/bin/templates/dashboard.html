@@ -15,6 +15,7 @@
   <nav class="tab-nav">
     <a href="." class="tab-link active">{{ translations.tab_dashboard or 'Dashboard' }}</a>
     <a href="settings" class="tab-link">{{ translations.tab_settings or 'Settings' }}</a>
+    <a href="log" class="tab-link">{{ translations.tab_log or 'Log' }}</a>
   </nav>
   <p class="refresh-hint">{{ translations.refresh_hint or 'Auto-refreshes every 5 seconds' }}</p>
   <div id="dashboard">Loading…</div>
@@ -46,7 +47,14 @@
     function renderDashboard(d) {
       const simBadge = (d.battery_control_active && d.battery_control_simulation)
         ? '<span class="sim-badge">SIM</span>' : '';
+
+      // Warnings banner
+      const warnHtml = (d.warnings && d.warnings.length > 0)
+        ? `<div class="warnings-banner">${d.warnings.map(w => `<div class="warn-item">&#9888; ${w}</div>`).join('')}</div>`
+        : '';
+
       return `
+        ${warnHtml}
         <div class="mode-badge ${fmtMode(d.mode)}">${d.mode || 'Unknown'}${simBadge}</div>
 
         <div class="grid">
@@ -110,9 +118,72 @@
           </div>
         </div>
 
+        <p class="section-title">${T.cost_savings_extended || 'Cost Details'}</p>
+        <div class="savings-grid">
+          <div class="savings-card">
+            <div class="slabel">${T.cost_without_grid_charge || 'Cost Without Grid Charge'}</div>
+            <div class="svalue negative">€${fmt(d.today_cost_without_grid_charge, 4)}</div>
+          </div>
+          <div class="savings-card">
+            <div class="slabel">${T.cost_fix_price || 'Cost at Fix Price'}</div>
+            <div class="svalue muted">€${fmt(d.today_cost_fix_price_tarif, 4)}</div>
+          </div>
+          ${d.today_feed_in_kwh !== undefined ? `
+          <div class="savings-card">
+            <div class="slabel">${T.feed_in_today || 'Feed-in Today'}</div>
+            <div class="svalue">${fmt(d.today_feed_in_kwh, 3)} kWh</div>
+          </div>` : ''}
+          ${d.today_feed_in_revenue_eur !== undefined ? `
+          <div class="savings-card">
+            <div class="slabel">${T.feed_in_revenue || 'Feed-in Revenue'}</div>
+            <div class="svalue">€${fmt(d.today_feed_in_revenue_eur, 4)}</div>
+          </div>` : ''}
+          ${d.today_grid_charge_kwh !== undefined ? `
+          <div class="savings-card">
+            <div class="slabel">${T.grid_charge_today || 'Grid Charge Today'}</div>
+            <div class="svalue muted">${fmt(d.today_grid_charge_kwh, 3)} kWh</div>
+          </div>` : ''}
+        </div>
+
+        ${(d.battery_kwh_freetochange !== null && d.battery_kwh_freetochange !== undefined) ? `
+        <p class="section-title">${T.battery_state || 'Battery State'}</p>
+        <div class="savings-grid">
+          <div class="savings-card">
+            <div class="slabel">${T.battery_free_to_charge || 'Free to Charge'}</div>
+            <div class="svalue">${fmt(d.battery_kwh_freetochange, 2)} kWh</div>
+          </div>
+          <div class="savings-card">
+            <div class="slabel">${T.battery_useable || 'Useable'}</div>
+            <div class="svalue">${fmt(d.battery_kwh_useable, 2)} kWh</div>
+          </div>
+        </div>` : ''}
+
+        ${(d.solcast_remaining_today_kwh !== null && d.solcast_remaining_today_kwh !== undefined) ? `
+        <p class="section-title">${T.solcast || 'Solcast PV Forecast'}</p>
+        <div class="savings-grid">
+          <div class="savings-card">
+            <div class="slabel">${T.solcast_remaining || 'Remaining Today'}</div>
+            <div class="svalue">${fmt(d.solcast_remaining_today_kwh, 2)} kWh</div>
+          </div>
+          ${d.solcast_today_kwh !== null && d.solcast_today_kwh !== undefined ? `
+          <div class="savings-card">
+            <div class="slabel">${T.solcast_today || 'Today Total'}</div>
+            <div class="svalue muted">${fmt(d.solcast_today_kwh, 2)} kWh</div>
+          </div>` : ''}
+          ${d.solcast_tomorrow_kwh !== null && d.solcast_tomorrow_kwh !== undefined ? `
+          <div class="savings-card">
+            <div class="slabel">${T.solcast_tomorrow || 'Tomorrow'}</div>
+            <div class="svalue muted">${fmt(d.solcast_tomorrow_kwh, 2)} kWh</div>
+          </div>` : ''}
+        </div>` : ''}
+
         ${(d.predicted_load_kwh !== undefined || d.predicted_pv_kwh !== undefined) ? `
         <p class="section-title">${T.forecast_prediction || 'Forecast &amp; Prediction'}
-          ${d.prediction_confidence ? '<span class="conf-badge conf-' + d.prediction_confidence + '">' + d.prediction_confidence + '</span>' : ''}
+          ${d.prediction_source === 'historical'
+            ? `<span class="conf-badge conf-high">${T.pred_source_historical || 'historically estimated'}</span>`
+            : d.prediction_source === 'fallback'
+            ? `<span class="conf-badge conf-low">${T.pred_source_fallback || 'fallback estimation'}</span>`
+            : (d.prediction_confidence ? '<span class="conf-badge conf-' + d.prediction_confidence + '">' + d.prediction_confidence + '</span>' : '')}
         </p>
         <div class="savings-grid">
           <div class="savings-card">
@@ -134,6 +205,17 @@
             <div class="svalue muted">${fmt(d.temp_tomorrow_c, 1)} °C</div>
           </div>` : ''}
         </div>` : ''}
+
+        <p class="section-title">${T.mode_change_log || 'Mode Change Log'}</p>
+        ${(d.log && d.log.length > 0) ? (() => {
+          const e = d.log[0];
+          return `<div class="log-preview">
+            <span class="${e.state === 'on' ? 'log-on' : 'log-off'} log-preview-state">${e.state === 'on' ? '&#9650; ON' : '&#9660; OFF'}</span>
+            <span class="log-preview-time">${e.timestamp}</span>
+            <span class="log-preview-detail">${T.log_free || 'Free'}: ${fmt(e.battery_kwh_freetochange, 2)} kWh &nbsp;|&nbsp; ${T.log_useable || 'Useable'}: ${fmt(e.battery_kwh_useable, 2)} kWh</span>
+            <a href="log" class="log-preview-link">${T.tab_log || 'Log'} (${d.log.length}) &rsaquo;</a>
+          </div>`;
+        })() : `<p class="log-empty-msg">${T.log_empty || 'No mode changes recorded yet.'} <a href="log" class="log-preview-link">${T.tab_log || 'Log'} &rsaquo;</a></p>`}
       `;
     }
 

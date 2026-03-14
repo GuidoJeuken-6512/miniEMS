@@ -186,28 +186,6 @@ _SENSORS: list[tuple[str, str, dict]] = [
         },
     ),
     (
-        "sensor.miniems_charge_power_limit_w",
-        "charge_power_limit_w",
-        {
-            "friendly_name": "miniEMS Charge Power Limit",
-            "unit_of_measurement": "W",
-            "device_class": "power",
-            "state_class": "measurement",
-            "icon": "mdi:battery-arrow-up",
-        },
-    ),
-    (
-        "sensor.miniems_discharge_power_limit_w",
-        "discharge_power_limit_w",
-        {
-            "friendly_name": "miniEMS Discharge Power Limit",
-            "unit_of_measurement": "W",
-            "device_class": "power",
-            "state_class": "measurement",
-            "icon": "mdi:battery-arrow-down",
-        },
-    ),
-    (
         "sensor.miniems_predicted_load_kwh",
         "predicted_load_kwh",
         {
@@ -227,6 +205,83 @@ _SENSORS: list[tuple[str, str, dict]] = [
             "device_class": "energy",
             "state_class": "measurement",
             "icon": "mdi:weather-sunny",
+        },
+    ),
+    (
+        "sensor.miniems_battery_kwh_freetochange",
+        "battery_kwh_freetochange",
+        {
+            "friendly_name": "miniEMS Battery Free to Charge",
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "state_class": "measurement",
+            "icon": "mdi:battery-plus",
+        },
+    ),
+    (
+        "sensor.miniems_battery_kwh_useable",
+        "battery_kwh_useable",
+        {
+            "friendly_name": "miniEMS Battery Useable",
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "state_class": "measurement",
+            "icon": "mdi:battery-minus",
+        },
+    ),
+    (
+        "sensor.miniems_today_cost_without_grid_charge",
+        "today_cost_without_grid_charge",
+        {
+            "friendly_name": "miniEMS Today Cost Without Grid Charge",
+            "unit_of_measurement": "€",
+            "device_class": "monetary",
+            "state_class": "total_increasing",
+            "icon": "mdi:cash-minus",
+        },
+    ),
+    (
+        "sensor.miniems_today_cost_fix_price_tarif",
+        "today_cost_fix_price_tarif",
+        {
+            "friendly_name": "miniEMS Today Cost Fix Price Tariff",
+            "unit_of_measurement": "€",
+            "device_class": "monetary",
+            "state_class": "total_increasing",
+            "icon": "mdi:cash",
+        },
+    ),
+    (
+        "sensor.miniems_today_feed_in_kwh",
+        "today_feed_in_kwh",
+        {
+            "friendly_name": "miniEMS Today Feed-in",
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "state_class": "total_increasing",
+            "icon": "mdi:solar-power-variant",
+        },
+    ),
+    (
+        "sensor.miniems_today_feed_in_revenue_eur",
+        "today_feed_in_revenue_eur",
+        {
+            "friendly_name": "miniEMS Today Feed-in Revenue",
+            "unit_of_measurement": "€",
+            "device_class": "monetary",
+            "state_class": "total_increasing",
+            "icon": "mdi:cash-plus",
+        },
+    ),
+    (
+        "sensor.miniems_today_grid_charge_kwh",
+        "today_grid_charge_kwh",
+        {
+            "friendly_name": "miniEMS Today Grid Charge",
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "state_class": "total_increasing",
+            "icon": "mdi:battery-charging",
         },
     ),
 ]

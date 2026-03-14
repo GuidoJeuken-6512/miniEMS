@@ -11,10 +11,12 @@ from config_loader import load_config
 from consumption_model import ConsumptionModel
 from cost_optimizer import CostOptimizer
 from ems_controller import EMSController
+from event_log import EventLog
 from ha_sensor_publisher import HASensorPublisher
 from ha_ws_client import HAWebSocketClient
 from inverter_controller import InverterController
 from mqtt_publisher import MQTTPublisher
+from solcast_client import SolcastClient
 from store import EnergyStore
 from weather_client import WeatherClient
 from web_server import create_app
@@ -79,7 +81,14 @@ async def main() -> None:
         _LOGGER.info("Weather forecast enabled (%s)", cfg.weather_entity)
     consumption_model = ConsumptionModel(cfg, store, weather_client if weather_client.enabled else None)
 
-    controller = EMSController(cfg, ws_client, cost_optimizer, inverter, consumption_model)
+    solcast_client = SolcastClient(cfg, ws_client)
+    event_log = EventLog(max_entries=100)
+
+    controller = EMSController(
+        cfg, ws_client, cost_optimizer, inverter, consumption_model,
+        solcast=solcast_client,
+        event_log=event_log,
+    )
     app = create_app(status_store, cfg, supervisor_token)
 
     # Publisher setup: try MQTT, fall back to REST

@@ -35,6 +35,9 @@ def migrate(data: dict) -> dict:
     if version < 5:
         data = _v4_to_v5(data)
 
+    if version < 6:
+        data = _v5_to_v6(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -95,6 +98,25 @@ def _v4_to_v5(data: dict) -> dict:
         if key in data:
             data.pop(key)
             _LOGGER.info("Migration v4→v5: removed %s", key)
+    return data
+
+
+def _v5_to_v6(data: dict) -> dict:
+    """v5 → v6: add Solcast entities, grid charge switch, feed-in tariff, default discharge power, fix_price."""
+    defaults = {
+        "solcast_today_entity": "sensor.solcast_pv_forecast_prognose_heute",
+        "solcast_tomorrow_entity": "sensor.solcast_pv_forecast_prognose_morgen",
+        "solcast_remaining_today_entity": "sensor.solcast_pv_forecast_prognose_verbleibende_leistung_heute",
+        "grid_charge_switch_entity": "switch.deye8k_battery_grid_charging",
+        "battery_discharging_power_entity": "number.deye8k_battery_discharging_power",
+        "feed_in_tariff_eur_kwh": 0.08,
+        "default_discharge_power_w": 185,
+        "fix_price": 0.30,
+    }
+    for key, default in defaults.items():
+        if key not in data:
+            data[key] = default
+            _LOGGER.info("Migration v5→v6: set %s = %r", key, default)
     return data
 
 

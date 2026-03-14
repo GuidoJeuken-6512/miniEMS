@@ -1,15 +1,17 @@
 """Consumption and PV yield prediction model for miniEMS.
 
-Uses SQLite history + OpenWeatherMap forecast to predict:
+Uses SQLite history + HA weather forecast to predict:
   - predicted_load_kwh  – expected daily energy consumption
   - predicted_pv_kwh    – expected PV yield for the next day
   - should_grid_charge  – whether grid charging is recommended
 
 Temperature-based matching: find historical days with similar night-temp and
-use their median load as the prediction.  Falls back to a 30-day rolling
-median when fewer than 3 similar days exist or when no temp entity is set.
-PV prediction uses the 75th-percentile peak PV power from the last 14 days
-scaled by cloud cover and day length from the weather forecast.
+use their median load as the prediction.  Falls back to explicit temperature
+rules when fewer than 3 similar days exist.
+
+Prediction source labels:
+  "historical"  – median of temperature-matched DB days
+  "fallback"    – temperature rules (no historical data available)
 """
 import logging
 import statistics
@@ -33,7 +35,8 @@ class Prediction:
     predicted_load_kwh: float
     predicted_pv_kwh: float
     should_grid_charge: bool
-    confidence: str   # "high" | "low" | "none"
+    confidence: str          # "high" | "low" | "none"
+    source: str              # "historical" | "fallback"
     temp_today_c: float | None = None
     temp_tomorrow_c: float | None = None
 
@@ -53,11 +56,11 @@ class ConsumptionModel:
 
     async def predict(self, bat_soc: float | None) -> Prediction:
         """Compute predictions and the grid-charge recommendation."""
-        forecast: ForecastSummary | None = None
+        forecast: "ForecastSummary | None" = None
         if self._weather and self._weather.enabled:
             forecast = await self._weather.fetch_forecast()
 
-        predicted_load = await self._predict_load(forecast)
+        predicted_load, pred_source = await self._predict_load(forecast)
         predicted_pv = await self._predict_pv(forecast)
 
         # Usable battery energy right now
@@ -81,22 +84,24 @@ class ConsumptionModel:
             confidence = "low"
 
         _LOGGER.debug(
-            "Prediction: load=%.2f kWh, pv=%.2f kWh, usable=%.2f kWh → grid_charge=%s (%s)",
-            predicted_load, predicted_pv, usable_kwh, should_charge, confidence,
+            "Prediction: load=%.2f kWh (%s), pv=%.2f kWh, usable=%.2f kWh → grid_charge=%s (%s)",
+            predicted_load, pred_source, predicted_pv, usable_kwh, should_charge, confidence,
         )
 
         return Prediction(
             predicted_load_kwh=round(predicted_load, 2),
             predicted_pv_kwh=round(predicted_pv, 2),
             should_grid_charge=should_charge,
+            confidence=confidence,
+            source=pred_source,
             temp_today_c=forecast.temp_today_c if forecast else None,
             temp_tomorrow_c=forecast.temp_tomorrow_c if forecast else None,
-            confidence=confidence,
         )
 
     # ------------------------------------------------------------------
 
-    async def _predict_load(self, forecast: "ForecastSummary | None") -> float:
+    async def _predict_load(self, forecast: "ForecastSummary | None") -> tuple[float, str]:
+        """Return (predicted_kwh, source_label)."""
         history: list[dict] = []
 
         if (
@@ -110,13 +115,31 @@ class ConsumptionModel:
             )
             _LOGGER.debug("Temp-matched %d similar days (target=%.1f°C)", len(history), target)
 
-        if len(history) < _MIN_SAMPLES:
-            # Fall back to recent 30-day rolling median
-            recent = await self._store.query_recent_days(30)
-            history = [r for r in recent if r.get("load_total_kwh", 0) > 0]
-
         loads = [r["load_total_kwh"] for r in history if (r.get("load_total_kwh") or 0) > 0]
-        return statistics.median(loads) if loads else 0.0
+        if len(loads) >= _MIN_SAMPLES:
+            return statistics.median(loads), "historical"
+
+        # Temperature fallback rules (when historical data insufficient)
+        if forecast is not None:
+            # avg_night_temp_c serves as "minimum" proxy; temp_tomorrow_c as "maximum"
+            min_t = forecast.avg_night_temp_c
+            max_t = forecast.temp_tomorrow_c
+            if min_t is not None and max_t is not None:
+                if min_t < 0 and max_t < 0:
+                    _LOGGER.debug("Fallback rule: very cold day → 30 kWh")
+                    return 30.0, "fallback"
+                if min_t < 0 and max_t < 10:
+                    _LOGGER.debug("Fallback rule: cold day → 20 kWh")
+                    return 20.0, "fallback"
+                if min_t > 0 and max_t < 15:
+                    _LOGGER.debug("Fallback rule: mild day → 10 kWh")
+                    return 10.0, "fallback"
+
+        # Last resort: use whatever data we have
+        if loads:
+            return statistics.median(loads), "fallback"
+
+        return 0.0, "fallback"
 
     async def _predict_pv(self, forecast: "ForecastSummary | None") -> float:
         recent = await self._store.query_recent_days(14)

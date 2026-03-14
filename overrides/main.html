@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="md-doc-meta">
+    miniEMS v{{ config.extra.app_version }} &middot; Updated {{ config.extra.updated_date }}
+  </div>
+  {{ super() }}
+{% endblock %}

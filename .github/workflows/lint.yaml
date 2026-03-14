@@ -3,12 +3,10 @@ name: Lint
 on:
   push:
     branches:
-      - dsfbkjf 
+      - dsfbkjf
   pull_request:
     branches:
       - dsfbkjf
-  schedule:
-    - cron: "0 0 * * *"
 
 jobs:
   find:

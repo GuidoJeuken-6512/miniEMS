@@ -44,10 +44,22 @@ Copyright &copy; 2026 The authors
 # can be defined using TOML syntax.
 #
 # Read more: https://zensical.org/docs/setup/navigation/
-# nav = [
-#   { "Get started" = "index.md" },
-#   { "Markdown in 5min" = "markdown.md" },
-# ]
+nav = [
+  { "User Guide" = [
+    { "Getting Started" = "user/index.md" },
+    { "Installation" = "user/installation.md" },
+    { "Configuration" = "user/configuration.md" },
+    { "Dashboard & UI" = "user/dashboard.md" },
+    { "HA Sensors" = "user/sensors.md" },
+  ]},
+  { "Technical Reference" = [
+    { "Overview" = "technical/index.md" },
+    { "Architecture" = "technical/architecture.md" },
+    { "Calculations" = "technical/calculations.md" },
+    { "Data Storage" = "technical/data-storage.md" },
+    { "API Reference" = "technical/api.md" },
+  ]},
+]
 
 # With the "extra_css" option you can add your own CSS styling to customize
 # your Zensical project according to your needs. You can add any number of
@@ -57,7 +69,7 @@ Copyright &copy; 2026 The authors
 #
 # Read more: https://zensical.org/docs/customization/#additional-css
 #
-#extra_css = ["stylesheets/extra.css"]
+extra_css = ["stylesheets/extra.css"]
 
 # With the `extra_javascript` option you can add your own JavaScript to your
 # project to customize the behavior according to your needs.
@@ -83,7 +95,7 @@ Copyright &copy; 2026 The authors
 # Read more:
 # - https://zensical.org/docs/customization/#extending-the-theme
 #
-#custom_dir = "overrides"
+custom_dir = "overrides"
 
 # With the "favicon" option you can set your own image to use as the icon
 # browsers will use in the browser title bar or tab bar. The path provided
@@ -215,7 +227,7 @@ features = [
     # When tabs are enabled, top-level sections are rendered in a menu layer
     # below the header for viewports above 1220px, but remain as-is on mobile.
     # https://zensical.org/docs/setup/navigation/#navigation-tabs
-    #"navigation.tabs",
+    "navigation.tabs",
 
     # When sticky tabs are enabled, navigation tabs will lock below the header
     # and always remain visible when scrolling down.
@@ -300,8 +312,12 @@ toggle.name = "Switch to light mode"
 # ----------------------------------------------------------------------------
 # The "extra" section contains miscellaneous settings.
 # ----------------------------------------------------------------------------
-#[[project.extra.social]]
-#icon = "fontawesome/brands/github"
-#link = "https://github.com/user/repo"
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/GuidoJeuken-6512/miniEMS"
+
+[project.extra]
+app_version = "1.4.0"
+updated_date = "2026-03-14"
 
 

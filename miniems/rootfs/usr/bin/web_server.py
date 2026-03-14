@@ -69,10 +69,12 @@ _BOOL_FIELDS = {"battery_control_enabled", "battery_control_simulation"}
 _INT_FIELDS = {
     "battery_min_soc", "battery_max_soc", "pv_surplus_threshold_w",
     "update_interval_sec", "battery_max_charge_power_w", "battery_max_discharge_power_w",
+    "default_discharge_power_w",
 }
 _FLOAT_FIELDS = {
     "battery_capacity_kwh", "cheap_rate_threshold_eur",
     "openweathermap_lat", "openweathermap_lon",
+    "feed_in_tariff_eur_kwh", "fix_price",
 }
 
 
@@ -128,6 +130,14 @@ def create_app(
         translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
             "settings.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
+        )
+
+    @app.get("/log", response_class=HTMLResponse)
+    async def log_page(request: Request) -> HTMLResponse:
+        lang = await get_ha_language(request)
+        translations = load_translations(lang)
+        return _TEMPLATES.TemplateResponse(
+            "log.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/api/config")

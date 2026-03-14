@@ -4,6 +4,8 @@ from collections import defaultdict
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
+from sensor_validator import SensorValidator
+
 if TYPE_CHECKING:
     from config_loader import Config
     from store import EnergyStore
@@ -24,6 +26,11 @@ class CostOptimizer:
         self._pv_saved_eur: dict[date, float] = defaultdict(float)
         self._load_total_kwh: dict[date, float] = defaultdict(float)
         self._load_cost_eur: dict[date, float] = defaultdict(float)
+        # Grid-charge and feed-in accumulators (Phase 6)
+        self._grid_charge_kwh: dict[date, float] = defaultdict(float)
+        self._grid_charge_cost_eur: dict[date, float] = defaultdict(float)
+        self._feed_in_kwh: dict[date, float] = defaultdict(float)
+        self._feed_in_revenue_eur: dict[date, float] = defaultdict(float)
         # Peak PV power per day (for yield prediction)
         self._peak_pv_w: dict[date, float] = defaultdict(float)
         # Running averages for price and outdoor temperature
@@ -32,6 +39,10 @@ class CostOptimizer:
         self._temp_sum: dict[date, float] = defaultdict(float)
         self._temp_ticks: dict[date, int] = defaultdict(int)
         self._last_tick: datetime | None = None
+        # Spike detection
+        self._validator = SensorValidator()
+        # Startup warnings (downtime gap detection)
+        self._startup_warnings: list[str] = []
 
     async def restore_today(self) -> None:
         """Load today's running totals from SQLite after startup."""
@@ -46,12 +57,38 @@ class CostOptimizer:
         self._load_total_kwh[today]  = row.get("load_total_kwh", 0.0)
         self._load_cost_eur[today]   = row.get("load_cost_eur", 0.0)
         self._peak_pv_w[today]       = row.get("peak_pv_w", 0.0)
+        self._grid_charge_kwh[today]     = row.get("grid_charge_kwh", 0.0)
+        self._grid_charge_cost_eur[today] = row.get("grid_charge_cost_eur", 0.0)
+        self._feed_in_kwh[today]         = row.get("feed_in_kwh", 0.0)
+        self._feed_in_revenue_eur[today] = row.get("feed_in_revenue_eur", 0.0)
+
+        # Downtime gap detection
+        last_ts_str = row.get("last_flush_ts")
+        if last_ts_str:
+            try:
+                last_ts = datetime.fromisoformat(last_ts_str)
+                gap_sec = (datetime.utcnow() - last_ts).total_seconds()
+                cfg_interval = self._cfg.update_interval_sec
+                if gap_sec > 2 * cfg_interval:
+                    msg = (
+                        f"Data gap detected: {gap_sec:.0f}s since last flush "
+                        f"(>{2 * cfg_interval}s) – energy during downtime is not counted"
+                    )
+                    self._startup_warnings.append(msg)
+                    _LOGGER.warning(msg)
+            except ValueError:
+                pass
+
         _LOGGER.info(
-            "Restored today's accumulators from DB: grid_cost=%.4f€ load_cost=%.4f€ peak_pv=%.0fW",
+            "Restored today's accumulators from DB: grid_cost=%.6f€ load_cost=%.6f€ peak_pv=%.0fW",
             self._grid_cost_eur[today],
             self._load_cost_eur[today],
             self._peak_pv_w[today],
         )
+
+    def get_startup_warnings(self) -> list[str]:
+        """Return any warnings generated during restore_today (e.g. downtime gaps)."""
+        return list(self._startup_warnings)
 
     # ------------------------------------------------------------------
     # Called by EMS controller on each update tick
@@ -62,34 +99,67 @@ class CostOptimizer:
         grid_power_w: float,
         pv_power_w: float,
         load_power_w: float,
+        battery_power_w: float,
         price_eur_kwh: float,
         interval_sec: int,
         outdoor_temp_c: float | None = None,
     ) -> None:
         """Accumulate energy for one interval."""
+        cfg = self._cfg
         now = date.today()
         hours = interval_sec / 3600
 
+        # Spike validation – use last-accepted values; skip accumulation on spike
+        pv_w   = self._validator.validate(cfg.pv_power_entity, pv_power_w)
+        grid_w = self._validator.validate(cfg.grid_power_entity, grid_power_w)
+        load_w = self._validator.validate(cfg.load_power_entity, load_power_w)
+        bat_w  = self._validator.validate(cfg.battery_power_entity, battery_power_w)
+
+        if pv_w is None:
+            pv_w = 0.0
+        if grid_w is None:
+            grid_w = 0.0
+        if load_w is None:
+            load_w = 0.0
+        if bat_w is None:
+            bat_w = 0.0
+
         # Grid import (positive = import, negative = export)
-        if grid_power_w > 0:
-            kwh_imported = (grid_power_w / 1000) * hours
+        if grid_w > 0:
+            kwh_imported = (grid_w / 1000) * hours
             self._grid_import_kwh[now] += kwh_imported
             self._grid_cost_eur[now]   += kwh_imported * price_eur_kwh
 
         # PV contribution to load (energy that would otherwise have been bought)
-        pv_to_load_w = max(0.0, min(pv_power_w, load_power_w))
+        pv_to_load_w = max(0.0, min(pv_w, load_w))
         kwh_pv_used = (pv_to_load_w / 1000) * hours
         self._pv_used_kwh[now] += kwh_pv_used
         self._pv_saved_eur[now] += kwh_pv_used * price_eur_kwh
 
         # Total load cost (what you'd pay if buying all from grid at current price)
-        load_kwh = (load_power_w / 1000) * hours
+        load_kwh = (load_w / 1000) * hours
         self._load_total_kwh[now] += load_kwh
         self._load_cost_eur[now]  += load_kwh * price_eur_kwh
 
         # Peak PV power (for yield prediction model)
-        if pv_power_w > self._peak_pv_w[now]:
-            self._peak_pv_w[now] = pv_power_w
+        if pv_w > self._peak_pv_w[now]:
+            self._peak_pv_w[now] = pv_w
+
+        # Grid-to-battery flow (derived, no EMS mode dependency)
+        # battery_power_w > 0 = discharging, < 0 = charging
+        pv_surplus_w     = max(0.0, pv_w - load_w)
+        battery_charge_w = max(0.0, -bat_w)           # positive when battery is charging
+        grid_charge_w    = max(0.0, battery_charge_w - pv_surplus_w)
+        if grid_charge_w > 0:
+            kwh_gc = (grid_charge_w / 1000) * hours
+            self._grid_charge_kwh[now]      += kwh_gc
+            self._grid_charge_cost_eur[now] += kwh_gc * price_eur_kwh
+
+        # Feed-in (grid export)
+        if grid_w < 0:
+            kwh_exported = (abs(grid_w) / 1000) * hours
+            self._feed_in_kwh[now]         += kwh_exported
+            self._feed_in_revenue_eur[now] += kwh_exported * cfg.feed_in_tariff_eur_kwh
 
         # Running average price
         if price_eur_kwh > 0:
@@ -109,15 +179,20 @@ class CostOptimizer:
         t_ticks = self._temp_ticks.get(today, 0)
         avg_temp = self._temp_sum[today] / t_ticks if t_ticks > 0 else None
         fields: dict = {
-            "grid_import_kwh":   round(self._grid_import_kwh[today], 4),
-            "grid_cost_eur":     round(self._grid_cost_eur[today], 4),
-            "pv_used_kwh":       round(self._pv_used_kwh[today], 4),
-            "pv_savings_eur":    round(self._pv_saved_eur[today], 4),
-            "load_total_kwh":    round(self._load_total_kwh[today], 4),
-            "load_cost_eur":     round(self._load_cost_eur[today], 4),
-            "peak_pv_w":         round(self._peak_pv_w[today], 1),
-            "avg_price_eur_kwh": round(avg_price, 5),
-            "ticks":             p_ticks,
+            "grid_import_kwh":      round(self._grid_import_kwh[today], 6),
+            "grid_cost_eur":        round(self._grid_cost_eur[today], 6),
+            "pv_used_kwh":          round(self._pv_used_kwh[today], 6),
+            "pv_savings_eur":       round(self._pv_saved_eur[today], 6),
+            "load_total_kwh":       round(self._load_total_kwh[today], 6),
+            "load_cost_eur":        round(self._load_cost_eur[today], 6),
+            "peak_pv_w":            round(self._peak_pv_w[today], 1),
+            "avg_price_eur_kwh":    round(avg_price, 5),
+            "ticks":                p_ticks,
+            "grid_charge_kwh":      round(self._grid_charge_kwh[today], 6),
+            "grid_charge_cost_eur": round(self._grid_charge_cost_eur[today], 6),
+            "feed_in_kwh":          round(self._feed_in_kwh[today], 6),
+            "feed_in_revenue_eur":  round(self._feed_in_revenue_eur[today], 6),
+            "last_flush_ts":        datetime.utcnow().isoformat(),
         }
         if avg_temp is not None:
             fields["avg_outdoor_temp_c"] = round(avg_temp, 2)
@@ -145,6 +220,18 @@ class CostOptimizer:
     def today_load_cost_eur(self) -> float:
         return self._load_cost_eur.get(date.today(), 0.0)
 
+    def today_grid_charge_kwh(self) -> float:
+        return self._grid_charge_kwh.get(date.today(), 0.0)
+
+    def today_grid_charge_cost_eur(self) -> float:
+        return self._grid_charge_cost_eur.get(date.today(), 0.0)
+
+    def today_feed_in_kwh(self) -> float:
+        return self._feed_in_kwh.get(date.today(), 0.0)
+
+    def today_feed_in_revenue_eur(self) -> float:
+        return self._feed_in_revenue_eur.get(date.today(), 0.0)
+
     def week_grid_cost_eur(self) -> float:
         today = date.today()
         return sum(v for d, v in self._grid_cost_eur.items() if (today - d).days < 7)
@@ -159,15 +246,24 @@ class CostOptimizer:
         return price_eur_kwh < self._cfg.cheap_rate_threshold_eur
 
     def summary(self) -> dict[str, Any]:
+        today = date.today()
+        gc_cost = self.today_grid_charge_cost_eur()
+        grid_cost = self.today_grid_cost_eur()
+        load_kwh = self.today_load_total_kwh()
         return {
-            "today_grid_cost_eur":    round(self.today_grid_cost_eur(), 4),
-            "today_pv_saved_eur":     round(self.today_pv_saved_eur(), 4),
-            "today_grid_import_kwh":  round(self.today_grid_import_kwh(), 3),
-            "today_pv_used_kwh":      round(self.today_pv_used_kwh(), 3),
-            "today_load_total_kwh":   round(self.today_load_total_kwh(), 3),
-            "today_load_cost_eur":    round(self.today_load_cost_eur(), 4),
-            "week_grid_cost_eur":     round(self.week_grid_cost_eur(), 4),
-            "week_pv_saved_eur":      round(self.week_pv_saved_eur(), 4),
+            "today_grid_cost_eur":          round(grid_cost, 6),
+            "today_pv_saved_eur":           round(self.today_pv_saved_eur(), 6),
+            "today_grid_import_kwh":        round(self.today_grid_import_kwh(), 3),
+            "today_pv_used_kwh":            round(self.today_pv_used_kwh(), 3),
+            "today_load_total_kwh":         round(load_kwh, 3),
+            "today_load_cost_eur":          round(self.today_load_cost_eur(), 6),
+            "today_grid_charge_kwh":        round(self.today_grid_charge_kwh(), 3),
+            "today_grid_charge_cost_eur":   round(gc_cost, 6),
+            "today_feed_in_kwh":            round(self.today_feed_in_kwh(), 3),
+            "today_feed_in_revenue_eur":    round(self.today_feed_in_revenue_eur(), 6),
+            "today_cost_without_grid_charge": round(max(0.0, grid_cost - gc_cost), 6),
+            "week_grid_cost_eur":           round(self.week_grid_cost_eur(), 6),
+            "week_pv_saved_eur":            round(self.week_pv_saved_eur(), 6),
         }
 
     async def summary_with_db(self) -> dict[str, Any]:
@@ -180,11 +276,11 @@ class CostOptimizer:
 
         base = self.summary()
         base.update({
-            "month_grid_cost_eur":  round(month.get("grid_cost_eur", 0.0), 4),
-            "month_pv_savings_eur": round(month.get("pv_savings_eur", 0.0), 4),
-            "month_load_cost_eur":  round(month.get("load_cost_eur", 0.0), 4),
-            "year_grid_cost_eur":   round(year.get("grid_cost_eur", 0.0), 4),
-            "year_pv_savings_eur":  round(year.get("pv_savings_eur", 0.0), 4),
-            "year_load_cost_eur":   round(year.get("load_cost_eur", 0.0), 4),
+            "month_grid_cost_eur":  round(month.get("grid_cost_eur", 0.0), 6),
+            "month_pv_savings_eur": round(month.get("pv_savings_eur", 0.0), 6),
+            "month_load_cost_eur":  round(month.get("load_cost_eur", 0.0), 6),
+            "year_grid_cost_eur":   round(year.get("grid_cost_eur", 0.0), 6),
+            "year_pv_savings_eur":  round(year.get("pv_savings_eur", 0.0), 6),
+            "year_load_cost_eur":   round(year.get("load_cost_eur", 0.0), 6),
         })
         return base

@@ -1,13 +1,14 @@
-
 # UI-Übersetzungen für miniEMS WebUI
 ui_title: miniEMS Hauptseite
 ui_settings: miniEMS Einstellungen
+ui_log: miniEMS Protokoll
 tab_dashboard: Hauptseite
 tab_settings: Einstellungen
+tab_log: Protokoll
 refresh_hint: Automatische Aktualisierung alle 5 Sekunden
 footer: miniEMS v
 
-# Dashboard-Karten
+# Dashboard – Echtzeit-Leistungskarten
 pv_power: PV-Leistung
 load_power: Hausverbrauch
 grid_power: Netzbezug
@@ -15,6 +16,8 @@ battery_soc: Batterie-SoC
 battery_power: Batterie-Leistung
 electricity_price: Strompreis
 cheap: günstig
+
+# Kosten & Einsparung
 cost_savings: Kosten & Einsparung
 saved_today: Heute gespart (PV)
 grid_cost_today: Netz-Kosten heute
@@ -22,18 +25,53 @@ pv_used_today: PV-Eigenverbrauch heute
 grid_import_today: Netzbezug heute
 saved_week: Diese Woche gespart
 grid_cost_week: Netz-Kosten diese Woche
+
+# Kosten-Details (Phase 6)
+cost_savings_extended: Kosten-Details
+cost_without_grid_charge: Kosten ohne Netzladung
+cost_fix_price: Kosten bei Festpreis
+feed_in_today: Einspeisung heute
+feed_in_revenue: Einspeisevergütung
+grid_charge_today: Netzladung heute
+
+# Batterie-Zustand (Phase 6)
+battery_state: Batterie-Zustand
+battery_free_to_charge: Ladekapazität frei
+battery_useable: Nutzbare Kapazität
+
+# Solcast-Prognose (Phase 6)
+solcast: Solcast PV-Prognose
+solcast_remaining: Verbleibend heute
+solcast_today: Heute gesamt
+solcast_tomorrow: Morgen
+
+# Prognose & Vorhersage
 forecast_prediction: Prognose & Vorhersage
 predicted_load: Prognostizierter Verbrauch
-predicted_pv: Prognostizierter PV-Ertrag
+predicted_pv: PV-Ertrag Schätzung (Fallback)
 temp_today: Temperatur heute
 temp_tomorrow: Temperatur morgen
+pred_source_historical: historisch geschätzt
+pred_source_fallback: Fallback-Schätzung
+
+# Modusänderungs-Protokoll (Phase 6)
+mode_change_log: Modusänderungs-Protokoll
+log_state: Status
+log_time: Zeitpunkt
+log_free: Ladekapazität (kWh)
+log_useable: Nutzbar (kWh)
+log_pred_load: Prog. Verbrauch (kWh)
+log_empty: Noch keine Modusänderungen aufgezeichnet.
+log_page_hint: Zeigt die letzten 100 Netzlade-Modusänderungen.
+
+# Warnungen
+warnings_title: Warnungen
 
 # Einstellungen-Seite
 inverter_entities: Wechselrichter-Entitäten
 pv_power_entity: PV-Leistung Entität
 battery_soc_entity: Batterie-SoC Entität
 battery_power_entity: Batterie-Leistung Entität
-battery_voltage_entity: Batterie-Spannung Entität
 grid_power_entity: Netzbezug Entität
 load_power_entity: Hausverbrauch Entität
 battery_settings: Batterie-Einstellungen
@@ -45,24 +83,24 @@ long_lived_token: Langzeit-Token (optional)
 octopus_energy: Octopus Energy
 price_entity: Preis-Entität
 cheap_rate_threshold: Schwelle günstiger Tarif (€/kWh)
+feed_in_tariff: Einspeisevergütung (€/kWh)
+fix_price_tariff: Festpreis-Tarif (€/kWh)
 ems_parameters: EMS-Parameter
 pv_surplus_threshold: PV-Überschuss-Schwelle (W)
 update_interval: Aktualisierungsintervall (s, 10–300)
 battery_control: Batterie-Steuerung
 enable_battery_control: Batterie-Steuerung aktivieren
 simulation_mode: Simulationsmodus (nur Log)
-work_mode_entity: Modus-Entität
 charge_power_entity: Ladeleistung Entität
-discharge_power_entity: Entladeleistung Entität
-charge_mode_charge: Netz-Lademodus Wert
-charge_mode_selfuse: Eigenverbrauchsmodus Wert
+grid_charge_switch: Netzlade-Schalter Entität
+battery_discharge_entity: Entladeleistung Entität
+default_discharge_power: Standard-Entladeleistung (W)
 max_charge_power: Maximale Ladeleistung (W)
 max_discharge_power: Maximale Entladeleistung (W)
 forecast_prediction_section: Prognose & Vorhersage
 weather_entity: Wetter-Entität (z.B. weather.openweathermap)
+solcast_section: Solcast PV-Prognose
+solcast_today_entity: Solcast Heute Entität
+solcast_tomorrow_entity: Solcast Morgen Entität
+solcast_remaining_entity: Solcast Verbleibend heute Entität
 save_restart: Speichern & Neustarten
-
-
-
-
-

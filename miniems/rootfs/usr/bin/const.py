@@ -7,10 +7,10 @@ from enum import Enum
 
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Increment on every change; keep in sync with config.yaml → version.
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
-CONFIG_SCHEMA_VERSION = 5
+CONFIG_SCHEMA_VERSION = 6
 
 # ── File paths ───────────────────────────────────────────────────────────────
 OPTIONS_FILE = "/data/options.json"   # written by HA Supervisor (UI)

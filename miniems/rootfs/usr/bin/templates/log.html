@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>miniEMS Log</title>
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+  <header>
+    <img src="static/icon.svg" alt="miniEMS" style="height:2.2rem;width:2.2rem;vertical-align:middle;">
+    <h1>{{ translations.ui_log or 'miniEMS Log' }}</h1>
+    <span class="version-badge">v{{ version }}</span>
+  </header>
+  <nav class="tab-nav">
+    <a href="." class="tab-link">{{ translations.tab_dashboard or 'Dashboard' }}</a>
+    <a href="settings" class="tab-link">{{ translations.tab_settings or 'Settings' }}</a>
+    <a href="log" class="tab-link active">{{ translations.tab_log or 'Log' }}</a>
+  </nav>
+  <p class="refresh-hint">{{ translations.refresh_hint or 'Auto-refreshes every 5 seconds' }}</p>
+  <div id="log-content">Loading…</div>
+  <footer>{{ translations.footer or 'miniEMS v' }}{{ version }} &middot; Home Assistant Add-on</footer>
+
+  <script>
+    const T = {{ translations | tojson }};
+
+    function fmt(v, dec = 1) {
+      return v !== null && v !== undefined ? Number(v).toFixed(dec) : '–';
+    }
+
+    function fmtMode(m) {
+      if (!m) return '';
+      if (m.includes('PV'))      return 'mode-PV';
+      if (m.includes('Grid'))    return 'mode-GRID';
+      if (m.includes('Protect')) return 'mode-PROTECT';
+      return 'mode-IDLE';
+    }
+
+    function renderLog(d) {
+      // Warnings banner
+      const warnHtml = (d.warnings && d.warnings.length > 0)
+        ? `<div class="warnings-banner">${d.warnings.map(w => `<div class="warn-item">&#9888; ${w}</div>`).join('')}</div>`
+        : '';
+
+      // Current mode + key values summary bar
+      const summaryHtml = `
+        <div class="log-summary">
+          <div class="log-summary-item">
+            <span class="log-summary-label">${T.tab_dashboard || 'Mode'}</span>
+            <span class="mode-badge ${fmtMode(d.mode)} log-summary-mode">${d.mode || '–'}</span>
+          </div>
+          <div class="log-summary-item">
+            <span class="log-summary-label">${T.battery_soc || 'Battery SoC'}</span>
+            <span class="log-summary-value">${fmt(d.battery_soc_pct, 0)} %</span>
+          </div>
+          <div class="log-summary-item">
+            <span class="log-summary-label">${T.battery_free_to_charge || 'Free to Charge'}</span>
+            <span class="log-summary-value">${fmt(d.battery_kwh_freetochange, 2)} kWh</span>
+          </div>
+          <div class="log-summary-item">
+            <span class="log-summary-label">${T.solcast_remaining || 'Solcast Remaining'}</span>
+            <span class="log-summary-value">${d.solcast_remaining_today_kwh !== null && d.solcast_remaining_today_kwh !== undefined ? fmt(d.solcast_remaining_today_kwh, 2) + ' kWh' : '–'}</span>
+          </div>
+          <div class="log-summary-item">
+            <span class="log-summary-label">${T.electricity_price || 'Price'}</span>
+            <span class="log-summary-value ${d.is_cheap_rate ? 'cheap' : ''}">${fmt(d.electricity_price_eur, 4)} €/kWh</span>
+          </div>
+        </div>`;
+
+      // Log table
+      const entries = d.log || [];
+      const tableHtml = entries.length === 0
+        ? `<p class="log-empty-msg">${T.log_empty || 'No mode changes recorded yet.'}</p>`
+        : `
+        <table class="log-table log-table-full">
+          <thead>
+            <tr>
+              <th>${T.log_state || 'State'}</th>
+              <th>${T.log_time || 'Time'}</th>
+              <th>${T.log_free || 'Free (kWh)'}</th>
+              <th>${T.log_useable || 'Useable (kWh)'}</th>
+              <th>${T.log_pred_load || 'Pred. Load (kWh)'}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${entries.map(e => `<tr>
+              <td class="${e.state === 'on' ? 'log-on' : 'log-off'}">${e.state === 'on' ? '&#9650; ON' : '&#9660; OFF'}</td>
+              <td>${e.timestamp}</td>
+              <td>${fmt(e.battery_kwh_freetochange, 2)}</td>
+              <td>${fmt(e.battery_kwh_useable, 2)}</td>
+              <td>${e.predicted_load_kwh !== null ? fmt(e.predicted_load_kwh, 2) : '–'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
+
+      const hintHtml = entries.length > 0
+        ? `<p class="log-hint">${T.log_page_hint || 'Shows the last 100 grid-charge mode changes.'} (${entries.length})</p>`
+        : '';
+
+      return `${warnHtml}${summaryHtml}<p class="section-title">${T.mode_change_log || 'Mode Change Log'}</p>${hintHtml}${tableHtml}`;
+    }
+
+    async function refresh() {
+      try {
+        const r = await fetch('api/status');
+        const d = await r.json();
+        document.getElementById('log-content').innerHTML = renderLog(d);
+      } catch(e) { console.error(e); }
+    }
+
+    setInterval(refresh, 5000);
+    window.onload = refresh;
+  </script>
+</body>
+</html>

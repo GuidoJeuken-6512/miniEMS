@@ -38,11 +38,19 @@ class EnergyStore:
         self._db = await aiosqlite.connect(DB_FILE)
         self._db.row_factory = aiosqlite.Row
         await self._db.execute(_CREATE_TABLE)
-        # Add peak_pv_w column if missing (upgrade for existing DBs)
-        try:
-            await self._db.execute("ALTER TABLE daily_stats ADD COLUMN peak_pv_w REAL DEFAULT 0")
-        except Exception:
-            pass   # column already exists – ignore
+        # Add columns if missing (upgrade for existing DBs)
+        for col_def in (
+            "peak_pv_w REAL DEFAULT 0",
+            "grid_charge_kwh REAL DEFAULT 0",
+            "grid_charge_cost_eur REAL DEFAULT 0",
+            "feed_in_kwh REAL DEFAULT 0",
+            "feed_in_revenue_eur REAL DEFAULT 0",
+            "last_flush_ts TEXT",
+        ):
+            try:
+                await self._db.execute(f"ALTER TABLE daily_stats ADD COLUMN {col_def}")
+            except Exception:
+                pass   # column already exists – ignore
         await self._db.commit()
         _LOGGER.info("EnergyStore opened: %s", DB_FILE)
 
@@ -132,12 +140,16 @@ class EnergyStore:
     async def _aggregate(self, where: str, params: list) -> dict[str, float]:
         sql = f"""
             SELECT
-                SUM(grid_import_kwh)  AS grid_import_kwh,
-                SUM(grid_cost_eur)    AS grid_cost_eur,
-                SUM(pv_used_kwh)      AS pv_used_kwh,
-                SUM(pv_savings_eur)   AS pv_savings_eur,
-                SUM(load_total_kwh)   AS load_total_kwh,
-                SUM(load_cost_eur)    AS load_cost_eur
+                SUM(grid_import_kwh)      AS grid_import_kwh,
+                SUM(grid_cost_eur)        AS grid_cost_eur,
+                SUM(pv_used_kwh)          AS pv_used_kwh,
+                SUM(pv_savings_eur)       AS pv_savings_eur,
+                SUM(load_total_kwh)       AS load_total_kwh,
+                SUM(load_cost_eur)        AS load_cost_eur,
+                SUM(grid_charge_kwh)      AS grid_charge_kwh,
+                SUM(grid_charge_cost_eur) AS grid_charge_cost_eur,
+                SUM(feed_in_kwh)          AS feed_in_kwh,
+                SUM(feed_in_revenue_eur)  AS feed_in_revenue_eur
             FROM daily_stats WHERE {where}
         """
         async with self._db.execute(sql, params) as cur:

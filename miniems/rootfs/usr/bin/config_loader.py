@@ -29,7 +29,6 @@ class Config:
     pv_power_entity: str = "sensor.deye_pv_total_power"
     battery_soc_entity: str = "sensor.deye_battery_soc"
     battery_power_entity: str = "sensor.deye_battery_power"
-    battery_voltage_entity: str = "sensor.deye_battery_voltage"
     grid_power_entity: str = "sensor.deye_grid_power"
     load_power_entity: str = "sensor.deye_load_power"
     battery_capacity_kwh: float = 10.0
@@ -55,18 +54,37 @@ class Config:
     battery_max_discharge_power_w: int = 3000
     # Forecast / Prediction (Phase 5)
     weather_entity: str = "weather.openweathermap"
+    # Solcast PV Forecast entities (Phase 6)
+    solcast_today_entity: str = "sensor.solcast_pv_forecast_prognose_heute"
+    solcast_tomorrow_entity: str = "sensor.solcast_pv_forecast_prognose_morgen"
+    solcast_remaining_today_entity: str = "sensor.solcast_pv_forecast_prognose_verbleibende_leistung_heute"
+    # Grid charge control via switch + discharge power entity (Phase 6)
+    grid_charge_switch_entity: str = "switch.deye8k_battery_grid_charging"
+    battery_discharging_power_entity: str = "number.deye8k_battery_discharging_power"
+    default_discharge_power_w: int = 185
+    # Feed-in tariff and fixed price tariff (Phase 6)
+    feed_in_tariff_eur_kwh: float = 0.08
+    fix_price: float = 0.30
 
     @property
     def monitored_entities(self) -> list[str]:
-        return [
+        base = [
             self.pv_power_entity,
             self.battery_soc_entity,
             self.battery_power_entity,
-            self.battery_voltage_entity,
             self.grid_power_entity,
             self.load_power_entity,
             self.electricity_price_entity,
         ]
+        solcast = [
+            e for e in [
+                self.solcast_today_entity,
+                self.solcast_tomorrow_entity,
+                self.solcast_remaining_today_entity,
+            ]
+            if e
+        ]
+        return base + solcast
 
 
 def _defaults() -> dict:
