@@ -30,6 +30,7 @@
   "mounts": [
     "type=volume,target=/var/lib/docker",
     "type=volume,target=/mnt/supervisor",
-    "source=C:/Cursor/ems_config,target=/mnt/supervisor/homeassistant,type=bind,consistency=consistent"
+    "source=C:/Cursor/ems_config/ha_config,target=/mnt/supervisor/homeassistant,type=bind,consistency=consistent",
+    "source=C:/Cursor/ems_config/miniemsdata,target=/mnt/supervisor/addons/data/local_miniems,type=bind,consistency=consistent"
   ]
 }

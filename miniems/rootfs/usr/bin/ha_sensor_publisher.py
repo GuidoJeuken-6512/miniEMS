@@ -23,7 +23,13 @@ _SENSORS: list[tuple[str, str, dict]] = [
     (
         "sensor.miniems_mode",
         "mode",
-        {"friendly_name": "miniEMS Mode", "icon": "mdi:home-lightning-bolt"},
+        {
+            "friendly_name": "miniEMS Mode",
+            "icon": "mdi:home-lightning-bolt",
+            "unit_of_measurement": "",
+            "state_class": "measurement",
+            "device_class": "enum",
+        },
     ),
     (
         "sensor.miniems_today_grid_cost_eur",
