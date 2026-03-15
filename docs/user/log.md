@@ -55,7 +55,15 @@ Recorded every time the electricity price sensor reports a new value that differ
 
 ## Event Capacity
 
-The ring buffer holds the **last 100 events** (mode changes and price changes combined). Older events are silently dropped. The hint line at the top of the table shows the current count.
+The in-memory buffer holds the **last 100 events** (mode changes and price changes combined). Older events are silently evicted from the buffer. The hint line at the top of the table shows the current count.
+
+---
+
+## Persistence
+
+Events are written to the `event_log` table in `/data/miniems.db` on every append. On startup the last 100 entries are restored from the database so the log is **not lost across restarts or updates**.
+
+Old entries are pruned once per day based on the **Event Log Retention** setting (default: 30 days). See [Configuration](configuration.md#ems-parameters).
 
 ---
 
@@ -67,6 +75,6 @@ The page polls `/api/status` every **5 seconds** and re-renders the table in pla
 
 ## Implementation Notes
 
-Events are kept entirely in memory — they are not persisted to the SQLite database and are lost on addon restart. For persistent cost and energy history, see [Data Storage](../technical/data-storage.md).
-
 Price changes are only recorded when the price *differs* from the previously observed value. The very first reading after startup is not logged as a change; subsequent readings are compared against the running value.
+
+For the database schema of the `event_log` table, see [Data Storage](../technical/data-storage.md#event_log-table).

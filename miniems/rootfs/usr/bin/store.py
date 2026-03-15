@@ -12,6 +12,19 @@ from const import DB_FILE
 
 _LOGGER = logging.getLogger(__name__)
 
+_CREATE_EVENT_LOG_TABLE = """
+CREATE TABLE IF NOT EXISTS event_log (
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp                TEXT NOT NULL,
+    entry_type               TEXT NOT NULL,
+    state                    TEXT NOT NULL,
+    battery_kwh_freetochange REAL DEFAULT 0,
+    battery_kwh_useable      REAL DEFAULT 0,
+    predicted_load_kwh       REAL,
+    price_eur_kwh            REAL
+)
+"""
+
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS daily_stats (
     date               TEXT PRIMARY KEY,
@@ -46,11 +59,15 @@ class EnergyStore:
             "feed_in_kwh REAL DEFAULT 0",
             "feed_in_revenue_eur REAL DEFAULT 0",
             "last_flush_ts TEXT",
+            "kwh_high_rate REAL DEFAULT 0",
+            "kwh_medium_rate REAL DEFAULT 0",
+            "kwh_low_rate REAL DEFAULT 0",
         ):
             try:
                 await self._db.execute(f"ALTER TABLE daily_stats ADD COLUMN {col_def}")
             except Exception:
                 pass   # column already exists – ignore
+        await self._db.execute(_CREATE_EVENT_LOG_TABLE)
         await self._db.commit()
         _LOGGER.info("EnergyStore opened: %s", DB_FILE)
 
@@ -144,6 +161,49 @@ class EnergyStore:
             return [dict(r) for r in rows]
 
     # ------------------------------------------------------------------
+    # Event log
+    # ------------------------------------------------------------------
+
+    async def append_event(self, entry: dict) -> None:
+        """Persist one log entry to the event_log table."""
+        if not self._db:
+            return
+        await self._db.execute(
+            """INSERT INTO event_log
+               (timestamp, entry_type, state, battery_kwh_freetochange,
+                battery_kwh_useable, predicted_load_kwh, price_eur_kwh)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            [
+                entry["timestamp"], entry["entry_type"], entry["state"],
+                entry["battery_kwh_freetochange"], entry["battery_kwh_useable"],
+                entry.get("predicted_load_kwh"), entry.get("price_eur_kwh"),
+            ],
+        )
+        await self._db.commit()
+
+    async def load_recent_events(self, limit: int = 100) -> list[dict[str, Any]]:
+        """Return up to `limit` log entries, newest first."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM event_log ORDER BY id DESC LIMIT ?", [limit]
+        ) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
+    async def cleanup_event_log(self, retention_days: int) -> int:
+        """Delete entries older than retention_days. Returns number of rows deleted."""
+        if not self._db:
+            return 0
+        async with self._db.execute(
+            "DELETE FROM event_log WHERE timestamp < datetime('now', ? || ' days')",
+            [f"-{retention_days}"],
+        ) as cur:
+            deleted = cur.rowcount
+        await self._db.commit()
+        return deleted
+
+    # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
 
@@ -159,7 +219,10 @@ class EnergyStore:
                 SUM(grid_charge_kwh)      AS grid_charge_kwh,
                 SUM(grid_charge_cost_eur) AS grid_charge_cost_eur,
                 SUM(feed_in_kwh)          AS feed_in_kwh,
-                SUM(feed_in_revenue_eur)  AS feed_in_revenue_eur
+                SUM(feed_in_revenue_eur)  AS feed_in_revenue_eur,
+                SUM(kwh_high_rate)        AS kwh_high_rate,
+                SUM(kwh_medium_rate)      AS kwh_medium_rate,
+                SUM(kwh_low_rate)         AS kwh_low_rate
             FROM daily_stats WHERE {where}
         """
         async with self._db.execute(sql, params) as cur:

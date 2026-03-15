@@ -10,7 +10,7 @@ from enum import Enum
 VERSION = "1.4.0"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
-CONFIG_SCHEMA_VERSION = 6
+CONFIG_SCHEMA_VERSION = 8
 
 # ── File paths ───────────────────────────────────────────────────────────────
 OPTIONS_FILE = "/data/options.json"   # written by HA Supervisor (UI)

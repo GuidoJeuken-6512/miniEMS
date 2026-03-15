@@ -89,7 +89,11 @@
           <div class="card">
             <div class="label">${T.electricity_price || 'Electricity Price'}</div>
             <div class="value ${d.is_cheap_rate ? 'cheap' : 'expensive'}">${fmt(d.electricity_price_eur, 4)}</div>
-            <div class="unit">€/kWh ${d.is_cheap_rate ? '&#10003; ' + (T.cheap || 'cheap') : ''}</div>
+            <div class="unit">€/kWh ${d.price_tier ? (() => {
+              const labels = { low: T.tier_low || 'low', medium: T.tier_medium || 'medium', high: T.tier_high || 'high' };
+              const colors = { low: '#3fb950', medium: '#e3b341', high: '#f85149' };
+              return `<span style="color:${colors[d.price_tier]};font-weight:600">${labels[d.price_tier]}</span>`;
+            })() : ''}</div>
           </div>
         </div>
 
@@ -97,11 +101,11 @@
         <div class="savings-grid">
           <div class="savings-card">
             <div class="slabel">${T.saved_today || 'Saved Today (PV)'}</div>
-            <div class="svalue">€${fmt(d.today_pv_saved_eur, 4)}</div>
+            <div class="svalue">€${fmt(d.today_pv_saved_eur, 2)}</div>
           </div>
           <div class="savings-card">
             <div class="slabel">${T.grid_cost_today || 'Grid Cost Today'}</div>
-            <div class="svalue negative">€${fmt(d.today_grid_cost_eur, 4)}</div>
+            <div class="svalue negative">€${fmt(d.today_grid_cost_eur, 2)}</div>
           </div>
           <div class="savings-card">
             <div class="slabel">${T.pv_used_today || 'PV Used Today'}</div>
@@ -113,11 +117,11 @@
           </div>
           <div class="savings-card">
             <div class="slabel">${T.saved_week || 'Saved This Week'}</div>
-            <div class="svalue">€${fmt(d.week_pv_saved_eur, 4)}</div>
+            <div class="svalue">€${fmt(d.week_pv_saved_eur, 2)}</div>
           </div>
           <div class="savings-card">
             <div class="slabel">${T.grid_cost_week || 'Grid Cost This Week'}</div>
-            <div class="svalue negative">€${fmt(d.week_grid_cost_eur, 4)}</div>
+            <div class="svalue negative">€${fmt(d.week_grid_cost_eur, 2)}</div>
           </div>
         </div>
 
@@ -125,11 +129,11 @@
         <div class="savings-grid">
           <div class="savings-card">
             <div class="slabel">${T.cost_without_grid_charge || 'Cost Without Grid Charge'}</div>
-            <div class="svalue negative">€${fmt(d.today_cost_without_grid_charge, 4)}</div>
+            <div class="svalue negative">€${fmt(d.today_cost_without_grid_charge, 2)}</div>
           </div>
           <div class="savings-card">
             <div class="slabel">${T.cost_fix_price || 'Cost at Fix Price'}</div>
-            <div class="svalue muted">€${fmt(d.today_cost_fix_price_tarif, 4)}</div>
+            <div class="svalue muted">€${fmt(d.today_cost_fix_price_tarif, 2)}</div>
           </div>
           ${d.today_feed_in_kwh !== undefined ? `
           <div class="savings-card">
@@ -139,7 +143,7 @@
           ${d.today_feed_in_revenue_eur !== undefined ? `
           <div class="savings-card">
             <div class="slabel">${T.feed_in_revenue || 'Feed-in Revenue'}</div>
-            <div class="svalue">€${fmt(d.today_feed_in_revenue_eur, 4)}</div>
+            <div class="svalue">€${fmt(d.today_feed_in_revenue_eur, 2)}</div>
           </div>` : ''}
           ${d.today_grid_charge_kwh !== undefined ? `
           <div class="savings-card">
@@ -207,6 +211,35 @@
             <div class="slabel">${T.temp_tomorrow || 'Temp Tomorrow'}</div>
             <div class="svalue muted">${fmt(d.temp_tomorrow_c, 1)} °C</div>
           </div>` : ''}
+        </div>` : ''}
+
+        ${d.today_kwh_high_rate !== undefined ? `
+        <p class="section-title">${T.price_tier_usage || 'Price Tier Usage'}</p>
+        <div class="savings-grid">
+          <div class="savings-card">
+            <div class="slabel">${T.kwh_high_rate_today || 'Today High Rate'}</div>
+            <div class="svalue negative">${fmt(d.today_kwh_high_rate, 2)} kWh</div>
+          </div>
+          <div class="savings-card">
+            <div class="slabel">${T.kwh_medium_rate_today || 'Today Medium Rate'}</div>
+            <div class="svalue">${fmt(d.today_kwh_medium_rate, 2)} kWh</div>
+          </div>
+          <div class="savings-card">
+            <div class="slabel">${T.kwh_low_rate_today || 'Today Low Rate'}</div>
+            <div class="svalue" style="color:#3fb950">${fmt(d.today_kwh_low_rate, 2)} kWh</div>
+          </div>
+          <div class="savings-card">
+            <div class="slabel">${T.kwh_high_rate_month || 'Month High Rate'}</div>
+            <div class="svalue negative">${fmt(d.month_kwh_high_rate, 2)} kWh</div>
+          </div>
+          <div class="savings-card">
+            <div class="slabel">${T.kwh_medium_rate_month || 'Month Medium Rate'}</div>
+            <div class="svalue">${fmt(d.month_kwh_medium_rate, 2)} kWh</div>
+          </div>
+          <div class="savings-card">
+            <div class="slabel">${T.kwh_low_rate_month || 'Month Low Rate'}</div>
+            <div class="svalue" style="color:#3fb950">${fmt(d.month_kwh_low_rate, 2)} kWh</div>
+          </div>
         </div>` : ''}
 
         <p class="section-title">${T.mode_change_log || 'Mode Change Log'}</p>

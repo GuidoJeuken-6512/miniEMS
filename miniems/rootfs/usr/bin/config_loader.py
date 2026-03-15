@@ -39,9 +39,11 @@ class Config:
     # Octopus Energy Entities
     electricity_price_entity: str = "sensor.octopus_energy_electricity_current_rate"
     cheap_rate_threshold_eur: float = 0.10
+    medium_rate_threshold_eur: float = 0.20
     # EMS Parameters
     pv_surplus_threshold_w: int = 200
     update_interval_sec: int = 30
+    event_log_retention_days: int = 30
     # Battery Control (Phase 2)
     battery_control_enabled: bool = False
     battery_control_simulation: bool = True

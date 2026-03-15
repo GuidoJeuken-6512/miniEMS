@@ -38,6 +38,12 @@ def migrate(data: dict) -> dict:
     if version < 6:
         data = _v5_to_v6(data)
 
+    if version < 7:
+        data = _v6_to_v7(data)
+
+    if version < 8:
+        data = _v7_to_v8(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -126,6 +132,22 @@ def _v5_to_v6(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v5→v6: set %s = %r", key, default)
+    return data
+
+
+def _v7_to_v8(data: dict) -> dict:
+    """v7 → v8: add event log retention setting."""
+    if "event_log_retention_days" not in data:
+        data["event_log_retention_days"] = 30
+        _LOGGER.info("Migration v7→v8: set event_log_retention_days = 30")
+    return data
+
+
+def _v6_to_v7(data: dict) -> dict:
+    """v6 → v7: add medium price rate threshold."""
+    if "medium_rate_threshold_eur" not in data:
+        data["medium_rate_threshold_eur"] = 0.20
+        _LOGGER.info("Migration v6→v7: set medium_rate_threshold_eur = 0.20")
     return data
 
 

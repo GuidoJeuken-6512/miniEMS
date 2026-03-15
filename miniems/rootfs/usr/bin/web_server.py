@@ -69,10 +69,10 @@ _BOOL_FIELDS = {"battery_control_enabled", "battery_control_simulation"}
 _INT_FIELDS = {
     "battery_min_soc", "battery_max_soc", "pv_surplus_threshold_w",
     "update_interval_sec", "battery_max_charge_power_w", "battery_max_discharge_power_w",
-    "default_discharge_power_w",
+    "default_discharge_power_w", "event_log_retention_days",
 }
 _FLOAT_FIELDS = {
-    "battery_capacity_kwh", "cheap_rate_threshold_eur",
+    "battery_capacity_kwh", "cheap_rate_threshold_eur", "medium_rate_threshold_eur",
     "openweathermap_lat", "openweathermap_lon",
     "feed_in_tariff_eur_kwh", "fix_price",
 }

@@ -37,6 +37,9 @@ All rows from `daily_stats` are shown, sorted newest first by default. Click any
 | PV Savings (€) | € | Cost avoided by using PV instead of grid power |
 | Avg Price (€/kWh) | €/kWh | Tick-weighted average electricity price |
 | Ticks | — | Number of EMS update cycles recorded (data quality indicator — a full day at 30 s intervals = 2880 ticks) |
+| High Rate (kWh) | kWh | Load consumed at high price tier (`price ≥ medium_rate_threshold_eur`) |
+| Medium Rate (kWh) | kWh | Load consumed at medium price tier |
+| Low Rate (kWh) | kWh | Load consumed at low price tier (`price < cheap_rate_threshold_eur`) |
 
 Rows shown in **grey** are missing temperature data and are excluded from the temperature-matched prediction.
 
@@ -54,4 +57,4 @@ The database is never modified by the UI — this page is read-only.
 
 The temperature-based load prediction (`consumption_model.py`) queries this table for days with a similar `avg_outdoor_temp_c` (±4 °C, last 60 days). If at least 3 such days exist, the median `load_total_kwh` of those days is used as the predicted load. Days without temperature are skipped by this query, which is why the grey rows matter.
 
-See [Data Storage](../technical/data-storage.md) for the full schema reference.
+See [Data Storage](../technical/data-storage.md) for the full `daily_stats` schema reference.

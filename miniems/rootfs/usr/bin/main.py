@@ -82,7 +82,8 @@ async def main() -> None:
     consumption_model = ConsumptionModel(cfg, store, weather_client if weather_client.enabled else None)
 
     solcast_client = SolcastClient(cfg, ws_client)
-    event_log = EventLog(max_entries=100)
+    event_log = EventLog(max_entries=100, store=store)
+    await event_log.restore_from_db()
 
     controller = EMSController(
         cfg, ws_client, cost_optimizer, inverter, consumption_model,

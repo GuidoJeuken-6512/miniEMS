@@ -31,6 +31,10 @@ class CostOptimizer:
         self._grid_charge_cost_eur: dict[date, float] = defaultdict(float)
         self._feed_in_kwh: dict[date, float] = defaultdict(float)
         self._feed_in_revenue_eur: dict[date, float] = defaultdict(float)
+        # Price tier load accumulators
+        self._kwh_high_rate:   dict[date, float] = defaultdict(float)
+        self._kwh_medium_rate: dict[date, float] = defaultdict(float)
+        self._kwh_low_rate:    dict[date, float] = defaultdict(float)
         # Peak PV power per day (for yield prediction)
         self._peak_pv_w: dict[date, float] = defaultdict(float)
         # Running averages for price and outdoor temperature
@@ -61,6 +65,9 @@ class CostOptimizer:
         self._grid_charge_cost_eur[today] = row.get("grid_charge_cost_eur", 0.0)
         self._feed_in_kwh[today]         = row.get("feed_in_kwh", 0.0)
         self._feed_in_revenue_eur[today] = row.get("feed_in_revenue_eur", 0.0)
+        self._kwh_high_rate[today]       = row.get("kwh_high_rate", 0.0)
+        self._kwh_medium_rate[today]     = row.get("kwh_medium_rate", 0.0)
+        self._kwh_low_rate[today]        = row.get("kwh_low_rate", 0.0)
 
         # Downtime gap detection
         last_ts_str = row.get("last_flush_ts")
@@ -145,6 +152,14 @@ class CostOptimizer:
         if pv_w > self._peak_pv_w[now]:
             self._peak_pv_w[now] = pv_w
 
+        # Price tier load accumulation
+        if price_eur_kwh < cfg.cheap_rate_threshold_eur:
+            self._kwh_low_rate[now] += load_kwh
+        elif price_eur_kwh < cfg.medium_rate_threshold_eur:
+            self._kwh_medium_rate[now] += load_kwh
+        else:
+            self._kwh_high_rate[now] += load_kwh
+
         # Grid-to-battery flow (derived, no EMS mode dependency)
         # battery_power_w > 0 = discharging, < 0 = charging
         pv_surplus_w     = max(0.0, pv_w - load_w)
@@ -192,6 +207,9 @@ class CostOptimizer:
             "grid_charge_cost_eur": round(self._grid_charge_cost_eur[today], 6),
             "feed_in_kwh":          round(self._feed_in_kwh[today], 6),
             "feed_in_revenue_eur":  round(self._feed_in_revenue_eur[today], 6),
+            "kwh_high_rate":        round(self._kwh_high_rate[today], 6),
+            "kwh_medium_rate":      round(self._kwh_medium_rate[today], 6),
+            "kwh_low_rate":         round(self._kwh_low_rate[today], 6),
             "last_flush_ts":        datetime.utcnow().isoformat(),
         }
         if avg_temp is not None:
@@ -245,6 +263,15 @@ class CostOptimizer:
             return False
         return price_eur_kwh < self._cfg.cheap_rate_threshold_eur
 
+    def price_tier(self, price_eur_kwh: float | None) -> str | None:
+        if price_eur_kwh is None:
+            return None
+        if price_eur_kwh < self._cfg.cheap_rate_threshold_eur:
+            return "low"
+        if price_eur_kwh < self._cfg.medium_rate_threshold_eur:
+            return "medium"
+        return "high"
+
     def summary(self) -> dict[str, Any]:
         today = date.today()
         gc_cost = self.today_grid_charge_cost_eur()
@@ -264,6 +291,9 @@ class CostOptimizer:
             "today_cost_without_grid_charge": round(max(0.0, grid_cost - gc_cost), 6),
             "week_grid_cost_eur":           round(self.week_grid_cost_eur(), 6),
             "week_pv_saved_eur":            round(self.week_pv_saved_eur(), 6),
+            "today_kwh_high_rate":          round(self._kwh_high_rate.get(today, 0.0), 3),
+            "today_kwh_medium_rate":        round(self._kwh_medium_rate.get(today, 0.0), 3),
+            "today_kwh_low_rate":           round(self._kwh_low_rate.get(today, 0.0), 3),
         }
 
     async def summary_with_db(self) -> dict[str, Any]:
@@ -282,5 +312,8 @@ class CostOptimizer:
             "year_grid_cost_eur":   round(year.get("grid_cost_eur", 0.0), 6),
             "year_pv_savings_eur":  round(year.get("pv_savings_eur", 0.0), 6),
             "year_load_cost_eur":   round(year.get("load_cost_eur", 0.0), 6),
+            "month_kwh_high_rate":   round(month.get("kwh_high_rate", 0.0), 3),
+            "month_kwh_medium_rate": round(month.get("kwh_medium_rate", 0.0), 3),
+            "month_kwh_low_rate":    round(month.get("kwh_low_rate", 0.0), 3),
         })
         return base

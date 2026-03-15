@@ -1,6 +1,6 @@
 """EMS decision logic – determines operating mode and triggers cost accounting."""
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 from battery_model import BatteryModel
@@ -43,6 +43,7 @@ class EMSController:
         self._mode: EMSMode = EMSMode.IDLE
         self._prediction: "Prediction | None" = None
         self._last_price: float | None = None
+        self._last_event_log_cleanup: date | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -90,7 +91,7 @@ class EMSController:
                     self._prediction.predicted_load_kwh if self._prediction else None
                 ),
             )
-            self._event_log.append(entry)
+            await self._event_log.append(entry)
 
         # Log electricity price changes to event log
         if price is not None and self._last_price is not None and price != self._last_price:
@@ -105,9 +106,15 @@ class EMSController:
                 entry_type="price_change",
                 price_eur_kwh=round(price, 4),
             )
-            self._event_log.append(price_entry)
+            await self._event_log.append(price_entry)
         if price is not None:
             self._last_price = price
+
+        # Daily event log cleanup
+        today = date.today()
+        if self._last_event_log_cleanup != today:
+            await self._event_log.cleanup_old_entries(cfg.event_log_retention_days)
+            self._last_event_log_cleanup = today
 
         # Apply inverter control (simulation or real)
         if self._inverter:
@@ -154,6 +161,7 @@ class EMSController:
             "battery_power_w": bat_w,
             "electricity_price_eur": price,
             "is_cheap_rate": self._optimizer.is_cheap_rate(price),
+            "price_tier": self._optimizer.price_tier(price),
             "battery_control_active": cfg.battery_control_enabled,
             "battery_control_simulation": cfg.battery_control_simulation,
             "battery_kwh_freetochange": round(bat_kwh_free, 3) if bat_kwh_free is not None else None,

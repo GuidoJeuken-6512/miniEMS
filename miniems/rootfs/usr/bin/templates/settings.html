@@ -30,10 +30,10 @@
     const INT_FIELDS = new Set([
       'battery_min_soc', 'battery_max_soc', 'pv_surplus_threshold_w',
       'update_interval_sec', 'battery_max_charge_power_w', 'battery_max_discharge_power_w',
-      'default_discharge_power_w'
+      'default_discharge_power_w', 'event_log_retention_days'
     ]);
     const FLOAT_FIELDS = new Set([
-      'battery_capacity_kwh', 'cheap_rate_threshold_eur',
+      'battery_capacity_kwh', 'cheap_rate_threshold_eur', 'medium_rate_threshold_eur',
       'feed_in_tariff_eur_kwh', 'fix_price',
     ]);
 
@@ -66,7 +66,8 @@
         title: 'Octopus Energy',
         fields: [
           { key: 'electricity_price_entity',  label: 'Price Entity' },
-          { key: 'cheap_rate_threshold_eur',  label: 'Cheap Rate Threshold (€/kWh)' },
+          { key: 'cheap_rate_threshold_eur',   label: 'Cheap Rate Threshold (€/kWh)' },
+          { key: 'medium_rate_threshold_eur', label: 'Medium Rate Threshold (€/kWh)' },
           { key: 'feed_in_tariff_eur_kwh',    label: 'Feed-in Tariff (€/kWh)' },
           { key: 'fix_price',                 label: 'Fixed Price Tariff (€/kWh)' },
         ]
@@ -74,8 +75,9 @@
       {
         title: 'EMS Parameters',
         fields: [
-          { key: 'pv_surplus_threshold_w', label: 'PV Surplus Threshold (W)' },
-          { key: 'update_interval_sec',    label: 'Update Interval (s, 10–300)' },
+          { key: 'pv_surplus_threshold_w',    label: 'PV Surplus Threshold (W)' },
+          { key: 'update_interval_sec',       label: 'Update Interval (s, 10–300)' },
+          { key: 'event_log_retention_days',  label: 'Event Log Retention (days)' },
         ]
       },
       {

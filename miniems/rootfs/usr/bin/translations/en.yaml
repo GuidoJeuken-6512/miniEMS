@@ -22,6 +22,9 @@ battery_soc: Battery SoC
 battery_power: Battery Power
 electricity_price: Electricity Price
 cheap: cheap
+tier_low: low
+tier_medium: medium
+tier_high: high
 
 # Cost & Savings
 cost_savings: Cost & Savings
@@ -92,11 +95,13 @@ long_lived_token: Long-Lived Token (optional)
 octopus_energy: Octopus Energy
 price_entity: Price Entity
 cheap_rate_threshold: Cheap Rate Threshold (€/kWh)
+medium_rate_threshold: Medium Rate Threshold (€/kWh)
 feed_in_tariff: Feed-in Tariff (€/kWh)
 fix_price_tariff: Fixed Price Tariff (€/kWh)
 ems_parameters: EMS Parameters
 pv_surplus_threshold: PV Surplus Threshold (W)
 update_interval: Update Interval (s, 10–300)
+event_log_retention: Event Log Retention (days)
 battery_control: Battery Control
 enable_battery_control: Enable Battery Control
 simulation_mode: Simulation Mode (log only)
@@ -136,6 +141,14 @@ db_with_temp: Days with temperature
 db_without_temp: Days without temperature
 db_hint: "Click a column header to sort. Grey rows have no temperature data (not used for consumption prediction)."
 loading: Loading…
+# Price Tier Usage
+price_tier_usage: Price Tier Usage
+kwh_high_rate_today: Today High Rate
+kwh_medium_rate_today: Today Medium Rate
+kwh_low_rate_today: Today Low Rate
+kwh_high_rate_month: Month High Rate
+kwh_medium_rate_month: Month Medium Rate
+kwh_low_rate_month: Month Low Rate
 config_json_hint: "Persistent settings written by miniEMS. Takes precedence over options.json. Stored at /data/config.json."
 options_json_hint: "Supervisor-managed options. Read on startup; config.json wins for values equal to the dataclass default. Stored at /data/options.json."
 options_json_warning: "This file is managed by the HA Supervisor. Changes may be overwritten when the addon is reconfigured via the HA UI. Prefer editing config.json for persistent changes."

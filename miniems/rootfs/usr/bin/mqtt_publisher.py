@@ -57,6 +57,12 @@ _SENSOR_DEFS: list[tuple[str, str, str | None, str | None, str, str]] = [
     ("today_feed_in_kwh",                "Today Feed-in",                "kWh", "energy",   "total_increasing", "mdi:solar-power-variant"),
     ("today_feed_in_revenue_eur",        "Today Feed-in Revenue",        "€",   "monetary", "total_increasing", "mdi:cash-plus"),
     ("today_grid_charge_kwh",            "Today Grid Charge",            "kWh", "energy",   "total_increasing", "mdi:battery-charging"),
+    ("today_kwh_high_rate",   "Today kWh High Rate",   "kWh", "energy", "total_increasing", "mdi:lightning-bolt"),
+    ("today_kwh_medium_rate", "Today kWh Medium Rate", "kWh", "energy", "total_increasing", "mdi:lightning-bolt-circle"),
+    ("today_kwh_low_rate",    "Today kWh Low Rate",    "kWh", "energy", "total_increasing", "mdi:leaf"),
+    ("month_kwh_high_rate",   "Month kWh High Rate",   "kWh", "energy", "total_increasing", "mdi:lightning-bolt"),
+    ("month_kwh_medium_rate", "Month kWh Medium Rate", "kWh", "energy", "total_increasing", "mdi:lightning-bolt-circle"),
+    ("month_kwh_low_rate",    "Month kWh Low Rate",    "kWh", "energy", "total_increasing", "mdi:leaf"),
 ]
 
 

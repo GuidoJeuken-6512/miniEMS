@@ -38,9 +38,21 @@ Find these in **HA → Developer Tools → States** — filter by `deye` to loca
 | Setting | Default | Description |
 |---|---|---|
 | `electricity_price_entity` | `sensor.octopus_a_10fc0646_electricity_price` | Current spot price sensor (€/kWh) |
-| `cheap_rate_threshold_eur` | `0.28` | Grid charging triggers when price is **below** this value |
+| `cheap_rate_threshold_eur` | `0.28` | Grid charging triggers when price is **below** this value — also the **low** tier ceiling |
+| `medium_rate_threshold_eur` | `0.20` | Price tier boundary: **low** below `cheap_rate_threshold_eur`, **medium** between the two, **high** at or above this value |
 | `feed_in_tariff_eur_kwh` | `0.08` | Revenue per kWh exported to the grid |
 | `fix_price` | `0.30` | Fixed-rate tariff for the "Cost at Fix Price" comparison sensor |
+
+!!! info "Price tier logic"
+    Three tiers classify every tick's consumption for the [Price Tier Usage](dashboard.md#price-tier-usage) dashboard section and the six `sensor.miniems_*kwh*rate` HA sensors:
+
+    | Tier | Condition |
+    |---|---|
+    | **Low** | `price < cheap_rate_threshold_eur` |
+    | **Medium** | `cheap_rate_threshold_eur ≤ price < medium_rate_threshold_eur` |
+    | **High** | `price ≥ medium_rate_threshold_eur` |
+
+    The current tier is also shown next to the price on the dashboard (green / amber / red).
 
 ---
 
@@ -112,6 +124,7 @@ The prediction model uses historical consumption data from similar-temperature d
 |---|---|---|
 | `pv_surplus_threshold_w` | `200` | Minimum PV surplus (W) to trigger PV Charging mode |
 | `update_interval_sec` | `30` | How often the EMS loop runs (seconds) |
+| `event_log_retention_days` | `30` | How many days of event log entries to keep in the database |
 
 ---
 

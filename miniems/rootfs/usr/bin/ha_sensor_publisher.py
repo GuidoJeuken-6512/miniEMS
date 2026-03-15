@@ -284,6 +284,72 @@ _SENSORS: list[tuple[str, str, dict]] = [
             "icon": "mdi:battery-charging",
         },
     ),
+    (
+        "sensor.miniems_today_kwh_high_rate",
+        "today_kwh_high_rate",
+        {
+            "friendly_name": "miniEMS Today kWh High Rate",
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "state_class": "total_increasing",
+            "icon": "mdi:lightning-bolt",
+        },
+    ),
+    (
+        "sensor.miniems_today_kwh_medium_rate",
+        "today_kwh_medium_rate",
+        {
+            "friendly_name": "miniEMS Today kWh Medium Rate",
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "state_class": "total_increasing",
+            "icon": "mdi:lightning-bolt-circle",
+        },
+    ),
+    (
+        "sensor.miniems_today_kwh_low_rate",
+        "today_kwh_low_rate",
+        {
+            "friendly_name": "miniEMS Today kWh Low Rate",
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "state_class": "total_increasing",
+            "icon": "mdi:leaf",
+        },
+    ),
+    (
+        "sensor.miniems_month_kwh_high_rate",
+        "month_kwh_high_rate",
+        {
+            "friendly_name": "miniEMS Month kWh High Rate",
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "state_class": "total_increasing",
+            "icon": "mdi:lightning-bolt",
+        },
+    ),
+    (
+        "sensor.miniems_month_kwh_medium_rate",
+        "month_kwh_medium_rate",
+        {
+            "friendly_name": "miniEMS Month kWh Medium Rate",
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "state_class": "total_increasing",
+            "icon": "mdi:lightning-bolt-circle",
+        },
+    ),
+    (
+        "sensor.miniems_month_kwh_low_rate",
+        "month_kwh_low_rate",
+        {
+            "friendly_name": "miniEMS Month kWh Low Rate",
+            "unit_of_measurement": "kWh",
+            "device_class": "energy",
+            "state_class": "total_increasing",
+            "icon": "mdi:leaf",
+        },
+    ),
 ]
 
 

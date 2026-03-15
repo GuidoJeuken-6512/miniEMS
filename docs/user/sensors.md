@@ -79,6 +79,23 @@ useable        = (soc − min_soc)  / 100 × capacity_kwh
 
 ---
 
+## Price Tier Usage
+
+Six sensors track household load (kWh) split by electricity price tier. The tier boundaries are set by `cheap_rate_threshold_eur` and `medium_rate_threshold_eur` in Settings.
+
+| Entity | Unit | Description |
+|---|---|---|
+| `sensor.miniems_today_kwh_high_rate` | kWh | Load consumed today at **high** rate (`price ≥ medium_rate_threshold`) |
+| `sensor.miniems_today_kwh_medium_rate` | kWh | Load consumed today at **medium** rate |
+| `sensor.miniems_today_kwh_low_rate` | kWh | Load consumed today at **low** rate (`price < cheap_rate_threshold`) |
+| `sensor.miniems_month_kwh_high_rate` | kWh | Load consumed this calendar month at **high** rate |
+| `sensor.miniems_month_kwh_medium_rate` | kWh | Load consumed this calendar month at **medium** rate |
+| `sensor.miniems_month_kwh_low_rate` | kWh | Load consumed this calendar month at **low** rate |
+
+All six sensors have `state_class: total_increasing` and are resilient to restarts — values are restored from the local database on startup.
+
+---
+
 ## Prediction
 
 | Entity | Unit | Description |
