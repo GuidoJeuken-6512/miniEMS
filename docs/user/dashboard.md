@@ -4,13 +4,16 @@ The miniEMS dashboard is an ingress panel accessible directly from the HA sideba
 
 ## Navigation
 
-Three tabs are available:
+Six tabs are available:
 
 | Tab | Path | Purpose |
 |---|---|---|
 | **Dashboard** | `/` | Live status, costs, battery, Solcast, prediction |
 | **Settings** | `/settings` | Configuration form |
-| **Log** | `/log` | Full mode-change event log |
+| **Log** | `/log` | Unified event log (mode changes + price changes) |
+| **config.json** | `/config-json` | Raw editor for `/data/config.json` |
+| **options.json** | `/options-json` | Raw editor for `/data/options.json` |
+| **Database** | `/database` | Browse all rows in `daily_stats` |
 
 ---
 
@@ -84,17 +87,39 @@ Shows the most recent mode change with a link to the full Log page.
 The dedicated log page shows:
 
 - **Summary bar** — current mode, SoC, free-to-charge kWh, Solcast remaining, current price
-- **Full log table** — up to the last 100 grid-charge mode-change events
+- **Full event table** — up to the last 100 events: grid-charge mode changes and electricity price changes
 
-Each log entry records:
+See [Event Log](log.md) for full details on all event types and columns.
 
-| Column | Description |
-|---|---|
-| State | ▲ ON (grid charging started) or ▼ OFF (grid charging stopped) |
-| Time | ISO 8601 timestamp |
-| Free (kWh) | Battery free-to-charge at the time of the event |
-| Useable (kWh) | Battery useable kWh at the time of the event |
-| Pred. Load (kWh) | Predicted daily load at the time of the event |
+---
+
+## config.json Tab
+
+Direct raw editor for `/data/config.json` — the persistent miniEMS settings file. Displays the file as pretty-printed JSON in a monospace textarea. Changes are validated client-side before saving, then the add-on restarts automatically.
+
+A **Reformat JSON** button re-indents the content without saving, useful for reviewing edits.
+
+!!! warning "Advanced use"
+    Prefer the **Settings** tab for normal configuration. The raw editor is intended for debugging, migration fixes, or setting values not exposed in the settings form.
+
+---
+
+## options.json Tab
+
+Raw editor for `/data/options.json` — the file written by the HA Supervisor. Identical interface to the config.json tab, with an additional warning banner noting that the Supervisor may overwrite this file when the add-on is reconfigured via the HA UI.
+
+!!! tip "Which file wins?"
+    `config.json` takes precedence for any value equal to the dataclass default. For all other values, `options.json` wins on startup. After the first run the merged result is written back to `config.json`, so `config.json` is the durable source of truth.
+
+---
+
+## Database Tab
+
+Browse all rows in the `daily_stats` SQLite table. Displays a summary bar (total days recorded, date range, temperature coverage) followed by a sortable full table.
+
+Click any column header to sort ascending or descending. Rows without temperature data are shown in grey — these days are excluded from the temperature-matched load prediction.
+
+See [Data Storage](../technical/data-storage.md) for the full column reference.
 
 ---
 

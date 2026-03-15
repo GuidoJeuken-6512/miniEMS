@@ -2,9 +2,15 @@
 ui_title: miniEMS Hauptseite
 ui_settings: miniEMS Einstellungen
 ui_log: miniEMS Protokoll
+ui_config_json: config.json Editor
+ui_options_json: options.json Editor
+ui_database: Datenbank – daily_stats
 tab_dashboard: Hauptseite
 tab_settings: Einstellungen
 tab_log: Protokoll
+tab_config_json: config.json
+tab_options_json: options.json
+tab_database: Datenbank
 refresh_hint: Automatische Aktualisierung alle 5 Sekunden
 footer: miniEMS v
 
@@ -54,15 +60,18 @@ temp_tomorrow: Temperatur morgen
 pred_source_historical: historisch geschätzt
 pred_source_fallback: Fallback-Schätzung
 
-# Modusänderungs-Protokoll (Phase 6)
-mode_change_log: Modusänderungs-Protokoll
-log_state: Status
+# Ereignis-Protokoll (Phase 6+)
+event_log: Ereignis-Protokoll
+mode_change_log: Ereignis-Protokoll
+log_state: Ereignis
 log_time: Zeitpunkt
+log_price: Preis (€/kWh)
 log_free: Ladekapazität (kWh)
 log_useable: Nutzbar (kWh)
 log_pred_load: Prog. Verbrauch (kWh)
-log_empty: Noch keine Modusänderungen aufgezeichnet.
-log_page_hint: Zeigt die letzten 100 Netzlade-Modusänderungen.
+log_empty: Noch keine Ereignisse aufgezeichnet.
+log_page_hint: Zeigt die letzten 100 Ereignisse (Modusänderungen & Preisänderungen).
+log_price_change: Preisänderung
 
 # Warnungen
 warnings_title: Warnungen
@@ -104,3 +113,29 @@ solcast_today_entity: Solcast Heute Entität
 solcast_tomorrow_entity: Solcast Morgen Entität
 solcast_remaining_entity: Solcast Verbleibend heute Entität
 save_restart: Speichern & Neustarten
+reformat_json: JSON formatieren
+json_invalid: Ungültiges JSON
+saving: Speichern…
+saved_restarting: Gespeichert – Addon wird neu gestartet…
+# Datenbankseite
+db_date: Datum
+db_temp: "Temp (°C)"
+db_load: "Verbrauch (kWh)"
+db_pv_used: "PV-Eigenverbrauch (kWh)"
+db_grid_import: "Netzbezug (kWh)"
+db_grid_charge: "Netzladung (kWh)"
+db_feed_in: "Einspeisung (kWh)"
+db_peak_pv: "Peak PV (W)"
+db_grid_cost: "Netzkosten (€)"
+db_pv_savings: "PV-Ersparnis (€)"
+db_avg_price: "Ø Preis (€/kWh)"
+db_ticks: Ticks
+db_total_days: Gespeicherte Tage
+db_date_range: Zeitraum
+db_with_temp: Tage mit Temperatur
+db_without_temp: Tage ohne Temperatur
+db_hint: "Spaltenüberschrift klicken zum Sortieren. Graue Zeilen haben keine Temperaturdaten (nicht für Verbrauchsprognose nutzbar)."
+loading: Lade…
+config_json_hint: "Persistente Einstellungen, geschrieben von miniEMS. Hat Vorrang vor options.json. Gespeichert unter /data/config.json."
+options_json_hint: "Supervisor-verwaltete Optionen. Wird beim Start gelesen; config.json hat Vorrang bei Standardwerten. Gespeichert unter /data/options.json."
+options_json_warning: "Diese Datei wird vom HA Supervisor verwaltet. Änderungen können überschrieben werden, wenn das Addon über die HA-Oberfläche neu konfiguriert wird. Für dauerhafte Änderungen config.json bevorzugen."

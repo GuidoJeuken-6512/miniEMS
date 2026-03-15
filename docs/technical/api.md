@@ -25,7 +25,31 @@ Response: `text/html`
 
 ## `GET /log`
 
-Renders `log.html` (Jinja2). Returns the full mode-change event log page.
+Renders `log.html` (Jinja2). Returns the unified event log page showing mode changes and price changes.
+
+Response: `text/html`
+
+---
+
+## `GET /config-json`
+
+Renders `config_json.html`. Raw JSON editor for `/data/config.json`.
+
+Response: `text/html`
+
+---
+
+## `GET /options-json`
+
+Renders `options_json.html`. Raw JSON editor for `/data/options.json`.
+
+Response: `text/html`
+
+---
+
+## `GET /database`
+
+Renders `database.html`. Sortable browser for the `daily_stats` SQLite table.
 
 Response: `text/html`
 
@@ -91,11 +115,22 @@ Response: `application/json`
   "warnings": [],
   "log": [
     {
-      "timestamp": "2026-03-14T06:15:00Z",
-      "state": "ON",
+      "timestamp": "2026-03-15T06:15:00",
+      "state": "on",
+      "entry_type": "mode_change",
       "battery_kwh_freetochange": 12.5,
       "battery_kwh_useable": 6.0,
-      "predicted_load_kwh": 10.5
+      "predicted_load_kwh": 10.5,
+      "price_eur_kwh": null
+    },
+    {
+      "timestamp": "2026-03-15T06:00:00",
+      "state": "price_change",
+      "entry_type": "price_change",
+      "battery_kwh_freetochange": 13.1,
+      "battery_kwh_useable": 5.8,
+      "predicted_load_kwh": 10.5,
+      "price_eur_kwh": 0.0850
     }
   ],
 
@@ -120,6 +155,80 @@ The dashboard renders these with their translated text in the warnings banner.
 |---|---|
 | `"historical"` | Median of temperature-matched historical days |
 | `"fallback"` | Temperature rule-based estimate |
+
+---
+
+## `GET /api/config`
+
+Returns the current configuration from `/data/config.json` as JSON (internal keys stripped).
+
+Response: `application/json`
+
+---
+
+## `POST /api/config`
+
+Saves updated config keys to `/data/config.json` and restarts the add-on. Values are type-coerced (bool/int/float) based on the known field list in `web_server.py`. Unknown or internal (`_`-prefixed) keys are ignored.
+
+Request: `application/json` — partial or full config object.
+
+Response: `{"status": "restarting"}` or `{"error": "..."}`.
+
+---
+
+## `GET /api/rawfile/{name}`
+
+Returns the raw contents of a config file as JSON. `name` is `config` or `options`.
+
+| name | File |
+|---|---|
+| `config` | `/data/config.json` |
+| `options` | `/data/options.json` |
+
+Response: `application/json` — the file's parsed JSON content, or `{}` if the file does not exist.
+
+---
+
+## `POST /api/rawfile/{name}`
+
+Writes the request body verbatim as JSON to the named file and restarts the add-on. No type coercion is applied — the exact JSON is written.
+
+Request: `application/json`
+
+Response: `{"status": "restarting"}` or `{"error": "..."}`.
+
+---
+
+## `GET /api/database`
+
+Returns all rows from the `daily_stats` SQLite table, newest first.
+
+Response: `application/json`
+
+```json
+{
+  "rows": [
+    {
+      "date": "2026-03-15",
+      "grid_import_kwh": 4.123,
+      "grid_cost_eur": 1.234,
+      "pv_used_kwh": 8.456,
+      "pv_savings_eur": 2.537,
+      "load_total_kwh": 12.579,
+      "load_cost_eur": 3.774,
+      "avg_price_eur_kwh": 0.3001,
+      "avg_outdoor_temp_c": 8.4,
+      "ticks": 2880,
+      "peak_pv_w": 5863.0,
+      "grid_charge_kwh": 1.2,
+      "grid_charge_cost_eur": 0.102,
+      "feed_in_kwh": 0.5,
+      "feed_in_revenue_eur": 0.04,
+      "last_flush_ts": "2026-03-15T23:59:58"
+    }
+  ]
+}
+```
 
 ---
 

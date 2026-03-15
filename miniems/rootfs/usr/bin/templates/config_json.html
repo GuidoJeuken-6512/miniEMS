@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>miniEMS – config.json</title>
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+  <header>
+    <img src="static/icon.svg" alt="miniEMS" style="height:2.2rem;width:2.2rem;vertical-align:middle;">
+    <h1>{{ translations.ui_config_json or 'config.json' }}</h1>
+    <span class="version-badge">v{{ version }}</span>
+  </header>
+  <nav class="tab-nav">
+    <a href="." class="tab-link">{{ translations.tab_dashboard or 'Dashboard' }}</a>
+    <a href="settings" class="tab-link">{{ translations.tab_settings or 'Settings' }}</a>
+    <a href="log" class="tab-link">{{ translations.tab_log or 'Log' }}</a>
+    <a href="config-json" class="tab-link active">{{ translations.tab_config_json or 'config.json' }}</a>
+    <a href="options-json" class="tab-link">{{ translations.tab_options_json or 'options.json' }}</a>
+    <a href="database" class="tab-link">{{ translations.tab_database or 'Database' }}</a>
+  </nav>
+
+  <div class="raw-editor-page">
+    <p class="raw-file-hint">{{ translations.config_json_hint or 'Persistent settings written by miniEMS. Takes precedence over options.json for values equal to the dataclass default. Saved to /data/config.json inside the addon container.' }}</p>
+    <textarea id="editor" class="raw-json-editor" spellcheck="false">Loading…</textarea>
+    <div class="save-bar">
+      <button id="save-btn" class="btn-save" onclick="save()">{{ translations.save_restart or 'Save &amp; Restart' }}</button>
+      <button class="btn-secondary" onclick="reformat()">{{ translations.reformat_json or 'Reformat JSON' }}</button>
+      <span id="save-msg" class="save-msg"></span>
+    </div>
+  </div>
+
+  <footer>{{ translations.footer or 'miniEMS v' }}{{ version }} &middot; Home Assistant Add-on</footer>
+
+  <script>
+    const T = {{ translations | tojson }};
+
+    async function load() {
+      try {
+        const r = await fetch('api/rawfile/config');
+        const data = await r.json();
+        document.getElementById('editor').value = JSON.stringify(data, null, 2);
+      } catch(e) {
+        document.getElementById('editor').value = 'Failed to load: ' + e;
+      }
+    }
+
+    function reformat() {
+      const el = document.getElementById('editor');
+      try {
+        el.value = JSON.stringify(JSON.parse(el.value), null, 2);
+        setMsg('', '');
+      } catch(e) {
+        setMsg(T.json_invalid || 'Invalid JSON: ' + e, 'err');
+      }
+    }
+
+    function setMsg(text, cls) {
+      const msg = document.getElementById('save-msg');
+      msg.textContent = text;
+      msg.className = 'save-msg' + (cls ? ' ' + cls : '');
+    }
+
+    async function save() {
+      const btn = document.getElementById('save-btn');
+      const el = document.getElementById('editor');
+      let parsed;
+      try {
+        parsed = JSON.parse(el.value);
+      } catch(e) {
+        setMsg((T.json_invalid || 'Invalid JSON') + ': ' + e, 'err');
+        return;
+      }
+      btn.disabled = true;
+      setMsg(T.saving || 'Saving…', '');
+      try {
+        const r = await fetch('api/rawfile/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(parsed),
+        });
+        const data = await r.json();
+        if (data.status === 'restarting') {
+          setMsg('✓ ' + (T.saved_restarting || 'Saved – addon is restarting…'), 'ok');
+          setTimeout(() => { window.location.href = '.'; }, 6000);
+        } else {
+          setMsg('Error: ' + (data.error || 'Unknown'), 'err');
+          btn.disabled = false;
+        }
+      } catch(e) {
+        setMsg('Request failed: ' + e, 'err');
+        btn.disabled = false;
+      }
+    }
+
+    window.onload = load;
+  </script>
+</body>
+</html>

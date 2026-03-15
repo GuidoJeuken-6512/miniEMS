@@ -59,11 +59,7 @@ def _v1_to_v2(data: dict) -> dict:
     defaults = {
         "battery_control_enabled": False,
         "battery_control_simulation": True,
-        "inverter_work_mode_entity": "select.deye_work_mode",
         "inverter_charge_power_entity": "number.deye_battery_charging_power",
-        "inverter_discharge_power_entity": "number.deye_battery_discharging_power",
-        "inverter_charge_mode_charge": "Charging Priority",
-        "inverter_charge_mode_selfuse": "Self-Use",
         "battery_max_charge_power_w": 3000,
         "battery_max_discharge_power_w": 3000,
     }
@@ -102,7 +98,20 @@ def _v4_to_v5(data: dict) -> dict:
 
 
 def _v5_to_v6(data: dict) -> dict:
-    """v5 → v6: add Solcast entities, grid charge switch, feed-in tariff, default discharge power, fix_price."""
+    """v5 → v6: add Solcast entities, grid charge switch, feed-in tariff, default discharge power, fix_price.
+
+    Also carries forward renamed fields:
+      inverter_discharge_power_entity → battery_discharging_power_entity
+      inverter_work_mode_entity       → grid_charge_switch_entity (best-effort; different semantics)
+    """
+    # Carry forward renamed discharge power entity
+    if "battery_discharging_power_entity" not in data and "inverter_discharge_power_entity" in data:
+        data["battery_discharging_power_entity"] = data["inverter_discharge_power_entity"]
+        _LOGGER.info(
+            "Migration v5→v6: carried inverter_discharge_power_entity=%r → battery_discharging_power_entity",
+            data["battery_discharging_power_entity"],
+        )
+
     defaults = {
         "solcast_today_entity": "sensor.solcast_pv_forecast_prognose_heute",
         "solcast_tomorrow_entity": "sensor.solcast_pv_forecast_prognose_morgen",

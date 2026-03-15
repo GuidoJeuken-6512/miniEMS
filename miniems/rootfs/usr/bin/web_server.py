@@ -18,7 +18,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from const import CONFIG_FILE, SUPERVISOR_RESTART_URL, VERSION
+from const import CONFIG_FILE, OPTIONS_FILE, SUPERVISOR_RESTART_URL, VERSION
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,6 +101,7 @@ def create_app(
     status_store: dict[str, Any],
     config: Any = None,          # Config dataclass instance
     supervisor_token: str = "",
+    store: Any = None,           # EnergyStore instance
 ) -> FastAPI:
     """Create FastAPI app; status_store is the shared dict updated by EMS loop."""
     app = FastAPI(title="miniEMS", docs_url=None, redoc_url=None)
@@ -139,6 +140,37 @@ def create_app(
         return _TEMPLATES.TemplateResponse(
             "log.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
         )
+
+    @app.get("/config-json", response_class=HTMLResponse)
+    async def config_json_page(request: Request) -> HTMLResponse:
+        lang = await get_ha_language(request)
+        translations = load_translations(lang)
+        return _TEMPLATES.TemplateResponse(
+            "config_json.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
+        )
+
+    @app.get("/options-json", response_class=HTMLResponse)
+    async def options_json_page(request: Request) -> HTMLResponse:
+        lang = await get_ha_language(request)
+        translations = load_translations(lang)
+        return _TEMPLATES.TemplateResponse(
+            "options_json.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
+        )
+
+    @app.get("/database", response_class=HTMLResponse)
+    async def database_page(request: Request) -> HTMLResponse:
+        lang = await get_ha_language(request)
+        translations = load_translations(lang)
+        return _TEMPLATES.TemplateResponse(
+            "database.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
+        )
+
+    @app.get("/api/database")
+    async def api_database() -> JSONResponse:
+        if store is None:
+            return JSONResponse({"rows": [], "error": "Store not available"})
+        rows = await store.query_all_days()
+        return JSONResponse({"rows": rows})
 
     @app.get("/api/config")
     async def api_config() -> dict[str, Any]:
@@ -203,6 +235,59 @@ def create_app(
                 pass   # process will be killed before the response comes back
 
         asyncio.create_task(_do_restart())
+        return JSONResponse({"status": "restarting"})
+
+    # ── Raw file viewer / editor ────────────────────────────────────────
+
+    _RAW_FILES = {
+        "config":  CONFIG_FILE,
+        "options": OPTIONS_FILE,
+    }
+
+    @app.get("/api/rawfile/{name}")
+    async def raw_file_get(name: str) -> JSONResponse:
+        path = _RAW_FILES.get(name)
+        if path is None:
+            return JSONResponse({"error": "Unknown file"}, status_code=404)
+        if not os.path.exists(path):
+            return JSONResponse({})
+        try:
+            with open(path, encoding="utf-8") as f:
+                return JSONResponse(json.load(f))
+        except (OSError, json.JSONDecodeError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=500)
+
+    @app.post("/api/rawfile/{name}")
+    async def raw_file_post(name: str, request: Request) -> JSONResponse:
+        path = _RAW_FILES.get(name)
+        if path is None:
+            return JSONResponse({"error": "Unknown file"}, status_code=404)
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(body, f, indent=2)
+        except OSError as exc:
+            _LOGGER.error("Failed to write %s: %s", path, exc)
+            return JSONResponse({"error": f"Write failed: {exc}"}, status_code=500)
+
+        _LOGGER.info("Raw file %s saved via UI – scheduling addon restart", path)
+
+        async def _do_raw_restart() -> None:
+            await asyncio.sleep(0.4)
+            try:
+                async with aiohttp.ClientSession() as session:
+                    await session.post(
+                        SUPERVISOR_RESTART_URL,
+                        headers={"Authorization": f"Bearer {supervisor_token}"},
+                        timeout=aiohttp.ClientTimeout(total=5),
+                    )
+            except Exception:
+                pass
+
+        asyncio.create_task(_do_raw_restart())
         return JSONResponse({"status": "restarting"})
 
     return app

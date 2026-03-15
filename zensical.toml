@@ -50,6 +50,8 @@ nav = [
     { "Installation" = "user/installation.md" },
     { "Configuration" = "user/configuration.md" },
     { "Dashboard & UI" = "user/dashboard.md" },
+    { "Event Log" = "user/log.md" },
+    { "Database Viewer" = "user/database.md" },
     { "HA Sensors" = "user/sensors.md" },
   ]},
   { "Technical Reference" = [

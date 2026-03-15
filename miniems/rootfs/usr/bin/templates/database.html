@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>miniEMS – Database</title>
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+  <header>
+    <img src="static/icon.svg" alt="miniEMS" style="height:2.2rem;width:2.2rem;vertical-align:middle;">
+    <h1>{{ translations.ui_database or 'Database' }}</h1>
+    <span class="version-badge">v{{ version }}</span>
+  </header>
+  <nav class="tab-nav">
+    <a href="." class="tab-link">{{ translations.tab_dashboard or 'Dashboard' }}</a>
+    <a href="settings" class="tab-link">{{ translations.tab_settings or 'Settings' }}</a>
+    <a href="log" class="tab-link">{{ translations.tab_log or 'Log' }}</a>
+    <a href="config-json" class="tab-link">{{ translations.tab_config_json or 'config.json' }}</a>
+    <a href="options-json" class="tab-link">{{ translations.tab_options_json or 'options.json' }}</a>
+    <a href="database" class="tab-link active">{{ translations.tab_database or 'Database' }}</a>
+  </nav>
+
+  <div id="db-content">{{ translations.loading or 'Loading…' }}</div>
+  <footer>{{ translations.footer or 'miniEMS v' }}{{ version }} &middot; Home Assistant Add-on</footer>
+
+  <script>
+    const T = {{ translations | tojson }};
+
+    let allRows = [];
+    let sortCol = 'date';
+    let sortAsc = false;
+
+    function fmt(v, dec = 2) {
+      return (v !== null && v !== undefined) ? Number(v).toFixed(dec) : '–';
+    }
+
+    function tempClass(t) {
+      if (t === null || t === undefined) return '';
+      if (t < 0)  return 'temp-cold';
+      if (t < 10) return 'temp-cool';
+      if (t < 20) return 'temp-mild';
+      return 'temp-warm';
+    }
+
+    const COLS = [
+      { key: 'date',                label: T.db_date          || 'Date',               dec: null },
+      { key: 'avg_outdoor_temp_c',  label: T.db_temp          || 'Temp (°C)',           dec: 1    },
+      { key: 'load_total_kwh',      label: T.db_load          || 'Load (kWh)',          dec: 2    },
+      { key: 'pv_used_kwh',         label: T.db_pv_used       || 'PV Used (kWh)',       dec: 2    },
+      { key: 'grid_import_kwh',     label: T.db_grid_import   || 'Grid Import (kWh)',   dec: 2    },
+      { key: 'grid_charge_kwh',     label: T.db_grid_charge   || 'Grid Charge (kWh)',   dec: 2    },
+      { key: 'feed_in_kwh',         label: T.db_feed_in       || 'Feed-in (kWh)',       dec: 2    },
+      { key: 'peak_pv_w',           label: T.db_peak_pv       || 'Peak PV (W)',         dec: 0    },
+      { key: 'grid_cost_eur',       label: T.db_grid_cost     || 'Grid Cost (€)',       dec: 3    },
+      { key: 'pv_savings_eur',      label: T.db_pv_savings    || 'PV Savings (€)',      dec: 3    },
+      { key: 'avg_price_eur_kwh',   label: T.db_avg_price     || 'Avg Price (€/kWh)',   dec: 4    },
+      { key: 'ticks',               label: T.db_ticks         || 'Ticks',               dec: 0    },
+    ];
+
+    function sortRows(col) {
+      if (sortCol === col) {
+        sortAsc = !sortAsc;
+      } else {
+        sortCol = col;
+        sortAsc = col === 'date' ? false : false;
+      }
+      renderTable();
+    }
+
+    function renderSummary(rows) {
+      const withTemp = rows.filter(r => r.avg_outdoor_temp_c !== null && r.avg_outdoor_temp_c !== undefined);
+      const oldest = rows.length ? rows[rows.length - 1].date : '–';
+      const newest = rows.length ? rows[0].date : '–';
+      return `
+        <div class="db-summary">
+          <div class="db-summary-item">
+            <span class="db-summary-label">${T.db_total_days || 'Days recorded'}</span>
+            <span class="db-summary-value">${rows.length}</span>
+          </div>
+          <div class="db-summary-item">
+            <span class="db-summary-label">${T.db_date_range || 'Date range'}</span>
+            <span class="db-summary-value">${oldest} → ${newest}</span>
+          </div>
+          <div class="db-summary-item">
+            <span class="db-summary-label">${T.db_with_temp || 'Days with temperature'}</span>
+            <span class="db-summary-value">${withTemp.length}</span>
+          </div>
+          <div class="db-summary-item">
+            <span class="db-summary-label">${T.db_without_temp || 'Days without temperature'}</span>
+            <span class="db-summary-value ${rows.length - withTemp.length > 0 ? 'warn-value' : ''}">${rows.length - withTemp.length}</span>
+          </div>
+        </div>`;
+    }
+
+    function renderTable() {
+      const sorted = [...allRows].sort((a, b) => {
+        const av = a[sortCol], bv = b[sortCol];
+        if (av === null || av === undefined) return 1;
+        if (bv === null || bv === undefined) return -1;
+        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+        return sortAsc ? cmp : -cmp;
+      });
+
+      const arrow = col => col === sortCol ? (sortAsc ? ' ▲' : ' ▼') : '';
+
+      const thead = `<thead><tr>${COLS.map(c =>
+        `<th class="db-th${c.key === sortCol ? ' sorted' : ''}" onclick="sortRows('${c.key}')">${c.label}${arrow(c.key)}</th>`
+      ).join('')}</tr></thead>`;
+
+      const tbody = sorted.map(r => {
+        const noTemp = r.avg_outdoor_temp_c === null || r.avg_outdoor_temp_c === undefined;
+        return `<tr class="${noTemp ? 'db-row-no-temp' : ''}">
+          ${COLS.map(c => {
+            if (c.key === 'date') return `<td class="db-date-cell">${r.date}</td>`;
+            if (c.key === 'avg_outdoor_temp_c') {
+              return `<td class="db-temp-cell ${tempClass(r[c.key])}">${fmt(r[c.key], 1)}</td>`;
+            }
+            return `<td>${c.dec === 0 ? fmt(r[c.key], 0) : fmt(r[c.key], c.dec)}</td>`;
+          }).join('')}
+        </tr>`;
+      }).join('');
+
+      document.getElementById('db-table-body').innerHTML = `<table class="db-table">${thead}<tbody>${tbody}</tbody></table>`;
+    }
+
+    async function load() {
+      try {
+        const r = await fetch('api/database');
+        const data = await r.json();
+        if (data.error) {
+          document.getElementById('db-content').textContent = 'Error: ' + data.error;
+          return;
+        }
+        allRows = data.rows || [];
+
+        document.getElementById('db-content').innerHTML =
+          renderSummary(allRows) +
+          `<p class="db-hint">${T.db_hint || 'Click a column header to sort. Rows without temperature are shown in grey.'}</p>` +
+          `<div id="db-table-body"></div>`;
+
+        renderTable();
+      } catch(e) {
+        document.getElementById('db-content').textContent = 'Failed to load: ' + e;
+      }
+    }
+
+    window.onload = load;
+  </script>
+</body>
+</html>

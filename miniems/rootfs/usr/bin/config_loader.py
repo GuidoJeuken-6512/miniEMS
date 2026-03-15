@@ -45,11 +45,7 @@ class Config:
     # Battery Control (Phase 2)
     battery_control_enabled: bool = False
     battery_control_simulation: bool = True
-    inverter_work_mode_entity: str = "select.deye_work_mode"
     inverter_charge_power_entity: str = "number.deye_battery_charging_power"
-    inverter_discharge_power_entity: str = "number.deye_battery_discharging_power"
-    inverter_charge_mode_charge: str = "Charging Priority"
-    inverter_charge_mode_selfuse: str = "Self-Use"
     battery_max_charge_power_w: int = 3000
     battery_max_discharge_power_w: int = 3000
     # Forecast / Prediction (Phase 5)
@@ -103,6 +99,12 @@ def _load_json(path: str) -> dict:
         return {}
 
 
+_OPTIONS_RENAMES: dict[str, str] = {
+    # old options.json key → current Config field name
+    "inverter_discharge_power_entity": "battery_discharging_power_entity",
+}
+
+
 def load_config() -> Config:
     """Load, merge, migrate and persist configuration."""
     defs = _defaults()
@@ -110,6 +112,12 @@ def load_config() -> Config:
     # Load both sources
     stored = migrate(_load_json(CONFIG_FILE))
     options = _load_json(OPTIONS_FILE)
+
+    # Carry forward renamed keys that may only exist in options.json
+    for old_key, new_key in _OPTIONS_RENAMES.items():
+        if old_key in options and new_key not in options:
+            options[new_key] = options[old_key]
+            _LOGGER.info("options.json rename: %s → %s = %r", old_key, new_key, options[new_key])
 
     merged: dict = {}
     for key in defs:

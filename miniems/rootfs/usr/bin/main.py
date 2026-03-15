@@ -89,7 +89,7 @@ async def main() -> None:
         solcast=solcast_client,
         event_log=event_log,
     )
-    app = create_app(status_store, cfg, supervisor_token)
+    app = create_app(status_store, cfg, supervisor_token, store)
 
     # Publisher setup: try MQTT, fall back to REST
     mqtt_publisher = MQTTPublisher(supervisor_token)

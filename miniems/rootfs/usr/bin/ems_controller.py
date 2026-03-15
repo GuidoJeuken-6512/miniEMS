@@ -42,6 +42,7 @@ class EMSController:
         self._battery_model = BatteryModel(config)
         self._mode: EMSMode = EMSMode.IDLE
         self._prediction: "Prediction | None" = None
+        self._last_price: float | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -90,6 +91,23 @@ class EMSController:
                 ),
             )
             self._event_log.append(entry)
+
+        # Log electricity price changes to event log
+        if price is not None and self._last_price is not None and price != self._last_price:
+            price_entry = LogEntry(
+                timestamp=datetime.now().isoformat(timespec="seconds"),
+                state="price_change",
+                battery_kwh_freetochange=round(bat_kwh_free, 3) if bat_kwh_free is not None else 0.0,
+                battery_kwh_useable=round(bat_kwh_use, 3) if bat_kwh_use is not None else 0.0,
+                predicted_load_kwh=(
+                    self._prediction.predicted_load_kwh if self._prediction else None
+                ),
+                entry_type="price_change",
+                price_eur_kwh=round(price, 4),
+            )
+            self._event_log.append(price_entry)
+        if price is not None:
+            self._last_price = price
 
         # Apply inverter control (simulation or real)
         if self._inverter:

@@ -11,10 +11,13 @@
 | In-memory `CostOptimizer` | miniEMS runtime | Intra-day accumulators (flushed at midnight) |
 | In-memory `EventLog` | miniEMS runtime | Ring buffer of 100 mode-change events |
 
-!!! note "options.json removed in v1.4.0"
-    The HA Supervisor add-on config UI (`options.json`) is no longer used.
-    All configuration is managed through the miniEMS Settings page and persisted
-    to `/data/config.json`.
+!!! note "options.json and config.json"
+    `options.json` is still read on startup and can override `config.json` for
+    values that differ from the dataclass defaults. However, `config.json` is the
+    durable source of truth — on every startup the merged result is written back
+    to it, so it survives any Supervisor reset of `options.json`.
+    Both files can be inspected and edited via the **config.json** and
+    **options.json** tabs in the miniEMS UI.
 
 ---
 
@@ -72,19 +75,23 @@ SQLite database managed by `store.py`. Contains one table:
 
 ```sql
 CREATE TABLE daily_stats (
-    date              TEXT PRIMARY KEY,  -- ISO date 'YYYY-MM-DD'
-    grid_cost_eur     REAL,
-    pv_saved_eur      REAL,
-    grid_import_kwh   REAL,
-    pv_used_kwh       REAL,
-    load_total_kwh    REAL,
-    peak_pv_w         REAL,
-    avg_temp_c        REAL,
-    grid_charge_kwh   REAL,              -- v1.4.0
-    grid_charge_cost_eur REAL,           -- v1.4.0
-    feed_in_kwh       REAL,             -- v1.4.0
-    feed_in_revenue_eur REAL,           -- v1.4.0
-    last_flush_ts     TEXT              -- v1.4.0: UTC ISO timestamp of last write
+    date               TEXT PRIMARY KEY,  -- ISO date 'YYYY-MM-DD'
+    grid_import_kwh    REAL DEFAULT 0,
+    grid_cost_eur      REAL DEFAULT 0,
+    pv_used_kwh        REAL DEFAULT 0,
+    pv_savings_eur     REAL DEFAULT 0,
+    load_total_kwh     REAL DEFAULT 0,
+    load_cost_eur      REAL DEFAULT 0,
+    avg_price_eur_kwh  REAL DEFAULT 0,
+    avg_outdoor_temp_c REAL,
+    ticks              INTEGER DEFAULT 0,
+    -- added via ALTER TABLE on upgrade:
+    peak_pv_w          REAL DEFAULT 0,
+    grid_charge_kwh    REAL DEFAULT 0,
+    grid_charge_cost_eur REAL DEFAULT 0,
+    feed_in_kwh        REAL DEFAULT 0,
+    feed_in_revenue_eur REAL DEFAULT 0,
+    last_flush_ts      TEXT               -- UTC ISO timestamp of last write
 );
 ```
 
@@ -169,16 +176,25 @@ provided by the `total_increasing` HA sensors which HA records in its own DB.
 
 ### `EventLog` Ring Buffer
 
-`event_log.py` maintains a `deque(maxlen=100)`. Each `LogEntry` stores:
+`event_log.py` maintains a `deque(maxlen=100)`. Two event types share the same buffer:
 
 ```python
 @dataclass
 class LogEntry:
-    timestamp: str              # ISO 8601 UTC
-    state: str                  # "ON" or "OFF"
+    timestamp: str              # ISO 8601 string
+    state: str                  # "on" | "off" | "price_change"
     battery_kwh_freetochange: float
     battery_kwh_useable: float
-    predicted_load_kwh: float
+    predicted_load_kwh: float | None
+    entry_type: str             # "mode_change" | "price_change"
+    price_eur_kwh: float | None # set for price_change entries only
 ```
 
-The log is served via `/api/status` and rendered in the `/log` page.
+| `entry_type` | Triggered when | `state` value |
+|---|---|---|
+| `mode_change` | EMS switches operating mode | `"on"` (grid charging started) or `"off"` |
+| `price_change` | Electricity price sensor reports a new value | `"price_change"` |
+
+Price-change entries are only recorded when the price differs from the previously observed value. The very first reading after startup is not logged.
+
+The log is served via `/api/status` → `log` array and rendered in the `/log` page. The buffer holds the last 100 events across both types combined. Events are lost on restart — they are not persisted to SQLite.

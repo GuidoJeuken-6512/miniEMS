@@ -16,6 +16,9 @@
     <a href="." class="tab-link">{{ translations.tab_dashboard or 'Dashboard' }}</a>
     <a href="settings" class="tab-link">{{ translations.tab_settings or 'Settings' }}</a>
     <a href="log" class="tab-link active">{{ translations.tab_log or 'Log' }}</a>
+    <a href="config-json" class="tab-link">{{ translations.tab_config_json or 'config.json' }}</a>
+    <a href="options-json" class="tab-link">{{ translations.tab_options_json or 'options.json' }}</a>
+    <a href="database" class="tab-link">{{ translations.tab_database or 'Database' }}</a>
   </nav>
   <p class="refresh-hint">{{ translations.refresh_hint or 'Auto-refreshes every 5 seconds' }}</p>
   <div id="log-content">Loading…</div>
@@ -34,6 +37,20 @@
       if (m.includes('Grid'))    return 'mode-GRID';
       if (m.includes('Protect')) return 'mode-PROTECT';
       return 'mode-IDLE';
+    }
+
+    function renderEntryState(e) {
+      if (e.entry_type === 'price_change') {
+        return `<td class="log-price-change">&#8364; ${T.log_price_change || 'Price Change'}</td>`;
+      }
+      return `<td class="${e.state === 'on' ? 'log-on' : 'log-off'}">${e.state === 'on' ? '&#9650; ON' : '&#9660; OFF'}</td>`;
+    }
+
+    function renderEntryPrice(e) {
+      if (e.entry_type === 'price_change' && e.price_eur_kwh !== null && e.price_eur_kwh !== undefined) {
+        return `<td class="log-price-value">${fmt(e.price_eur_kwh, 4)} €/kWh</td>`;
+      }
+      return `<td>–</td>`;
     }
 
     function renderLog(d) {
@@ -70,13 +87,14 @@
       // Log table
       const entries = d.log || [];
       const tableHtml = entries.length === 0
-        ? `<p class="log-empty-msg">${T.log_empty || 'No mode changes recorded yet.'}</p>`
+        ? `<p class="log-empty-msg">${T.log_empty || 'No events recorded yet.'}</p>`
         : `
         <table class="log-table log-table-full">
           <thead>
             <tr>
-              <th>${T.log_state || 'State'}</th>
+              <th>${T.log_state || 'Event'}</th>
               <th>${T.log_time || 'Time'}</th>
+              <th>${T.log_price || 'Price (€/kWh)'}</th>
               <th>${T.log_free || 'Free (kWh)'}</th>
               <th>${T.log_useable || 'Useable (kWh)'}</th>
               <th>${T.log_pred_load || 'Pred. Load (kWh)'}</th>
@@ -84,8 +102,9 @@
           </thead>
           <tbody>
             ${entries.map(e => `<tr>
-              <td class="${e.state === 'on' ? 'log-on' : 'log-off'}">${e.state === 'on' ? '&#9650; ON' : '&#9660; OFF'}</td>
+              ${renderEntryState(e)}
               <td>${e.timestamp}</td>
+              ${renderEntryPrice(e)}
               <td>${fmt(e.battery_kwh_freetochange, 2)}</td>
               <td>${fmt(e.battery_kwh_useable, 2)}</td>
               <td>${e.predicted_load_kwh !== null ? fmt(e.predicted_load_kwh, 2) : '–'}</td>
@@ -94,10 +113,10 @@
         </table>`;
 
       const hintHtml = entries.length > 0
-        ? `<p class="log-hint">${T.log_page_hint || 'Shows the last 100 grid-charge mode changes.'} (${entries.length})</p>`
+        ? `<p class="log-hint">${T.log_page_hint || 'Shows the last 100 events.'} (${entries.length})</p>`
         : '';
 
-      return `${warnHtml}${summaryHtml}<p class="section-title">${T.mode_change_log || 'Mode Change Log'}</p>${hintHtml}${tableHtml}`;
+      return `${warnHtml}${summaryHtml}<p class="section-title">${T.event_log || 'Event Log'}</p>${hintHtml}${tableHtml}`;
     }
 
     async function refresh() {

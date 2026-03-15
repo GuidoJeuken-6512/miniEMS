@@ -1,21 +1,26 @@
-"""In-memory ring buffer of EMS mode-change events for miniEMS.
+"""In-memory ring buffer of EMS events for miniEMS.
 
-Entries are added whenever the EMS switches grid-charge mode on or off.
+Entries are added whenever:
+  - The EMS switches grid-charge mode on or off  (entry_type="mode_change")
+  - The electricity price changes                (entry_type="price_change")
+
 The buffer is capped at max_entries (oldest entries evicted automatically).
 to_list() returns entries newest-first for the frontend log panel.
 """
 from collections import deque
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
 @dataclass
 class LogEntry:
     timestamp: str                         # ISO 8601 string
-    state: str                             # "on" | "off"
+    state: str                             # "on" | "off" | "price_change"
     battery_kwh_freetochange: float
     battery_kwh_useable: float
     predicted_load_kwh: float | None
+    entry_type: str = "mode_change"        # "mode_change" | "price_change"
+    price_eur_kwh: float | None = None     # filled for price_change entries
 
 
 class EventLog:

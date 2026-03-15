@@ -101,18 +101,6 @@ class InverterController:
                 await self._call_service("switch", "turn_off", {"entity_id": entity})
         await self._set_discharge_power(self._cfg.default_discharge_power_w, sim)
 
-    async def _set_work_mode(self, option: str, sim: bool) -> None:
-        entity = self._cfg.inverter_work_mode_entity
-        if not entity:
-            return
-        if sim:
-            _LOGGER.info("[SIM] select.select_option(%s, %r)", entity, option)
-            return
-        await self._call_service("select", "select_option", {
-            "entity_id": entity,
-            "option": option,
-        })
-
     async def _set_charge_power(self, value_w: int, sim: bool) -> None:
         if value_w == self._last_charge_w:
             return
@@ -132,7 +120,7 @@ class InverterController:
     async def _set_discharge_power(self, value_w: int, sim: bool) -> None:
         if value_w == self._last_discharge_w:
             return
-        entity = self._cfg.battery_discharging_power_entity or self._cfg.inverter_discharge_power_entity
+        entity = self._cfg.battery_discharging_power_entity
         if not entity:
             return
         if sim:

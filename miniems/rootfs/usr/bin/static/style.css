@@ -335,8 +335,10 @@ footer        { font-size: 0.75rem; color: #8b949e; margin-top: 2rem; }
   border-bottom: 1px solid #21262d;
   color: #c9d1d9;
 }
-.log-on  { color: #3fb950; font-weight: 700; }
-.log-off { color: #8b949e; }
+.log-on           { color: #3fb950; font-weight: 700; }
+.log-off          { color: #8b949e; }
+.log-price-change { color: #e3b341; font-weight: 700; }
+.log-price-value  { color: #e3b341; font-weight: 600; }
 
 /* ── Log preview widget (dashboard compact view) ────────── */
 .log-preview {
@@ -464,6 +466,106 @@ footer        { font-size: 0.75rem; color: #8b949e; margin-top: 2rem; }
 }
 .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-save:hover:not(:disabled) { background: #388bfd; }
+.btn-secondary {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+  padding: 0.5rem 1.2rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.btn-secondary:hover { background: #30363d; }
 .save-msg     { font-size: 0.85rem; color: #8b949e; }
 .save-msg.ok  { color: #3fb950; }
 .save-msg.err { color: #f85149; }
+
+/* ── Database page ──────────────────────────────────────── */
+.db-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.db-summary-item {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.db-summary-label { font-size: 0.72rem; color: #8b949e; }
+.db-summary-value { font-size: 1rem; font-weight: 700; color: #e6edf3; }
+.warn-value       { color: #e3b341; }
+
+.db-hint {
+  font-size: 0.75rem;
+  color: #8b949e;
+  margin-bottom: 0.5rem;
+}
+
+.db-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.db-table thead th {
+  background: #161b22;
+  color: #8b949e;
+  padding: 0.45rem 0.6rem;
+  text-align: right;
+  border-bottom: 1px solid #30363d;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.db-table thead th:first-child { text-align: left; }
+.db-table thead th:hover  { color: #c9d1d9; }
+.db-table thead th.sorted { color: #58a6ff; }
+
+.db-table tbody tr { border-bottom: 1px solid #21262d; }
+.db-table tbody tr:hover { background: #1c2128; }
+.db-table tbody td {
+  padding: 0.35rem 0.6rem;
+  text-align: right;
+  color: #c9d1d9;
+}
+.db-table tbody td:first-child { text-align: left; }
+
+.db-date-cell { color: #58a6ff; font-family: monospace; font-size: 0.78rem; }
+.db-temp-cell { font-weight: 600; }
+.temp-cold { color: #79c0ff; }
+.temp-cool { color: #a5d6ff; }
+.temp-mild { color: #7ee787; }
+.temp-warm { color: #e3b341; }
+
+.db-row-no-temp td { color: #484f58; }
+.db-row-no-temp .db-date-cell { color: #484f58; }
+
+/* ── Raw JSON editor page ───────────────────────────────── */
+.raw-editor-page {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.raw-file-hint {
+  font-size: 0.8rem;
+  color: #8b949e;
+  margin-bottom: 0.75rem;
+}
+.raw-json-editor {
+  width: 100%;
+  min-height: 520px;
+  background: #0d1117;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 1rem;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+  tab-size: 2;
+}

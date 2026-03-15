@@ -115,6 +115,16 @@ class EnergyStore:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
 
+    async def query_all_days(self) -> list[dict[str, Any]]:
+        """Return every row in daily_stats, newest first."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM daily_stats ORDER BY date DESC"
+        ) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
     async def query_days_similar_temp(
         self, target_temp_c: float, tolerance: float, lookback_days: int
     ) -> list[dict[str, Any]]:

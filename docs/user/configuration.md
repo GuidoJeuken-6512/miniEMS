@@ -53,7 +53,7 @@ Find these in **HA → Developer Tools → States** — filter by `deye` to loca
 |---|---|---|
 | `battery_control_enabled` | `false` | Master switch for inverter control |
 | `battery_control_simulation` | `true` | Log commands but do not send them |
-| `inverter_charge_power_entity` | *(empty)* | Entity for setting charge power (W) |
+| `inverter_charge_power_entity` | `number.deye_battery_charging_power` | Entity for setting charge power (W) |
 | `grid_charge_switch_entity` | `switch.deye8k_battery_grid_charging` | Switch entity that enables/disables grid charging |
 | `battery_discharging_power_entity` | `number.deye8k_battery_discharging_power` | Entity for setting discharge power limit (W) |
 | `battery_max_charge_power_w` | `5500` | Maximum charging power (W) |

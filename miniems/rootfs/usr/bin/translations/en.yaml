@@ -2,9 +2,15 @@
 ui_title: miniEMS Dashboard
 ui_settings: miniEMS Settings
 ui_log: miniEMS Log
+ui_config_json: config.json Editor
+ui_options_json: options.json Editor
+ui_database: Database – daily_stats
 tab_dashboard: Dashboard
 tab_settings: Settings
 tab_log: Log
+tab_config_json: config.json
+tab_options_json: options.json
+tab_database: Database
 refresh_hint: Auto-refreshes every 5 seconds
 footer: miniEMS v
 
@@ -54,15 +60,18 @@ temp_tomorrow: Temp Tomorrow
 pred_source_historical: historically estimated
 pred_source_fallback: fallback estimation
 
-# Mode Change Log (Phase 6)
-mode_change_log: Mode Change Log
-log_state: State
+# Event Log (Phase 6+)
+event_log: Event Log
+mode_change_log: Event Log
+log_state: Event
 log_time: Time
+log_price: Price (€/kWh)
 log_free: Free (kWh)
 log_useable: Useable (kWh)
 log_pred_load: Pred. Load (kWh)
-log_empty: No mode changes recorded yet.
-log_page_hint: Shows the last 100 grid-charge mode changes.
+log_empty: No events recorded yet.
+log_page_hint: Shows the last 100 events (mode changes & price updates).
+log_price_change: Price Change
 
 # Warnings
 warnings_title: Warnings
@@ -104,3 +113,29 @@ solcast_today_entity: Solcast Today Entity
 solcast_tomorrow_entity: Solcast Tomorrow Entity
 solcast_remaining_entity: Solcast Remaining Today Entity
 save_restart: Save & Restart
+reformat_json: Reformat JSON
+json_invalid: Invalid JSON
+saving: Saving…
+saved_restarting: Saved – addon is restarting…
+# Database page
+db_date: Date
+db_temp: "Temp (°C)"
+db_load: "Load (kWh)"
+db_pv_used: "PV Used (kWh)"
+db_grid_import: "Grid Import (kWh)"
+db_grid_charge: "Grid Charge (kWh)"
+db_feed_in: "Feed-in (kWh)"
+db_peak_pv: "Peak PV (W)"
+db_grid_cost: "Grid Cost (€)"
+db_pv_savings: "PV Savings (€)"
+db_avg_price: "Avg Price (€/kWh)"
+db_ticks: Ticks
+db_total_days: Days recorded
+db_date_range: Date range
+db_with_temp: Days with temperature
+db_without_temp: Days without temperature
+db_hint: "Click a column header to sort. Grey rows have no temperature data (not used for consumption prediction)."
+loading: Loading…
+config_json_hint: "Persistent settings written by miniEMS. Takes precedence over options.json. Stored at /data/config.json."
+options_json_hint: "Supervisor-managed options. Read on startup; config.json wins for values equal to the dataclass default. Stored at /data/options.json."
+options_json_warning: "This file is managed by the HA Supervisor. Changes may be overwritten when the addon is reconfigured via the HA UI. Prefer editing config.json for persistent changes."

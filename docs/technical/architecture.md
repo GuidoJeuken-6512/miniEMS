@@ -24,7 +24,9 @@
 │  │MQTTPublisher      │       │  FastAPI / Uvicorn           │   │
 │  │(Discovery + data) │       │  Ingress Dashboard           │   │
 │  │                   │       │  /  /settings  /log          │   │
-│  │HASensorPublisher  │       │  (de/en i18n via YAML)       │   │
+│  │HASensorPublisher  │       │  /config-json /options-json  │   │
+│  │(REST fallback)    │       │  /database                   │   │
+│  │                   │       │  (de/en i18n via YAML)       │   │
 │  │(REST fallback)    │       └──────────────────────────────┘   │
 │  └────────┬──────────┘                                          │
 └───────────┼─────────────────────────────────────────────────────┘
@@ -62,7 +64,7 @@ EMSController.update()
   ├─ _determine_mode()              # EMS mode logic
   ├─ InverterController.apply_mode()# send commands (or log [SIM])
   ├─ CostOptimizer.record_tick()    # energy/cost accumulators
-  ├─ EventLog.append()              # on mode change
+  ├─ EventLog.append()              # on mode change OR price change
   └─ return status_store {}         # fed to web_server + publishers
 ```
 
