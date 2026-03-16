@@ -7,7 +7,7 @@ from enum import Enum
 
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Increment on every change; keep in sync with config.yaml → version.
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
 CONFIG_SCHEMA_VERSION = 8
@@ -21,16 +21,16 @@ DB_FILE      = "/data/miniems.db"     # SQLite energy statistics
 HA_API_BASE         = "http://hassio/homeassistant/api"
 HA_STATES_URL       = f"{HA_API_BASE}/states"
 HA_SERVICES_URL     = f"{HA_API_BASE}/services"
-SUPERVISOR_MQTT_URL    = "http://supervisor/services/mqtt"
 SUPERVISOR_RESTART_URL = "http://supervisor/addons/self/restart"
 
 # ── Polling / timing (seconds) ────────────────────────────────────────────────
 HA_POLL_INTERVAL_SEC  = 15   # how often ha_ws_client refreshes HA states
 HA_RETRY_INTERVAL_SEC = 10   # retry delay after a failed poll / 401
 
-# ── MQTT Discovery ────────────────────────────────────────────────────────────
-MQTT_DISCOVERY_PREFIX   = "homeassistant"
-MQTT_STATE_TOPIC_PREFIX = "miniems"
+# ── Custom integration installer ──────────────────────────────────────────────
+from pathlib import Path
+INTEGRATION_SOURCE_DIR = Path("/usr/bin/integration")
+INTEGRATION_TARGET_DIR = Path("/config/custom_components/miniems")
 
 # ── EMS operating modes ───────────────────────────────────────────────────────
 class EMSMode(str, Enum):

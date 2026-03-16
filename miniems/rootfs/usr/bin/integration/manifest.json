@@ -1,0 +1,12 @@
+{
+  "domain": "miniems",
+  "name": "miniEMS",
+  "version": "1.5.0",
+  "documentation": "",
+  "dependencies": [],
+  "codeowners": [],
+  "requirements": [],
+  "config_flow": true,
+  "iot_class": "local_polling",
+  "integration_type": "device"
+}

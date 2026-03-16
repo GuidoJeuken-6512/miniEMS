@@ -12,10 +12,9 @@ from consumption_model import ConsumptionModel
 from cost_optimizer import CostOptimizer
 from ems_controller import EMSController
 from event_log import EventLog
-from ha_sensor_publisher import HASensorPublisher
 from ha_ws_client import HAWebSocketClient
+from integration_installer import install_integration
 from inverter_controller import InverterController
-from mqtt_publisher import MQTTPublisher
 from solcast_client import SolcastClient
 from store import EnergyStore
 from weather_client import WeatherClient
@@ -33,8 +32,6 @@ async def ems_loop(
     controller: EMSController,
     status_store: dict,
     interval: int,
-    mqtt: MQTTPublisher,
-    rest: HASensorPublisher,
 ) -> None:
     """Run EMS decision loop on a fixed interval."""
     while True:
@@ -42,11 +39,6 @@ async def ems_loop(
             data = await controller.update()
             status_store.clear()
             status_store.update(data)
-            # Prefer MQTT (has unique_id); fall back to REST
-            if mqtt.available:
-                await mqtt.publish(data)
-            else:
-                await rest.publish(data)
         except Exception as exc:
             _LOGGER.error("EMS loop error: %s", exc, exc_info=True)
         await asyncio.sleep(interval)
@@ -92,10 +84,7 @@ async def main() -> None:
     )
     app = create_app(status_store, cfg, supervisor_token, store)
 
-    # Publisher setup: try MQTT, fall back to REST
-    mqtt_publisher = MQTTPublisher(supervisor_token)
-    rest_publisher = HASensorPublisher(supervisor_token, cfg.long_lived_token)
-    await mqtt_publisher.setup()
+    await install_integration()
 
     # Uvicorn config (ingress port 8080)
     uvi_config = uvicorn.Config(
@@ -107,13 +96,13 @@ async def main() -> None:
     )
     uvi_server = uvicorn.Server(uvi_config)
 
-    _LOGGER.info("miniEMS starting up… MQTT=%s", mqtt_publisher.available)
+    _LOGGER.info("miniEMS starting up")
 
     async def _ems_task() -> None:
         _LOGGER.info("Waiting for HA WebSocket initial states…")
         await ws_client.wait_ready()
         _LOGGER.info("HA WebSocket ready – starting EMS loop")
-        await ems_loop(controller, status_store, cfg.update_interval_sec, mqtt_publisher, rest_publisher)
+        await ems_loop(controller, status_store, cfg.update_interval_sec)
 
     tasks = [
         asyncio.create_task(ws_client.run(), name="ws_client"),

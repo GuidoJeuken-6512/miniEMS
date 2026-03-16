@@ -1,5 +1,5 @@
 name: miniEMS
-version: "1.4.0"
+version: "1.5.0"
 slug: miniems
 description: Mini Energy Management System for Deye inverter + Octopus Energy
 url: https://github.com/your-repo/miniEMS
@@ -12,8 +12,6 @@ arch:
 startup: application
 boot: auto
 homeassistant_api: true
-services:
-  - mqtt:need
 map:
   - config:rw
 ingress: true

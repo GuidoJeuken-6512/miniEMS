@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "miniEMS Connection",
+        "description": "Enter the URL of the miniEMS addon. Default: {default_url}",
+        "data": {
+          "base_url": "Addon Base URL"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the miniEMS addon. Make sure it is running.",
+      "invalid_url": "URL must start with http:// or https://"
+    },
+    "abort": {
+      "already_configured": "miniEMS is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "miniEMS Options",
+        "data": {
+          "poll_interval": "Poll interval (seconds, 10–300)"
+        }
+      }
+    }
+  }
+}
