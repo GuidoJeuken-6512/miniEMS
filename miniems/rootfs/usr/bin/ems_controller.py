@@ -67,8 +67,6 @@ class EMSController:
         bat_soc = ws.get_state_value(cfg.battery_soc_entity)
         bat_w = ws.get_state_value(cfg.battery_power_entity) or 0.0
         price = ws.get_state_value(cfg.electricity_price_entity)
-        outdoor_temp = None  # temperature now comes from weather.get_forecasts
-
         # Compute battery kWh values
         bat_kwh_free = self._battery_model.free_to_charge_kwh(bat_soc) if bat_soc is not None else None
         bat_kwh_use  = self._battery_model.useable_kwh(bat_soc) if bat_soc is not None else None
@@ -76,6 +74,9 @@ class EMSController:
         # Update prediction before mode decision so it influences GRID_CHARGING
         if self._model:
             self._prediction = await self._model.predict(bat_soc)
+
+        # Use today's temperature from weather forecast (provided by WeatherClient via ConsumptionModel)
+        outdoor_temp = self._prediction.temp_today_c if self._prediction else None
 
         prev_mode = self._mode
         self._mode = self._determine_mode(pv_w, load_w, bat_soc, price, bat_kwh_free)
