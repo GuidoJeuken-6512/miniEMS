@@ -283,6 +283,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -564,6 +568,62 @@
     
   
     Dashboard & UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Event Log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Viewer
   
 
     
@@ -1099,7 +1159,12 @@ All configuration is done through the miniEMS Settings page.</p>
 <tr>
 <td><code>cheap_rate_threshold_eur</code></td>
 <td><code>0.28</code></td>
-<td>Grid charging triggers when price is <strong>below</strong> this value</td>
+<td>Grid charging triggers when price is <strong>below</strong> this value — also the <strong>low</strong> tier ceiling</td>
+</tr>
+<tr>
+<td><code>medium_rate_threshold_eur</code></td>
+<td><code>0.20</code></td>
+<td>Price tier boundary: <strong>low</strong> below <code>cheap_rate_threshold_eur</code>, <strong>medium</strong> between the two, <strong>high</strong> at or above this value</td>
 </tr>
 <tr>
 <td><code>feed_in_tariff_eur_kwh</code></td>
@@ -1113,6 +1178,33 @@ All configuration is done through the miniEMS Settings page.</p>
 </tr>
 </tbody>
 </table>
+<div class="admonition info">
+<p class="admonition-title">Price tier logic</p>
+<p>Three tiers classify every tick's consumption for the <a href="../dashboard/#price-tier-usage">Price Tier Usage</a> dashboard section and the six <code>sensor.miniems_*kwh*rate</code> HA sensors:</p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Low</strong></td>
+<td><code>price &lt; cheap_rate_threshold_eur</code></td>
+</tr>
+<tr>
+<td><strong>Medium</strong></td>
+<td><code>cheap_rate_threshold_eur ≤ price &lt; medium_rate_threshold_eur</code></td>
+</tr>
+<tr>
+<td><strong>High</strong></td>
+<td><code>price ≥ medium_rate_threshold_eur</code></td>
+</tr>
+</tbody>
+</table>
+<p>The current tier is also shown next to the price on the dashboard (green / amber / red).</p>
+</div>
 <hr />
 <h2 id="battery-control">Battery Control<a class="headerlink" href="#battery-control" title="Permanent link">&para;</a></h2>
 <div class="admonition warning">
@@ -1140,7 +1232,7 @@ All configuration is done through the miniEMS Settings page.</p>
 </tr>
 <tr>
 <td><code>inverter_charge_power_entity</code></td>
-<td><em>(empty)</em></td>
+<td><code>number.deye_battery_charging_power</code></td>
 <td>Entity for setting charge power (W)</td>
 </tr>
 <tr>
@@ -1299,6 +1391,11 @@ If Solcast is unavailable, the internal temperature-based prediction is used as 
 <td><code>update_interval_sec</code></td>
 <td><code>30</code></td>
 <td>How often the EMS loop runs (seconds)</td>
+</tr>
+<tr>
+<td><code>event_log_retention_days</code></td>
+<td><code>30</code></td>
+<td>How many days of event log entries to keep in the database</td>
 </tr>
 </tbody>
 </table>

@@ -279,6 +279,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -404,6 +408,62 @@
     
   
     Dashboard & UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user/log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Event Log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user/database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Viewer
   
 
     
@@ -717,6 +777,39 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#get-config-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /config-json
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-options-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /options-json
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /database
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#post-settings" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -763,6 +856,61 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-apiconfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/config
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#post-apiconfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/config
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-apirawfilename" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/rawfile/{name}
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#post-apirawfilename" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/rawfile/{name}
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-apidatabase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/database
+      
+    </span>
+  </a>
   
 </li>
       
@@ -865,6 +1013,39 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#get-config-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /config-json
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-options-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /options-json
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /database
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#post-settings" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -911,6 +1092,61 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-apiconfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/config
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#post-apiconfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/config
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-apirawfilename" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/rawfile/{name}
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#post-apirawfilename" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /api/rawfile/{name}
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#get-apidatabase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /api/database
+      
+    </span>
+  </a>
   
 </li>
       
@@ -1018,7 +1254,19 @@ Response: <code>text/html</code></p>
 <p>Response: <code>text/html</code></p>
 <hr />
 <h2 id="get-log"><code>GET /log</code><a class="headerlink" href="#get-log" title="Permanent link">&para;</a></h2>
-<p>Renders <code>log.html</code> (Jinja2). Returns the full mode-change event log page.</p>
+<p>Renders <code>log.html</code> (Jinja2). Returns the unified event log page showing mode changes and price changes.</p>
+<p>Response: <code>text/html</code></p>
+<hr />
+<h2 id="get-config-json"><code>GET /config-json</code><a class="headerlink" href="#get-config-json" title="Permanent link">&para;</a></h2>
+<p>Renders <code>config_json.html</code>. Raw JSON editor for <code>/data/config.json</code>.</p>
+<p>Response: <code>text/html</code></p>
+<hr />
+<h2 id="get-options-json"><code>GET /options-json</code><a class="headerlink" href="#get-options-json" title="Permanent link">&para;</a></h2>
+<p>Renders <code>options_json.html</code>. Raw JSON editor for <code>/data/options.json</code>.</p>
+<p>Response: <code>text/html</code></p>
+<hr />
+<h2 id="get-database"><code>GET /database</code><a class="headerlink" href="#get-database" title="Permanent link">&para;</a></h2>
+<p>Renders <code>database.html</code>. Sortable browser for the <code>daily_stats</code> SQLite table.</p>
 <p>Response: <code>text/html</code></p>
 <hr />
 <h2 id="post-settings"><code>POST /settings</code><a class="headerlink" href="#post-settings" title="Permanent link">&para;</a></h2>
@@ -1072,17 +1320,28 @@ auto-refresh (every 5 s) and the log page.</p>
 </span><span id="__span-0-37"><a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="w">  </span><span class="nt">&quot;warnings&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
 </span><span id="__span-0-38"><a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">  </span><span class="nt">&quot;log&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
 </span><span id="__span-0-39"><a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="w">    </span><span class="p">{</span>
-</span><span id="__span-0-40"><a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a><span class="w">      </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-14T06:15:00Z&quot;</span><span class="p">,</span>
-</span><span id="__span-0-41"><a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="w">      </span><span class="nt">&quot;state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ON&quot;</span><span class="p">,</span>
-</span><span id="__span-0-42"><a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a><span class="w">      </span><span class="nt">&quot;battery_kwh_freetochange&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">12.5</span><span class="p">,</span>
-</span><span id="__span-0-43"><a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a><span class="w">      </span><span class="nt">&quot;battery_kwh_useable&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">6.0</span><span class="p">,</span>
-</span><span id="__span-0-44"><a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a><span class="w">      </span><span class="nt">&quot;predicted_load_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">10.5</span>
-</span><span id="__span-0-45"><a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-0-46"><a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a><span class="w">  </span><span class="p">],</span>
-</span><span id="__span-0-47"><a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a>
-</span><span id="__span-0-48"><a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a><span class="w">  </span><span class="nt">&quot;simulation_mode&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-0-49"><a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a><span class="w">  </span><span class="nt">&quot;last_update&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-14T07:45:00Z&quot;</span>
-</span><span id="__span-0-50"><a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a><span class="p">}</span>
+</span><span id="__span-0-40"><a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a><span class="w">      </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-15T06:15:00&quot;</span><span class="p">,</span>
+</span><span id="__span-0-41"><a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="w">      </span><span class="nt">&quot;state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;on&quot;</span><span class="p">,</span>
+</span><span id="__span-0-42"><a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a><span class="w">      </span><span class="nt">&quot;entry_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;mode_change&quot;</span><span class="p">,</span>
+</span><span id="__span-0-43"><a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a><span class="w">      </span><span class="nt">&quot;battery_kwh_freetochange&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">12.5</span><span class="p">,</span>
+</span><span id="__span-0-44"><a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a><span class="w">      </span><span class="nt">&quot;battery_kwh_useable&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">6.0</span><span class="p">,</span>
+</span><span id="__span-0-45"><a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a><span class="w">      </span><span class="nt">&quot;predicted_load_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">10.5</span><span class="p">,</span>
+</span><span id="__span-0-46"><a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a><span class="w">      </span><span class="nt">&quot;price_eur_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span>
+</span><span id="__span-0-47"><a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a><span class="w">    </span><span class="p">},</span>
+</span><span id="__span-0-48"><a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a><span class="w">    </span><span class="p">{</span>
+</span><span id="__span-0-49"><a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a><span class="w">      </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-15T06:00:00&quot;</span><span class="p">,</span>
+</span><span id="__span-0-50"><a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a><span class="w">      </span><span class="nt">&quot;state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;price_change&quot;</span><span class="p">,</span>
+</span><span id="__span-0-51"><a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a><span class="w">      </span><span class="nt">&quot;entry_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;price_change&quot;</span><span class="p">,</span>
+</span><span id="__span-0-52"><a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a><span class="w">      </span><span class="nt">&quot;battery_kwh_freetochange&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">13.1</span><span class="p">,</span>
+</span><span id="__span-0-53"><a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a><span class="w">      </span><span class="nt">&quot;battery_kwh_useable&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">5.8</span><span class="p">,</span>
+</span><span id="__span-0-54"><a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a><span class="w">      </span><span class="nt">&quot;predicted_load_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">10.5</span><span class="p">,</span>
+</span><span id="__span-0-55"><a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a><span class="w">      </span><span class="nt">&quot;price_eur_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0850</span>
+</span><span id="__span-0-56"><a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-0-57"><a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a><span class="w">  </span><span class="p">],</span>
+</span><span id="__span-0-58"><a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a>
+</span><span id="__span-0-59"><a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a><span class="w">  </span><span class="nt">&quot;simulation_mode&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-0-60"><a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a><span class="w">  </span><span class="nt">&quot;last_update&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-14T07:45:00Z&quot;</span>
+</span><span id="__span-0-61"><a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a><span class="p">}</span>
 </span></code></pre></div>
 <h3 id="warnings-array"><code>warnings</code> array<a class="headerlink" href="#warnings-array" title="Permanent link">&para;</a></h3>
 <p>Each warning is a string key looked up in the translation files, e.g.:</p>
@@ -1108,6 +1367,69 @@ auto-refresh (every 5 s) and the log page.</p>
 </tr>
 </tbody>
 </table>
+<hr />
+<h2 id="get-apiconfig"><code>GET /api/config</code><a class="headerlink" href="#get-apiconfig" title="Permanent link">&para;</a></h2>
+<p>Returns the current configuration from <code>/data/config.json</code> as JSON (internal keys stripped).</p>
+<p>Response: <code>application/json</code></p>
+<hr />
+<h2 id="post-apiconfig"><code>POST /api/config</code><a class="headerlink" href="#post-apiconfig" title="Permanent link">&para;</a></h2>
+<p>Saves updated config keys to <code>/data/config.json</code> and restarts the add-on. Values are type-coerced (bool/int/float) based on the known field list in <code>web_server.py</code>. Unknown or internal (<code>_</code>-prefixed) keys are ignored.</p>
+<p>Request: <code>application/json</code> — partial or full config object.</p>
+<p>Response: <code>{"status": "restarting"}</code> or <code>{"error": "..."}</code>.</p>
+<hr />
+<h2 id="get-apirawfilename"><code>GET /api/rawfile/{name}</code><a class="headerlink" href="#get-apirawfilename" title="Permanent link">&para;</a></h2>
+<p>Returns the raw contents of a config file as JSON. <code>name</code> is <code>config</code> or <code>options</code>.</p>
+<table>
+<thead>
+<tr>
+<th>name</th>
+<th>File</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>config</code></td>
+<td><code>/data/config.json</code></td>
+</tr>
+<tr>
+<td><code>options</code></td>
+<td><code>/data/options.json</code></td>
+</tr>
+</tbody>
+</table>
+<p>Response: <code>application/json</code> — the file's parsed JSON content, or <code>{}</code> if the file does not exist.</p>
+<hr />
+<h2 id="post-apirawfilename"><code>POST /api/rawfile/{name}</code><a class="headerlink" href="#post-apirawfilename" title="Permanent link">&para;</a></h2>
+<p>Writes the request body verbatim as JSON to the named file and restarts the add-on. No type coercion is applied — the exact JSON is written.</p>
+<p>Request: <code>application/json</code></p>
+<p>Response: <code>{"status": "restarting"}</code> or <code>{"error": "..."}</code>.</p>
+<hr />
+<h2 id="get-apidatabase"><code>GET /api/database</code><a class="headerlink" href="#get-apidatabase" title="Permanent link">&para;</a></h2>
+<p>Returns all rows from the <code>daily_stats</code> SQLite table, newest first.</p>
+<p>Response: <code>application/json</code></p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="p">{</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">&quot;rows&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="p">{</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">      </span><span class="nt">&quot;date&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-15&quot;</span><span class="p">,</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">      </span><span class="nt">&quot;grid_import_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">4.123</span><span class="p">,</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">      </span><span class="nt">&quot;grid_cost_eur&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.234</span><span class="p">,</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">      </span><span class="nt">&quot;pv_used_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">8.456</span><span class="p">,</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">      </span><span class="nt">&quot;pv_savings_eur&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">2.537</span><span class="p">,</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="nt">&quot;load_total_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">12.579</span><span class="p">,</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="nt">&quot;load_cost_eur&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">3.774</span><span class="p">,</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">      </span><span class="nt">&quot;avg_price_eur_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.3001</span><span class="p">,</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">      </span><span class="nt">&quot;avg_outdoor_temp_c&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">8.4</span><span class="p">,</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">      </span><span class="nt">&quot;ticks&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2880</span><span class="p">,</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">      </span><span class="nt">&quot;peak_pv_w&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">5863.0</span><span class="p">,</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">      </span><span class="nt">&quot;grid_charge_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.2</span><span class="p">,</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">      </span><span class="nt">&quot;grid_charge_cost_eur&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.102</span><span class="p">,</span>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">      </span><span class="nt">&quot;feed_in_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.5</span><span class="p">,</span>
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="w">      </span><span class="nt">&quot;feed_in_revenue_eur&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.04</span><span class="p">,</span>
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="w">      </span><span class="nt">&quot;last_flush_ts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-15T23:59:58&quot;</span>
+</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="w">  </span><span class="p">]</span>
+</span><span id="__span-2-22"><a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="p">}</span>
+</span></code></pre></div>
 <hr />
 <h2 id="get-staticfile"><code>GET /static/&lt;file&gt;</code><a class="headerlink" href="#get-staticfile" title="Permanent link">&para;</a></h2>
 <p>Serves static assets (<code>style.css</code>, etc.) from the <code>static/</code> directory.</p>

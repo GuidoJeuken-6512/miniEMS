@@ -177,7 +177,7 @@ class EMSController:
         gc_cost = summary.get("today_grid_charge_cost_eur", 0.0)
         load_kwh = summary.get("today_load_total_kwh", 0.0)
         result["today_cost_without_grid_charge"] = round(max(0.0, grid_cost - gc_cost), 6)
-        result["today_cost_fix_price_tarif"] = round(load_kwh * cfg.fix_price, 6)
+        result["today_cost_fix_price_tariff"] = round(load_kwh * cfg.fix_price, 6)
 
         # Solcast values
         if self._solcast:

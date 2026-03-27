@@ -3,7 +3,7 @@
 miniEMS publishes sensors to Home Assistant after every EMS tick (default: every 30 s).
 All entity IDs use the prefix `sensor.miniems_`.
 
-Sensors are published via **MQTT Discovery** when an MQTT broker is available, or via the **HA REST API** as a fallback. MQTT sensors appear under the **miniEMS** device in HA and support long-term statistics.
+Sensors are provided by the **miniEMS custom integration**, which polls `/api/status` every 30 s and registers all entities under the **miniEMS** device in HA with long-term statistics support.
 
 ---
 
@@ -42,7 +42,7 @@ All `today_*` sensors accumulate since midnight and have `state_class: total_inc
 | Entity | Unit | Description |
 |---|---|---|
 | `sensor.miniems_today_cost_without_grid_charge` | € | Grid cost minus the portion paid to charge the battery from grid |
-| `sensor.miniems_today_cost_fix_price_tarif` | € | What today's load would cost at the configured fixed tariff |
+| `sensor.miniems_today_cost_fix_price_tariff` | € | What today's load would cost at the configured fixed tariff |
 | `sensor.miniems_today_feed_in_kwh` | kWh | Energy exported to grid today |
 | `sensor.miniems_today_feed_in_revenue_eur` | € | Revenue from grid export today |
 | `sensor.miniems_today_grid_charge_kwh` | kWh | Energy charged into battery from the grid today |
@@ -69,7 +69,7 @@ useable        = (soc − min_soc)  / 100 × capacity_kwh
 | Entity | Unit | Description |
 |---|---|---|
 | `sensor.miniems_week_grid_cost_eur` | € | Rolling 7-day grid cost |
-| `sensor.miniems_week_pv_saved_eur` | € | Rolling 7-day PV savings |
+| `sensor.miniems_week_pv_savings_eur` | € | Rolling 7-day PV savings |
 | `sensor.miniems_month_grid_cost_eur` | € | Calendar month grid cost |
 | `sensor.miniems_month_pv_savings_eur` | € | Calendar month PV savings |
 | `sensor.miniems_month_load_cost_eur` | € | Calendar month hypothetical full-grid cost |

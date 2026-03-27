@@ -281,6 +281,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -406,6 +410,62 @@
     
   
     Dashboard & UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user/log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Event Log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user/database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Viewer
   
 
     
@@ -741,6 +801,56 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#event_log-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        event_log Table
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="event_log Table">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#write-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#startup-restore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Startup restore
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daily-cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Daily cleanup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -820,10 +930,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#eventlog-ring-buffer" class="md-nav__link">
+  <a href="#eventlog-ring-buffer-sqlite" class="md-nav__link">
     <span class="md-ellipsis">
       
-        EventLog Ring Buffer
+        EventLog Ring Buffer + SQLite
       
     </span>
   </a>
@@ -990,6 +1100,56 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#event_log-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        event_log Table
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="event_log Table">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#write-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#startup-restore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Startup restore
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daily-cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Daily cleanup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1069,10 +1229,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#eventlog-ring-buffer" class="md-nav__link">
+  <a href="#eventlog-ring-buffer-sqlite" class="md-nav__link">
     <span class="md-ellipsis">
       
-        EventLog Ring Buffer
+        EventLog Ring Buffer + SQLite
       
     </span>
   </a>
@@ -1190,73 +1350,85 @@
 <tr>
 <td>In-memory <code>EventLog</code></td>
 <td>miniEMS runtime</td>
-<td>Ring buffer of 100 mode-change events</td>
+<td>Ring buffer of 100 events (backed by SQLite <code>event_log</code> table)</td>
 </tr>
 </tbody>
 </table>
 <div class="admonition note">
-<p class="admonition-title">options.json removed in v1.4.0</p>
-<p>The HA Supervisor add-on config UI (<code>options.json</code>) is no longer used.
-All configuration is managed through the miniEMS Settings page and persisted
-to <code>/data/config.json</code>.</p>
+<p class="admonition-title">options.json and config.json</p>
+<p><code>options.json</code> is still read on startup and can override <code>config.json</code> for
+values that differ from the dataclass defaults. However, <code>config.json</code> is the
+durable source of truth — on every startup the merged result is written back
+to it, so it survives any Supervisor reset of <code>options.json</code>.
+Both files can be inspected and edited via the <strong>config.json</strong> and
+<strong>options.json</strong> tabs in the miniEMS UI.</p>
 </div>
 <hr />
 <h2 id="dataconfigjson"><code>/data/config.json</code><a class="headerlink" href="#dataconfigjson" title="Permanent link">&para;</a></h2>
 <p>Created and maintained by <code>config_loader.py</code>. Survives add-on updates,
 Supervisor reloads, and restarts.</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">6</span><span class="p">,</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">&quot;_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">&quot;pv_power_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sensor.deye_pv_total_power&quot;</span><span class="p">,</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">&quot;battery_soc_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sensor.deye_battery_soc&quot;</span><span class="p">,</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">&quot;battery_capacity_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">25.0</span><span class="p">,</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">&quot;battery_min_soc&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span>
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nt">&quot;battery_max_soc&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">95</span><span class="p">,</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="nt">&quot;cheap_rate_threshold_eur&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.28</span><span class="p">,</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="nt">&quot;feed_in_tariff_eur_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.08</span><span class="p">,</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="nt">&quot;fix_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.30</span><span class="p">,</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span><span class="nt">&quot;battery_control_enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span><span class="nt">&quot;battery_control_simulation&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span><span class="nt">&quot;grid_charge_switch_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;switch.deye8k_battery_grid_charging&quot;</span><span class="p">,</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">  </span><span class="nt">&quot;battery_discharging_power_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;number.deye8k_battery_discharging_power&quot;</span><span class="p">,</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">  </span><span class="nt">&quot;battery_max_charge_power_w&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5500</span><span class="p">,</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">  </span><span class="nt">&quot;battery_max_discharge_power_w&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5500</span><span class="p">,</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">  </span><span class="nt">&quot;default_discharge_power_w&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">185</span><span class="p">,</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">  </span><span class="nt">&quot;solcast_remaining_today_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sensor.solcast_pv_forecast_prognose_verbleibende_leistung_heute&quot;</span><span class="p">,</span>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">  </span><span class="nt">&quot;solcast_today_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sensor.solcast_pv_forecast_prognose_heute&quot;</span><span class="p">,</span>
-</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">  </span><span class="nt">&quot;solcast_tomorrow_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sensor.solcast_pv_forecast_prognose_morgen&quot;</span><span class="p">,</span>
-</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">  </span><span class="nt">&quot;weather_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;weather.openweathermap&quot;</span><span class="p">,</span>
-</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">  </span><span class="nt">&quot;update_interval_sec&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span>
-</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">  </span><span class="nt">&quot;long_lived_token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span>
-</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="p">}</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="nt">&quot;medium_rate_threshold_eur&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.20</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="nt">&quot;feed_in_tariff_eur_kwh&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.08</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span><span class="nt">&quot;fix_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.30</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">  </span><span class="nt">&quot;battery_control_enabled&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span><span class="nt">&quot;battery_control_simulation&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">  </span><span class="nt">&quot;grid_charge_switch_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;switch.deye8k_battery_grid_charging&quot;</span><span class="p">,</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">  </span><span class="nt">&quot;battery_discharging_power_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;number.deye8k_battery_discharging_power&quot;</span><span class="p">,</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">  </span><span class="nt">&quot;battery_max_charge_power_w&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5500</span><span class="p">,</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">  </span><span class="nt">&quot;battery_max_discharge_power_w&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">5500</span><span class="p">,</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">  </span><span class="nt">&quot;default_discharge_power_w&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">185</span><span class="p">,</span>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">  </span><span class="nt">&quot;solcast_remaining_today_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sensor.solcast_pv_forecast_prognose_verbleibende_leistung_heute&quot;</span><span class="p">,</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">  </span><span class="nt">&quot;solcast_today_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sensor.solcast_pv_forecast_prognose_heute&quot;</span><span class="p">,</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">  </span><span class="nt">&quot;solcast_tomorrow_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sensor.solcast_pv_forecast_prognose_morgen&quot;</span><span class="p">,</span>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">  </span><span class="nt">&quot;weather_entity&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;weather.openweathermap&quot;</span><span class="p">,</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">  </span><span class="nt">&quot;update_interval_sec&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span>
+</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">  </span><span class="nt">&quot;event_log_retention_days&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">30</span><span class="p">,</span>
+</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">  </span><span class="nt">&quot;long_lived_token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span>
+</span><span id="__span-0-26"><a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="p">}</span>
 </span></code></pre></div>
 <h3 id="schema-versioning">Schema Versioning<a class="headerlink" href="#schema-versioning" title="Permanent link">&para;</a></h3>
-<p><code>_version</code> is written by <code>migration.py</code>. The current version is <strong>6</strong>.</p>
+<p><code>_version</code> is written by <code>migration.py</code>. The current version is <strong>8</strong>.</p>
 <p>When the schema changes:</p>
 <ol>
 <li>Increment <code>CONFIG_SCHEMA_VERSION</code> in <code>const.py</code></li>
 <li>Add a migration function <code>_vN_to_vN1(data: dict) -&gt; dict</code></li>
-<li>Register it in <code>MIGRATIONS</code> list in <code>migration.py</code></li>
+<li>Register it in <code>migration.py</code></li>
 </ol>
-<p>Migration chain: v0 → v1 → v2 → v3 → v4 → v5 → v6</p>
+<p>Migration chain: v0 → v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8</p>
 <hr />
 <h2 id="dataminiemsdb"><code>/data/miniems.db</code><a class="headerlink" href="#dataminiemsdb" title="Permanent link">&para;</a></h2>
-<p>SQLite database managed by <code>store.py</code>. Contains one table:</p>
+<p>SQLite database managed by <code>store.py</code>. Contains two tables:</p>
 <h3 id="daily_stats-table"><code>daily_stats</code> Table<a class="headerlink" href="#daily_stats-table" title="Permanent link">&para;</a></h3>
 <div class="language-sql highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">daily_stats</span><span class="w"> </span><span class="p">(</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="nb">date</span><span class="w">              </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w">  </span><span class="c1">-- ISO date &#39;YYYY-MM-DD&#39;</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="n">grid_cost_eur</span><span class="w">     </span><span class="nb">REAL</span><span class="p">,</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="n">pv_saved_eur</span><span class="w">      </span><span class="nb">REAL</span><span class="p">,</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="n">grid_import_kwh</span><span class="w">   </span><span class="nb">REAL</span><span class="p">,</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="n">pv_used_kwh</span><span class="w">       </span><span class="nb">REAL</span><span class="p">,</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="n">load_total_kwh</span><span class="w">    </span><span class="nb">REAL</span><span class="p">,</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="n">peak_pv_w</span><span class="w">         </span><span class="nb">REAL</span><span class="p">,</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="n">avg_temp_c</span><span class="w">        </span><span class="nb">REAL</span><span class="p">,</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="n">grid_charge_kwh</span><span class="w">   </span><span class="nb">REAL</span><span class="p">,</span><span class="w">              </span><span class="c1">-- v1.4.0</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="n">grid_charge_cost_eur</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span><span class="w">           </span><span class="c1">-- v1.4.0</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="n">feed_in_kwh</span><span class="w">       </span><span class="nb">REAL</span><span class="p">,</span><span class="w">             </span><span class="c1">-- v1.4.0</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="n">feed_in_revenue_eur</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span><span class="w">           </span><span class="c1">-- v1.4.0</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="n">last_flush_ts</span><span class="w">     </span><span class="nb">TEXT</span><span class="w">              </span><span class="c1">-- v1.4.0: UTC ISO timestamp of last write</span>
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="p">);</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="nb">date</span><span class="w">               </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w">  </span><span class="c1">-- ISO date &#39;YYYY-MM-DD&#39;</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="n">grid_import_kwh</span><span class="w">    </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="n">grid_cost_eur</span><span class="w">      </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="n">pv_used_kwh</span><span class="w">        </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="n">pv_savings_eur</span><span class="w">     </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="n">load_total_kwh</span><span class="w">     </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="n">load_cost_eur</span><span class="w">      </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="n">avg_price_eur_kwh</span><span class="w">  </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="n">avg_outdoor_temp_c</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="n">ticks</span><span class="w">              </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="c1">-- added via ALTER TABLE on upgrade:</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="n">peak_pv_w</span><span class="w">          </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="n">grid_charge_kwh</span><span class="w">    </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">    </span><span class="n">grid_charge_cost_eur</span><span class="w"> </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="n">feed_in_kwh</span><span class="w">        </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">    </span><span class="n">feed_in_revenue_eur</span><span class="w"> </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">    </span><span class="n">last_flush_ts</span><span class="w">      </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">              </span><span class="c1">-- UTC ISO timestamp of last write</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">    </span><span class="n">kwh_high_rate</span><span class="w">      </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">   </span><span class="c1">-- load at high price tier</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">    </span><span class="n">kwh_medium_rate</span><span class="w">    </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">   </span><span class="c1">-- load at medium price tier</span>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">    </span><span class="n">kwh_low_rate</span><span class="w">       </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="w">    </span><span class="c1">-- load at low price tier</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="p">);</span>
 </span></code></pre></div>
 <p>New columns are added automatically via <code>ALTER TABLE</code> on first run after upgrade.</p>
 <h3 id="flush-behaviour">Flush Behaviour<a class="headerlink" href="#flush-behaviour" title="Permanent link">&para;</a></h3>
@@ -1265,15 +1437,40 @@ Supervisor reloads, and restarts.</p>
 the completed day's row to SQLite. The <code>last_flush_ts</code> column is updated on
 every flush and used for downtime gap detection on startup.</p>
 <h3 id="aggregation">Aggregation<a class="headerlink" href="#aggregation" title="Permanent link">&para;</a></h3>
-<p><code>store.get_aggregated()</code> computes rolling/calendar aggregates directly in SQL:</p>
-<div class="language-sql highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">-- Week (rolling 7 days)</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">grid_cost_eur</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">daily_stats</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="nb">date</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nb">date</span><span class="p">(</span><span class="s1">&#39;now&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;-6 days&#39;</span><span class="p">)</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1">-- Month (calendar month)</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">SELECT</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">grid_cost_eur</span><span class="p">)</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">daily_stats</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m&#39;</span><span class="p">,</span><span class="w"> </span><span class="nb">date</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;now&#39;</span><span class="p">)</span>
+<p><code>store._aggregate()</code> computes rolling/calendar aggregates directly in SQL:</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1">-- Month (calendar month)</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">grid_cost_eur</span><span class="p">),</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">kwh_high_rate</span><span class="p">),</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">kwh_medium_rate</span><span class="p">),</span><span class="w"> </span><span class="k">SUM</span><span class="p">(</span><span class="n">kwh_low_rate</span><span class="p">)</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">daily_stats</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m&#39;</span><span class="p">,</span><span class="w"> </span><span class="nb">date</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">strftime</span><span class="p">(</span><span class="s1">&#39;%Y-%m&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;now&#39;</span><span class="p">)</span>
 </span></code></pre></div>
+<hr />
+<h3 id="event_log-table"><code>event_log</code> Table<a class="headerlink" href="#event_log-table" title="Permanent link">&para;</a></h3>
+<p>Stores every mode-change and price-change event so the log survives restarts and updates.</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">event_log</span><span class="w"> </span><span class="p">(</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="n">id</span><span class="w">                       </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="k">timestamp</span><span class="w">                </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">   </span><span class="c1">-- ISO 8601 local time</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="n">entry_type</span><span class="w">               </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">   </span><span class="c1">-- &quot;mode_change&quot; | &quot;price_change&quot;</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="k">state</span><span class="w">                    </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">   </span><span class="c1">-- &quot;on&quot; | &quot;off&quot; | &quot;price_change&quot;</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="n">battery_kwh_freetochange</span><span class="w"> </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="n">battery_kwh_useable</span><span class="w">      </span><span class="nb">REAL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="n">predicted_load_kwh</span><span class="w">       </span><span class="nb">REAL</span><span class="p">,</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">    </span><span class="n">price_eur_kwh</span><span class="w">            </span><span class="nb">REAL</span><span class="w">             </span><span class="c1">-- NULL for mode_change entries</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="p">);</span>
+</span></code></pre></div>
+<h4 id="write-path">Write path<a class="headerlink" href="#write-path" title="Permanent link">&para;</a></h4>
+<p><code>EventLog.append()</code> is called by <code>EMSController</code> on every mode change or price change. It:</p>
+<ol>
+<li>Adds the entry to the in-memory <code>deque(maxlen=100)</code></li>
+<li>Immediately inserts a row into <code>event_log</code> via <code>store.append_event()</code></li>
+</ol>
+<h4 id="startup-restore">Startup restore<a class="headerlink" href="#startup-restore" title="Permanent link">&para;</a></h4>
+<p><code>EventLog.restore_from_db()</code> is called in <code>main.py</code> after <code>store.open()</code>. It reads the last 100 rows (newest first), reverses them, and fills the in-memory buffer — so <code>to_list()</code> is immediately populated.</p>
+<h4 id="daily-cleanup">Daily cleanup<a class="headerlink" href="#daily-cleanup" title="Permanent link">&para;</a></h4>
+<p>Once per day (on the first EMS tick after midnight) <code>EMSController</code> calls <code>EventLog.cleanup_old_entries(retention_days)</code>, which executes:</p>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">DELETE</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">event_log</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">WHERE</span><span class="w"> </span><span class="k">timestamp</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">datetime</span><span class="p">(</span><span class="s1">&#39;now&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;-N days&#39;</span><span class="p">)</span>
+</span></code></pre></div>
+<p>The retention window is set by <code>event_log_retention_days</code> in config (default: 30 days).</p>
 <hr />
 <h2 id="ha-entity-states-sensorminiems_">HA Entity States (<code>sensor.miniems_*</code>)<a class="headerlink" href="#ha-entity-states-sensorminiems_" title="Permanent link">&para;</a></h2>
 <p>States are written via two paths:</p>
@@ -1282,11 +1479,11 @@ every flush and used for downtime gap detection on startup.</p>
 startup, then data to <code>homeassistant/sensor/miniems_*/state</code> on each tick.
 Sensors appear under the <strong>miniEMS</strong> device in HA.</p>
 <h3 id="rest-api-fallback">REST API (fallback)<a class="headerlink" href="#rest-api-fallback" title="Permanent link">&para;</a></h3>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>POST http://hassio/homeassistant/api/states/sensor.miniems_&lt;name&gt;
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>{
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>  &quot;state&quot;: &quot;&lt;value&gt;&quot;,
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>  &quot;attributes&quot;: { &quot;unit_of_measurement&quot;: &quot;...&quot;, &quot;state_class&quot;: &quot;...&quot; }
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>}
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>POST http://hassio/homeassistant/api/states/sensor.miniems_&lt;name&gt;
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>{
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  &quot;state&quot;: &quot;&lt;value&gt;&quot;,
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>  &quot;attributes&quot;: { &quot;unit_of_measurement&quot;: &quot;...&quot;, &quot;state_class&quot;: &quot;...&quot; }
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>}
 </span></code></pre></div>
 <p>HA stores these states in its own database. The add-on does not maintain a
 local copy beyond <code>status_store</code>.</p>
@@ -1301,29 +1498,57 @@ local copy beyond <code>status_store</code>.</p>
 </ul>
 <h3 id="costoptimizer-accumulators"><code>CostOptimizer</code> Accumulators<a class="headerlink" href="#costoptimizer-accumulators" title="Permanent link">&para;</a></h3>
 <p>Per-day <code>defaultdict(float)</code> keyed by <code>date.today()</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">_grid_import_kwh</span>     <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">_pv_used_kwh</span>         <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">_grid_cost_eur</span>       <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">_pv_saved_eur</span>        <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">_load_total_kwh</span>      <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">_grid_charge_kwh</span>     <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>   <span class="c1"># v1.4.0</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">_grid_charge_cost_eur</span><span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>   <span class="c1"># v1.4.0</span>
-</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="n">_feed_in_kwh</span>         <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>   <span class="c1"># v1.4.0</span>
-</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="n">_feed_in_revenue_eur</span> <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>   <span class="c1"># v1.4.0</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">_grid_import_kwh</span>     <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">_pv_used_kwh</span>         <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">_grid_cost_eur</span>       <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">_pv_saved_eur</span>        <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">_load_total_kwh</span>      <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">_grid_charge_kwh</span>     <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="n">_grid_charge_cost_eur</span><span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">_feed_in_kwh</span>         <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="n">_feed_in_revenue_eur</span> <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="n">_kwh_high_rate</span>       <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>   <span class="c1"># price tier accumulators</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="n">_kwh_medium_rate</span>     <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="n">_kwh_low_rate</span>        <span class="p">:</span> <span class="p">{</span><span class="n">date</span><span class="p">:</span> <span class="nb">float</span><span class="p">}</span>
 </span></code></pre></div>
 <p>In-memory accumulators reset on add-on restart. Long-term persistence is
-provided by the <code>total_increasing</code> HA sensors which HA records in its own DB.</p>
-<h3 id="eventlog-ring-buffer"><code>EventLog</code> Ring Buffer<a class="headerlink" href="#eventlog-ring-buffer" title="Permanent link">&para;</a></h3>
-<p><code>event_log.py</code> maintains a <code>deque(maxlen=100)</code>. Each <code>LogEntry</code> stores:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nd">@dataclass</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">LogEntry</span><span class="p">:</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">timestamp</span><span class="p">:</span> <span class="nb">str</span>              <span class="c1"># ISO 8601 UTC</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">state</span><span class="p">:</span> <span class="nb">str</span>                  <span class="c1"># &quot;ON&quot; or &quot;OFF&quot;</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">battery_kwh_freetochange</span><span class="p">:</span> <span class="nb">float</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="n">battery_kwh_useable</span><span class="p">:</span> <span class="nb">float</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="n">predicted_load_kwh</span><span class="p">:</span> <span class="nb">float</span>
+provided by the <code>total_increasing</code> HA sensors which HA records in its own DB,
+and by the <code>daily_stats</code> restore on startup.</p>
+<h3 id="eventlog-ring-buffer-sqlite"><code>EventLog</code> Ring Buffer + SQLite<a class="headerlink" href="#eventlog-ring-buffer-sqlite" title="Permanent link">&para;</a></h3>
+<p><code>event_log.py</code> maintains a <code>deque(maxlen=100)</code> <strong>backed by the <code>event_log</code> SQLite table</strong>. Two event types share the same buffer:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nd">@dataclass</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">LogEntry</span><span class="p">:</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>    <span class="n">timestamp</span><span class="p">:</span> <span class="nb">str</span>              <span class="c1"># ISO 8601 string</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">state</span><span class="p">:</span> <span class="nb">str</span>                  <span class="c1"># &quot;on&quot; | &quot;off&quot; | &quot;price_change&quot;</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">battery_kwh_freetochange</span><span class="p">:</span> <span class="nb">float</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="n">battery_kwh_useable</span><span class="p">:</span> <span class="nb">float</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="n">predicted_load_kwh</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>    <span class="n">entry_type</span><span class="p">:</span> <span class="nb">str</span>             <span class="c1"># &quot;mode_change&quot; | &quot;price_change&quot;</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    <span class="n">price_eur_kwh</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="c1"># set for price_change entries only</span>
 </span></code></pre></div>
-<p>The log is served via <code>/api/status</code> and rendered in the <code>/log</code> page.</p>
+<table>
+<thead>
+<tr>
+<th><code>entry_type</code></th>
+<th>Triggered when</th>
+<th><code>state</code> value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mode_change</code></td>
+<td>EMS switches operating mode</td>
+<td><code>"on"</code> (grid charging started) or <code>"off"</code></td>
+</tr>
+<tr>
+<td><code>price_change</code></td>
+<td>Electricity price sensor reports a new value</td>
+<td><code>"price_change"</code></td>
+</tr>
+</tbody>
+</table>
+<p>Price-change entries are only recorded when the price differs from the previously observed value. The very first reading after startup is not logged.</p>
+<p>The log is served via <code>/api/status</code> → <code>log</code> array and rendered in the <code>/log</code> page. The buffer holds the last 100 events across both types combined. Events <strong>survive restarts</strong> — they are persisted to SQLite and restored on startup. See the <a href="#event_log-table"><code>event_log</code> table schema</a> above.</p>
 
 
 

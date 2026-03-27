@@ -279,7 +279,7 @@ class CostOptimizer:
         load_kwh = self.today_load_total_kwh()
         return {
             "today_grid_cost_eur":          round(grid_cost, 6),
-            "today_pv_saved_eur":           round(self.today_pv_saved_eur(), 6),
+            "today_pv_savings_eur":         round(self.today_pv_saved_eur(), 6),
             "today_grid_import_kwh":        round(self.today_grid_import_kwh(), 3),
             "today_pv_used_kwh":            round(self.today_pv_used_kwh(), 3),
             "today_load_total_kwh":         round(load_kwh, 3),
@@ -290,7 +290,7 @@ class CostOptimizer:
             "today_feed_in_revenue_eur":    round(self.today_feed_in_revenue_eur(), 6),
             "today_cost_without_grid_charge": round(max(0.0, grid_cost - gc_cost), 6),
             "week_grid_cost_eur":           round(self.week_grid_cost_eur(), 6),
-            "week_pv_saved_eur":            round(self.week_pv_saved_eur(), 6),
+            "week_pv_savings_eur":          round(self.week_pv_saved_eur(), 6),
             "today_kwh_high_rate":          round(self._kwh_high_rate.get(today, 0.0), 3),
             "today_kwh_medium_rate":        round(self._kwh_medium_rate.get(today, 0.0), 3),
             "today_kwh_low_rate":           round(self._kwh_low_rate.get(today, 0.0), 3),

@@ -13,10 +13,10 @@
       
       
       
-        <link rel="prev" href="../configuration/">
+        <link rel="prev" href="../dashboard/">
       
       
-        <link rel="next" href="../log/">
+        <link rel="next" href="../database/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>Dashboard & UI - miniEMS Documentation</title>
+        <title>Event Log - miniEMS Documentation</title>
       
     
     
@@ -85,7 +85,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#dashboard-ui" class="md-skip">
+        <a href="#event-log" class="md-skip">
           Skip to content
         </a>
       
@@ -119,7 +119,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Dashboard &amp; UI
+              Event Log
             
           </span>
         </div>
@@ -404,6 +404,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard & UI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -423,7 +451,7 @@
   <span class="md-ellipsis">
     
   
-    Dashboard & UI
+    Event Log
   
 
     
@@ -441,7 +469,7 @@
   <span class="md-ellipsis">
     
   
-    Dashboard & UI
+    Event Log
   
 
     
@@ -468,10 +496,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#navigation" class="md-nav__link">
+  <a href="#summary-bar" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Navigation
+        Summary Bar
       
     </span>
   </a>
@@ -479,22 +507,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#dashboard-tab" class="md-nav__link">
+  <a href="#event-table" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Dashboard Tab
+        Event Table
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Dashboard Tab">
+    <nav class="md-nav" aria-label="Event Table">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#warnings-banner" class="md-nav__link">
+  <a href="#mode-change-events" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Warnings Banner
+        Mode Change Events
       
     </span>
   </a>
@@ -502,87 +530,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#mode-badge" class="md-nav__link">
+  <a href="#price-change-events" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Mode Badge
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#live-power-grid" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Live Power Grid
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#cost-savings" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cost &amp; Savings
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#cost-details" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cost Details
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#battery-state" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Battery State
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#solcast-pv-forecast" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Solcast PV Forecast
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#forecast-prediction" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Forecast &amp; Prediction
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#mode-change-log-compact" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Mode Change Log (compact)
+        Price Change Events
       
     </span>
   </a>
@@ -595,10 +546,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#log-tab" class="md-nav__link">
+  <a href="#event-capacity" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Log Tab
+        Event Capacity
       
     </span>
   </a>
@@ -606,10 +557,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configjson-tab" class="md-nav__link">
+  <a href="#persistence" class="md-nav__link">
     <span class="md-ellipsis">
       
-        config.json Tab
+        Persistence
       
     </span>
   </a>
@@ -617,10 +568,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#optionsjson-tab" class="md-nav__link">
+  <a href="#auto-refresh" class="md-nav__link">
     <span class="md-ellipsis">
       
-        options.json Tab
+        Auto-Refresh
       
     </span>
   </a>
@@ -628,21 +579,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#database-tab" class="md-nav__link">
+  <a href="#implementation-notes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Database Tab
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#settings-tab" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Settings Tab
+        Implementation Notes
       
     </span>
   </a>
@@ -653,34 +593,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../log/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Event Log
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -971,10 +883,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#navigation" class="md-nav__link">
+  <a href="#summary-bar" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Navigation
+        Summary Bar
       
     </span>
   </a>
@@ -982,22 +894,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#dashboard-tab" class="md-nav__link">
+  <a href="#event-table" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Dashboard Tab
+        Event Table
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Dashboard Tab">
+    <nav class="md-nav" aria-label="Event Table">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#warnings-banner" class="md-nav__link">
+  <a href="#mode-change-events" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Warnings Banner
+        Mode Change Events
       
     </span>
   </a>
@@ -1005,87 +917,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#mode-badge" class="md-nav__link">
+  <a href="#price-change-events" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Mode Badge
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#live-power-grid" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Live Power Grid
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#cost-savings" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cost &amp; Savings
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#cost-details" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cost Details
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#battery-state" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Battery State
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#solcast-pv-forecast" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Solcast PV Forecast
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#forecast-prediction" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Forecast &amp; Prediction
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#mode-change-log-compact" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Mode Change Log (compact)
+        Price Change Events
       
     </span>
   </a>
@@ -1098,10 +933,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#log-tab" class="md-nav__link">
+  <a href="#event-capacity" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Log Tab
+        Event Capacity
       
     </span>
   </a>
@@ -1109,10 +944,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configjson-tab" class="md-nav__link">
+  <a href="#persistence" class="md-nav__link">
     <span class="md-ellipsis">
       
-        config.json Tab
+        Persistence
       
     </span>
   </a>
@@ -1120,10 +955,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#optionsjson-tab" class="md-nav__link">
+  <a href="#auto-refresh" class="md-nav__link">
     <span class="md-ellipsis">
       
-        options.json Tab
+        Auto-Refresh
       
     </span>
   </a>
@@ -1131,21 +966,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#database-tab" class="md-nav__link">
+  <a href="#implementation-notes" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Database Tab
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#settings-tab" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Settings Tab
+        Implementation Notes
       
     </span>
   </a>
@@ -1219,173 +1043,134 @@
   
                   
 
-<h1 id="dashboard-ui">Dashboard &amp; UI<a class="headerlink" href="#dashboard-ui" title="Permanent link">&para;</a></h1>
-<p>The miniEMS dashboard is an ingress panel accessible directly from the HA sidebar. It auto-refreshes every 5 seconds and is fully translated (German/English, auto-detected from HA).</p>
-<h2 id="navigation">Navigation<a class="headerlink" href="#navigation" title="Permanent link">&para;</a></h2>
-<p>Six tabs are available:</p>
+<h1 id="event-log">Event Log<a class="headerlink" href="#event-log" title="Permanent link">&para;</a></h1>
+<p>The <strong>Log</strong> tab (<code>/log</code>) provides a chronological, auto-refreshing event journal for miniEMS. It captures every significant state transition in a single unified view, making it easy to understand <em>why</em> the system acted the way it did.</p>
+<hr />
+<h2 id="summary-bar">Summary Bar<a class="headerlink" href="#summary-bar" title="Permanent link">&para;</a></h2>
+<p>At the top of the page a live summary bar always shows the current system state:</p>
 <table>
 <thead>
 <tr>
-<th>Tab</th>
-<th>Path</th>
-<th>Purpose</th>
+<th>Field</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Dashboard</strong></td>
-<td><code>/</code></td>
-<td>Live status, costs, battery, Solcast, prediction</td>
+<td>Mode</td>
+<td>Current EMS operating mode (badge)</td>
 </tr>
 <tr>
-<td><strong>Settings</strong></td>
-<td><code>/settings</code></td>
-<td>Configuration form</td>
+<td>Battery SoC</td>
+<td>Current state-of-charge (%)</td>
 </tr>
 <tr>
-<td><strong>Log</strong></td>
-<td><code>/log</code></td>
-<td>Unified event log (mode changes + price changes)</td>
+<td>Free to Charge</td>
+<td>Battery headroom available (kWh)</td>
 </tr>
 <tr>
-<td><strong>config.json</strong></td>
-<td><code>/config-json</code></td>
-<td>Raw editor for <code>/data/config.json</code></td>
+<td>Solcast Remaining</td>
+<td>PV energy still expected today (kWh)</td>
 </tr>
 <tr>
-<td><strong>options.json</strong></td>
-<td><code>/options-json</code></td>
-<td>Raw editor for <code>/data/options.json</code></td>
-</tr>
-<tr>
-<td><strong>Database</strong></td>
-<td><code>/database</code></td>
-<td>Browse all rows in <code>daily_stats</code></td>
+<td>Price</td>
+<td>Current electricity price – highlighted green on cheap rate</td>
 </tr>
 </tbody>
 </table>
 <hr />
-<h2 id="dashboard-tab">Dashboard Tab<a class="headerlink" href="#dashboard-tab" title="Permanent link">&para;</a></h2>
-<h3 id="warnings-banner">Warnings Banner<a class="headerlink" href="#warnings-banner" title="Permanent link">&para;</a></h3>
-<p>If any required sensor is unavailable or a config field is missing, a yellow banner appears at the top listing each issue. Fix the issues in Settings — the banner disappears automatically on the next refresh.</p>
-<p>A data-gap warning also appears here if miniEMS detects that the add-on was down for longer than two update intervals (energy accounting has a gap).</p>
-<h3 id="mode-badge">Mode Badge<a class="headerlink" href="#mode-badge" title="Permanent link">&para;</a></h3>
-<p>Shows the current EMS operating mode:</p>
+<h2 id="event-table">Event Table<a class="headerlink" href="#event-table" title="Permanent link">&para;</a></h2>
+<p>Below the summary bar the event table lists up to the <strong>last 100 events</strong>, newest first. Two types of events appear in the same chronological stream:</p>
+<h3 id="mode-change-events">Mode Change Events<a class="headerlink" href="#mode-change-events" title="Permanent link">&para;</a></h3>
+<p>Recorded every time the EMS switches between operating modes.</p>
 <table>
 <thead>
 <tr>
-<th>Badge</th>
-<th>Meaning</th>
+<th>Column</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>Idle</code> (grey)</td>
-<td>Normal operation</td>
+<td>Event</td>
+<td><strong>▲ ON</strong> (grid charging started) or <strong>▼ OFF</strong> (grid charging stopped) — shown in green / grey</td>
 </tr>
 <tr>
-<td><code>PV Charging</code> (green)</td>
-<td>Battery charging from PV surplus</td>
+<td>Time</td>
+<td>ISO 8601 timestamp of the transition</td>
 </tr>
 <tr>
-<td><code>Grid Charging (Cheap Rate)</code> (blue)</td>
-<td>Battery charging from cheap grid power</td>
+<td>Price (€/kWh)</td>
+<td><code>–</code> (not applicable to mode changes)</td>
 </tr>
 <tr>
-<td><code>Battery Protection (Min SoC)</code> (red)</td>
-<td>SoC below minimum — discharging blocked</td>
+<td>Free (kWh)</td>
+<td>Battery free-to-charge headroom at the moment of the change</td>
+</tr>
+<tr>
+<td>Useable (kWh)</td>
+<td>Battery useable energy at the moment of the change</td>
+</tr>
+<tr>
+<td>Pred. Load (kWh)</td>
+<td>Predicted daily household load at the moment of the change</td>
 </tr>
 </tbody>
 </table>
-<p>A <strong>SIM</strong> badge appears when Simulation Mode is active.</p>
-<h3 id="live-power-grid">Live Power Grid<a class="headerlink" href="#live-power-grid" title="Permanent link">&para;</a></h3>
-<p>Six cards showing real-time values: PV Power, Load Power, Grid Power, Battery SoC, Battery Power, and Electricity Price. The price card is highlighted green when the cheap-rate threshold is met.</p>
-<h3 id="cost-savings">Cost &amp; Savings<a class="headerlink" href="#cost-savings" title="Permanent link">&para;</a></h3>
-<p>Today's and this week's accumulated values:</p>
-<ul>
-<li><strong>Saved Today (PV)</strong> — money saved by using solar instead of buying from grid</li>
-<li><strong>Grid Cost Today</strong> — actual cost of grid electricity imported</li>
-<li><strong>PV Used Today</strong> — kWh of PV energy consumed by the house</li>
-<li><strong>Grid Import Today</strong> — total grid import kWh</li>
-</ul>
-<h3 id="cost-details">Cost Details<a class="headerlink" href="#cost-details" title="Permanent link">&para;</a></h3>
+<h3 id="price-change-events">Price Change Events<a class="headerlink" href="#price-change-events" title="Permanent link">&para;</a></h3>
+<p>Recorded every time the electricity price sensor reports a new value that differs from the previous one. This lets you correlate grid-charge decisions with the exact price steps that triggered them.</p>
 <table>
 <thead>
 <tr>
-<th>Card</th>
-<th>Formula</th>
+<th>Column</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Cost Without Grid Charge</td>
-<td><code>grid_cost_today − grid_charge_cost_today</code></td>
+<td>Event</td>
+<td><strong>€ Price Change</strong> — shown in amber</td>
 </tr>
 <tr>
-<td>Cost at Fix Price</td>
-<td><code>load_total_kwh × fix_price</code></td>
+<td>Time</td>
+<td>ISO 8601 timestamp of the price update</td>
 </tr>
 <tr>
-<td>Feed-in Today</td>
-<td>kWh exported to the grid</td>
+<td>Price (€/kWh)</td>
+<td>The <strong>new</strong> electricity price</td>
 </tr>
 <tr>
-<td>Feed-in Revenue</td>
-<td><code>feed_in_kwh × feed_in_tariff</code></td>
+<td>Free (kWh)</td>
+<td>Battery free-to-charge headroom at the time</td>
 </tr>
 <tr>
-<td>Grid Charge Today</td>
-<td>kWh charged from the grid (not from PV)</td>
+<td>Useable (kWh)</td>
+<td>Battery useable energy at the time</td>
+</tr>
+<tr>
+<td>Pred. Load (kWh)</td>
+<td>Predicted daily load at the time</td>
 </tr>
 </tbody>
 </table>
-<h3 id="battery-state">Battery State<a class="headerlink" href="#battery-state" title="Permanent link">&para;</a></h3>
-<p>Free to Charge and Useable kWh, computed from SoC and your configured capacity and SoC limits.</p>
-<h3 id="solcast-pv-forecast">Solcast PV Forecast<a class="headerlink" href="#solcast-pv-forecast" title="Permanent link">&para;</a></h3>
-<p>Shows remaining PV expected for today, today's total, and tomorrow's total from Solcast. Only visible when Solcast entities are configured.</p>
-<h3 id="forecast-prediction">Forecast &amp; Prediction<a class="headerlink" href="#forecast-prediction" title="Permanent link">&para;</a></h3>
-<p>Internal consumption model output. Shows the predicted load and fallback PV yield estimate. The badge indicates the data source:</p>
-<ul>
-<li><strong>historically estimated</strong> — based on temperature-matched historical days</li>
-<li><strong>fallback estimation</strong> — based on temperature rules (not enough history yet)</li>
-</ul>
-<h3 id="mode-change-log-compact">Mode Change Log (compact)<a class="headerlink" href="#mode-change-log-compact" title="Permanent link">&para;</a></h3>
-<p>Shows the most recent mode change with a link to the full Log page.</p>
-<hr />
-<h2 id="log-tab">Log Tab<a class="headerlink" href="#log-tab" title="Permanent link">&para;</a></h2>
-<p>The dedicated log page shows:</p>
-<ul>
-<li><strong>Summary bar</strong> — current mode, SoC, free-to-charge kWh, Solcast remaining, current price</li>
-<li><strong>Full event table</strong> — up to the last 100 events: grid-charge mode changes and electricity price changes</li>
-</ul>
-<p>See <a href="../log/">Event Log</a> for full details on all event types and columns.</p>
-<hr />
-<h2 id="configjson-tab">config.json Tab<a class="headerlink" href="#configjson-tab" title="Permanent link">&para;</a></h2>
-<p>Direct raw editor for <code>/data/config.json</code> — the persistent miniEMS settings file. Displays the file as pretty-printed JSON in a monospace textarea. Changes are validated client-side before saving, then the add-on restarts automatically.</p>
-<p>A <strong>Reformat JSON</strong> button re-indents the content without saving, useful for reviewing edits.</p>
-<div class="admonition warning">
-<p class="admonition-title">Advanced use</p>
-<p>Prefer the <strong>Settings</strong> tab for normal configuration. The raw editor is intended for debugging, migration fixes, or setting values not exposed in the settings form.</p>
-</div>
-<hr />
-<h2 id="optionsjson-tab">options.json Tab<a class="headerlink" href="#optionsjson-tab" title="Permanent link">&para;</a></h2>
-<p>Raw editor for <code>/data/options.json</code> — the file written by the HA Supervisor. Identical interface to the config.json tab, with an additional warning banner noting that the Supervisor may overwrite this file when the add-on is reconfigured via the HA UI.</p>
 <div class="admonition tip">
-<p class="admonition-title">Which file wins?</p>
-<p><code>config.json</code> takes precedence for any value equal to the dataclass default. For all other values, <code>options.json</code> wins on startup. After the first run the merged result is written back to <code>config.json</code>, so <code>config.json</code> is the durable source of truth.</p>
+<p class="admonition-title">Reading the log</p>
+<p>Look for a <strong>€ Price Change</strong> entry just before a <strong>▲ ON</strong> entry — that is the price drop that crossed the cheap-rate threshold and triggered grid charging. Similarly, a price increase followed by a <strong>▼ OFF</strong> entry explains why charging stopped.</p>
 </div>
 <hr />
-<h2 id="database-tab">Database Tab<a class="headerlink" href="#database-tab" title="Permanent link">&para;</a></h2>
-<p>Browse all rows in the <code>daily_stats</code> SQLite table. Displays a summary bar (total days recorded, date range, temperature coverage) followed by a sortable full table.</p>
-<p>Click any column header to sort ascending or descending. Rows without temperature data are shown in grey — these days are excluded from the temperature-matched load prediction.</p>
-<p>See <a href="../../technical/data-storage/">Data Storage</a> for the full column reference.</p>
+<h2 id="event-capacity">Event Capacity<a class="headerlink" href="#event-capacity" title="Permanent link">&para;</a></h2>
+<p>The in-memory buffer holds the <strong>last 100 events</strong> (mode changes and price changes combined). Older events are silently evicted from the buffer. The hint line at the top of the table shows the current count.</p>
 <hr />
-<h2 id="settings-tab">Settings Tab<a class="headerlink" href="#settings-tab" title="Permanent link">&para;</a></h2>
-<p>The settings page provides a form for all configuration options. After editing, click <strong>Save &amp; Restart</strong> — the add-on restarts and picks up the new configuration automatically.</p>
-<div class="admonition note">
-<p class="admonition-title">Restart time</p>
-<p>The add-on typically restarts within 2–5 seconds. The browser will redirect back to the dashboard after 6 seconds.</p>
-</div>
+<h2 id="persistence">Persistence<a class="headerlink" href="#persistence" title="Permanent link">&para;</a></h2>
+<p>Events are written to the <code>event_log</code> table in <code>/data/miniems.db</code> on every append. On startup the last 100 entries are restored from the database so the log is <strong>not lost across restarts or updates</strong>.</p>
+<p>Old entries are pruned once per day based on the <strong>Event Log Retention</strong> setting (default: 30 days). See <a href="../configuration/#ems-parameters">Configuration</a>.</p>
+<hr />
+<h2 id="auto-refresh">Auto-Refresh<a class="headerlink" href="#auto-refresh" title="Permanent link">&para;</a></h2>
+<p>The page polls <code>/api/status</code> every <strong>5 seconds</strong> and re-renders the table in place. No manual reload is needed.</p>
+<hr />
+<h2 id="implementation-notes">Implementation Notes<a class="headerlink" href="#implementation-notes" title="Permanent link">&para;</a></h2>
+<p>Price changes are only recorded when the price <em>differs</em> from the previously observed value. The very first reading after startup is not logged as a change; subsequent readings are compared against the running value.</p>
+<p>For the database schema of the <code>event_log</code> table, see <a href="../../technical/data-storage/#event_log-table">Data Storage</a>.</p>
 
 
 
@@ -1426,7 +1211,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../configuration/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Configuration">
+          <a href="../dashboard/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Dashboard &amp; UI">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
@@ -1436,20 +1221,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                Configuration
+                Dashboard & UI
               </div>
             </div>
           </a>
         
         
           
-          <a href="../log/" class="md-footer__link md-footer__link--next" aria-label="Next: Event Log">
+          <a href="../database/" class="md-footer__link md-footer__link--next" aria-label="Next: Database Viewer">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Event Log
+                Database Viewer
               </div>
             </div>
             <div class="md-footer__button md-icon">

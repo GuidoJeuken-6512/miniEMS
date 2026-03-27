@@ -55,8 +55,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         icon="mdi:currency-eur",
     ),
     MiniEMSSensorDescription(
-        key="miniems_today_pv_saved_eur",
-        status_key="today_pv_saved_eur",
+        key="miniems_today_pv_savings_eur",
+        status_key="today_pv_savings_eur",
         name="Today PV Savings",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
@@ -91,8 +91,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         icon="mdi:cash-minus",
     ),
     MiniEMSSensorDescription(
-        key="miniems_today_cost_fix_price_tarif",
-        status_key="today_cost_fix_price_tarif",
+        key="miniems_today_cost_fix_price_tariff",
+        status_key="today_cost_fix_price_tariff",
         name="Today Cost Fix Price Tariff",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
@@ -184,8 +184,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         icon="mdi:calendar-week",
     ),
     MiniEMSSensorDescription(
-        key="miniems_week_pv_saved_eur",
-        status_key="week_pv_saved_eur",
+        key="miniems_week_pv_savings_eur",
+        status_key="week_pv_savings_eur",
         name="Week PV Savings",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,

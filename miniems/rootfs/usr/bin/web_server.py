@@ -116,7 +116,7 @@ def create_app(
         lang = await get_ha_language(request)
         translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            "dashboard.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
+            request, "dashboard.html", {"version": VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/api/status")
@@ -130,7 +130,7 @@ def create_app(
         lang = await get_ha_language(request)
         translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            "settings.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
+            request, "settings.html", {"version": VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/log", response_class=HTMLResponse)
@@ -138,7 +138,7 @@ def create_app(
         lang = await get_ha_language(request)
         translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            "log.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
+            request, "log.html", {"version": VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/config-json", response_class=HTMLResponse)
@@ -146,7 +146,7 @@ def create_app(
         lang = await get_ha_language(request)
         translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            "config_json.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
+            request, "config_json.html", {"version": VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/options-json", response_class=HTMLResponse)
@@ -154,7 +154,7 @@ def create_app(
         lang = await get_ha_language(request)
         translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            "options_json.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
+            request, "options_json.html", {"version": VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/database", response_class=HTMLResponse)
@@ -162,7 +162,7 @@ def create_app(
         lang = await get_ha_language(request)
         translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            "database.html", {"request": request, "version": VERSION, "translations": translations, "lang": lang}
+            request, "database.html", {"version": VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/api/database")

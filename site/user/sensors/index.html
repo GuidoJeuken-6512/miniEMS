@@ -13,7 +13,7 @@
       
       
       
-        <link rel="prev" href="../dashboard/">
+        <link rel="prev" href="../database/">
       
       
         <link rel="next" href="../../technical/">
@@ -283,6 +283,10 @@
       
         
       
+        
+      
+        
+      
     
     
     
@@ -428,6 +432,62 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Event Log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -540,6 +600,17 @@
     <span class="md-ellipsis">
       
         Weekly / Monthly / Yearly Totals
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#price-tier-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Price Tier Usage
       
     </span>
   </a>
@@ -900,6 +971,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#price-tier-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Price Tier Usage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#prediction" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1030,7 +1112,7 @@
 <h1 id="home-assistant-sensors">Home Assistant Sensors<a class="headerlink" href="#home-assistant-sensors" title="Permanent link">&para;</a></h1>
 <p>miniEMS publishes sensors to Home Assistant after every EMS tick (default: every 30 s).
 All entity IDs use the prefix <code>sensor.miniems_</code>.</p>
-<p>Sensors are published via <strong>MQTT Discovery</strong> when an MQTT broker is available, or via the <strong>HA REST API</strong> as a fallback. MQTT sensors appear under the <strong>miniEMS</strong> device in HA and support long-term statistics.</p>
+<p>Sensors are provided by the <strong>miniEMS custom integration</strong>, which polls <code>/api/status</code> every 30 s and registers all entities under the <strong>miniEMS</strong> device in HA with long-term statistics support.</p>
 <hr />
 <h2 id="operating-mode">Operating Mode<a class="headerlink" href="#operating-mode" title="Permanent link">&para;</a></h2>
 <table>
@@ -1136,7 +1218,7 @@ All entity IDs use the prefix <code>sensor.miniems_</code>.</p>
 <td>Grid cost minus the portion paid to charge the battery from grid</td>
 </tr>
 <tr>
-<td><code>sensor.miniems_today_cost_fix_price_tarif</code></td>
+<td><code>sensor.miniems_today_cost_fix_price_tariff</code></td>
 <td>€</td>
 <td>What today's load would cost at the configured fixed tariff</td>
 </tr>
@@ -1201,7 +1283,7 @@ All entity IDs use the prefix <code>sensor.miniems_</code>.</p>
 <td>Rolling 7-day grid cost</td>
 </tr>
 <tr>
-<td><code>sensor.miniems_week_pv_saved_eur</code></td>
+<td><code>sensor.miniems_week_pv_savings_eur</code></td>
 <td>€</td>
 <td>Rolling 7-day PV savings</td>
 </tr>
@@ -1237,6 +1319,51 @@ All entity IDs use the prefix <code>sensor.miniems_</code>.</p>
 </tr>
 </tbody>
 </table>
+<hr />
+<h2 id="price-tier-usage">Price Tier Usage<a class="headerlink" href="#price-tier-usage" title="Permanent link">&para;</a></h2>
+<p>Six sensors track household load (kWh) split by electricity price tier. The tier boundaries are set by <code>cheap_rate_threshold_eur</code> and <code>medium_rate_threshold_eur</code> in Settings.</p>
+<table>
+<thead>
+<tr>
+<th>Entity</th>
+<th>Unit</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sensor.miniems_today_kwh_high_rate</code></td>
+<td>kWh</td>
+<td>Load consumed today at <strong>high</strong> rate (<code>price ≥ medium_rate_threshold</code>)</td>
+</tr>
+<tr>
+<td><code>sensor.miniems_today_kwh_medium_rate</code></td>
+<td>kWh</td>
+<td>Load consumed today at <strong>medium</strong> rate</td>
+</tr>
+<tr>
+<td><code>sensor.miniems_today_kwh_low_rate</code></td>
+<td>kWh</td>
+<td>Load consumed today at <strong>low</strong> rate (<code>price &lt; cheap_rate_threshold</code>)</td>
+</tr>
+<tr>
+<td><code>sensor.miniems_month_kwh_high_rate</code></td>
+<td>kWh</td>
+<td>Load consumed this calendar month at <strong>high</strong> rate</td>
+</tr>
+<tr>
+<td><code>sensor.miniems_month_kwh_medium_rate</code></td>
+<td>kWh</td>
+<td>Load consumed this calendar month at <strong>medium</strong> rate</td>
+</tr>
+<tr>
+<td><code>sensor.miniems_month_kwh_low_rate</code></td>
+<td>kWh</td>
+<td>Load consumed this calendar month at <strong>low</strong> rate</td>
+</tr>
+</tbody>
+</table>
+<p>All six sensors have <code>state_class: total_increasing</code> and are resilient to restarts — values are restored from the local database on startup.</p>
 <hr />
 <h2 id="prediction">Prediction<a class="headerlink" href="#prediction" title="Permanent link">&para;</a></h2>
 <table>
@@ -1345,7 +1472,7 @@ All entity IDs use the prefix <code>sensor.miniems_</code>.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../dashboard/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Dashboard &amp; UI">
+          <a href="../database/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Database Viewer">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
@@ -1355,7 +1482,7 @@ All entity IDs use the prefix <code>sensor.miniems_</code>.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                Dashboard & UI
+                Database Viewer
               </div>
             </div>
           </a>
