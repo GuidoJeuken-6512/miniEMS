@@ -1,3 +1,7 @@
+---
+revision_date: 2026-03-14
+---
+
 # Architecture
 
 ## Component Overview

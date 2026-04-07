@@ -1,5 +1,5 @@
 name: miniEMS
-version: "1.5.0"
+version: "1.5.3"
 slug: miniems
 description: Mini Energy Management System for Deye inverter + Octopus Energy
 url: https://github.com/your-repo/miniEMS
@@ -18,4 +18,3 @@ ingress: true
 ingress_port: 8080
 panel_icon: mdi:solar-panel-large
 panel_title: miniEMS
-

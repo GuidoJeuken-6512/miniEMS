@@ -4,6 +4,7 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import entity_registry as er
 
 from .coordinator import MiniEMSCoordinator
 
@@ -27,6 +28,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+
+    # Remove stale entity registry entries from any prior miniEMS config entry.
+    # These cause _2 / _3 entity_id suffixes when the integration is deleted and re-added.
+    registry = er.async_get(hass)
+    stale = [
+        e for e in registry.entities.values()
+        if e.platform == DOMAIN and e.config_entry_id != entry.entry_id
+    ]
+    for stale_entry in stale:
+        registry.async_remove(stale_entry.entity_id)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     async def _reload_on_options_update(hass: HomeAssistant, entry: ConfigEntry) -> None:

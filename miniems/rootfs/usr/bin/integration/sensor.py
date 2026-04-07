@@ -10,7 +10,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
+from homeassistant.const import UnitOfEnergy
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -32,8 +32,10 @@ class MiniEMSSensorDescription(SensorEntityDescription):
 
 
 # ── Complete sensor list ──────────────────────────────────────────────────────
-# Preserves all 29 sensors from the former MQTT Discovery (_SENSOR_DEFS) plus
-# 6 additional live readings from ems_controller.update().
+# Only addon-native sensors: computed values, aggregates, predictions, and
+# battery math. Live power readings (pv, load, grid, battery, SoC) and the
+# electricity price are sourced from user-configured external HA entities
+# (Deye, Tibber, etc.) and are NOT re-published here to avoid duplication.
 
 SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     # Mode
@@ -110,15 +112,6 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         icon="mdi:solar-power",
     ),
     MiniEMSSensorDescription(
-        key="miniems_today_grid_import_kwh",
-        status_key="today_grid_import_kwh",
-        name="Today Grid Import",
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.TOTAL_INCREASING,
-        icon="mdi:transmission-tower-import",
-    ),
-    MiniEMSSensorDescription(
         key="miniems_today_load_total_kwh",
         status_key="today_load_total_kwh",
         name="Today Load Total",
@@ -126,15 +119,6 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
         icon="mdi:lightning-bolt",
-    ),
-    MiniEMSSensorDescription(
-        key="miniems_today_feed_in_kwh",
-        status_key="today_feed_in_kwh",
-        name="Today Feed-in",
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.TOTAL_INCREASING,
-        icon="mdi:solar-power-variant",
     ),
     MiniEMSSensorDescription(
         key="miniems_today_grid_charge_kwh",
@@ -312,59 +296,6 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:battery-minus",
-    ),
-    # ── Live power readings (spike-filtered by SensorValidator) ──────────────
-    MiniEMSSensorDescription(
-        key="miniems_pv_power_w",
-        status_key="pv_power_w",
-        name="PV Power",
-        native_unit_of_measurement=UnitOfPower.WATT,
-        device_class=SensorDeviceClass.POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:solar-power",
-    ),
-    MiniEMSSensorDescription(
-        key="miniems_load_power_w",
-        status_key="load_power_w",
-        name="Load Power",
-        native_unit_of_measurement=UnitOfPower.WATT,
-        device_class=SensorDeviceClass.POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:lightning-bolt",
-    ),
-    MiniEMSSensorDescription(
-        key="miniems_grid_power_w",
-        status_key="grid_power_w",
-        name="Grid Power",
-        native_unit_of_measurement=UnitOfPower.WATT,
-        device_class=SensorDeviceClass.POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:transmission-tower",
-    ),
-    MiniEMSSensorDescription(
-        key="miniems_battery_power_w",
-        status_key="battery_power_w",
-        name="Battery Power",
-        native_unit_of_measurement=UnitOfPower.WATT,
-        device_class=SensorDeviceClass.POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:battery-charging-outline",
-    ),
-    MiniEMSSensorDescription(
-        key="miniems_battery_soc_pct",
-        status_key="battery_soc_pct",
-        name="Battery SoC",
-        native_unit_of_measurement=PERCENTAGE,
-        device_class=SensorDeviceClass.BATTERY,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    MiniEMSSensorDescription(
-        key="miniems_electricity_price_eur",
-        status_key="electricity_price_eur",
-        name="Electricity Price",
-        native_unit_of_measurement=_EUR_PER_KWH,
-        state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:cash-clock",
     ),
 )
 

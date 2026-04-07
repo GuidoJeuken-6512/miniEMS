@@ -5,8 +5,10 @@ import os
 import signal
 import sys
 
+import aiohttp
 import uvicorn
 
+import const
 from config_loader import load_config
 from consumption_model import ConsumptionModel
 from cost_optimizer import CostOptimizer
@@ -44,6 +46,26 @@ async def ems_loop(
         await asyncio.sleep(interval)
 
 
+async def _sync_version_from_supervisor(token: str) -> None:
+    """Read the addon version from Supervisor API and update const.VERSION."""
+    if not token:
+        return
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "http://supervisor/addons/self/info",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                data = await resp.json()
+                version = data.get("data", {}).get("version")
+                if version:
+                    const.VERSION = version
+                    _LOGGER.info("Version from Supervisor: %s", const.VERSION)
+    except Exception as exc:
+        _LOGGER.warning("Could not read version from Supervisor: %s – using %s", exc, const.VERSION)
+
+
 async def main() -> None:
     cfg = load_config()
 
@@ -54,6 +76,7 @@ async def main() -> None:
     status_store: dict = {}
 
     supervisor_token = os.environ.get("SUPERVISOR_TOKEN", "")
+    await _sync_version_from_supervisor(supervisor_token)
 
     cost_optimizer = CostOptimizer(cfg, store)
     await cost_optimizer.restore_today()

@@ -44,6 +44,12 @@ def migrate(data: dict) -> dict:
     if version < 8:
         data = _v7_to_v8(data)
 
+    if version < 9:
+        data = _v8_to_v9(data)
+
+    if version < 10:
+        data = _v9_to_v10(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -132,6 +138,22 @@ def _v5_to_v6(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v5→v6: set %s = %r", key, default)
+    return data
+
+
+def _v9_to_v10(data: dict) -> dict:
+    """v9 → v10: add grid import energy sensor entity."""
+    if "grid_import_energy_entity" not in data:
+        data["grid_import_energy_entity"] = "sensor.deye8k_today_energy_import"
+        _LOGGER.info("Migration v9→v10: set grid_import_energy_entity = %r", data["grid_import_energy_entity"])
+    return data
+
+
+def _v8_to_v9(data: dict) -> dict:
+    """v8 → v9: add feed-in energy sensor entity."""
+    if "feed_in_energy_entity" not in data:
+        data["feed_in_energy_entity"] = "sensor.deye8k_today_energy_export"
+        _LOGGER.info("Migration v8→v9: set feed_in_energy_entity = %r", data["feed_in_energy_entity"])
     return data
 
 

@@ -110,6 +110,8 @@ class CostOptimizer:
         price_eur_kwh: float,
         interval_sec: int,
         outdoor_temp_c: float | None = None,
+        feed_in_kwh_ha: float | None = None,
+        grid_import_kwh_ha: float | None = None,
     ) -> None:
         """Accumulate energy for one interval."""
         cfg = self._cfg
@@ -132,10 +134,15 @@ class CostOptimizer:
             bat_w = 0.0
 
         # Grid import (positive = import, negative = export)
+        # kWh: prefer inverter's daily-total sensor; fall back to accumulation from grid_w.
+        # Cost is always accumulated per tick (requires spot price × kWh each interval).
         if grid_w > 0:
             kwh_imported = (grid_w / 1000) * hours
-            self._grid_import_kwh[now] += kwh_imported
-            self._grid_cost_eur[now]   += kwh_imported * price_eur_kwh
+            if grid_import_kwh_ha is None:
+                self._grid_import_kwh[now] += kwh_imported
+            self._grid_cost_eur[now] += kwh_imported * price_eur_kwh
+        if grid_import_kwh_ha is not None:
+            self._grid_import_kwh[now] = grid_import_kwh_ha
 
         # PV contribution to load (energy that would otherwise have been bought)
         pv_to_load_w = max(0.0, min(pv_w, load_w))
@@ -171,7 +178,11 @@ class CostOptimizer:
             self._grid_charge_cost_eur[now] += kwh_gc * price_eur_kwh
 
         # Feed-in (grid export)
-        if grid_w < 0:
+        # Prefer the HA daily-total sensor; fall back to accumulation from grid_w.
+        if feed_in_kwh_ha is not None:
+            self._feed_in_kwh[now] = feed_in_kwh_ha
+            self._feed_in_revenue_eur[now] = feed_in_kwh_ha * cfg.feed_in_tariff_eur_kwh
+        elif grid_w < 0:
             kwh_exported = (abs(grid_w) / 1000) * hours
             self._feed_in_kwh[now]         += kwh_exported
             self._feed_in_revenue_eur[now] += kwh_exported * cfg.feed_in_tariff_eur_kwh

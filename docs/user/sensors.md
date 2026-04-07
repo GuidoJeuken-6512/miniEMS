@@ -1,9 +1,19 @@
+---
+revision_date: 2026-04-06
+---
+
 # Home Assistant Sensors
 
-miniEMS publishes sensors to Home Assistant after every EMS tick (default: every 30 s).
-All entity IDs use the prefix `sensor.miniems_`.
+miniEMS registers **30 sensors** in Home Assistant via the bundled custom integration.
+All entity IDs use the prefix `sensor.miniems_`. The integration polls `/api/status`
+every 30 s and registers all entities under the **miniEMS** device with long-term
+statistics support.
 
-Sensors are provided by the **miniEMS custom integration**, which polls `/api/status` every 30 s and registers all entities under the **miniEMS** device in HA with long-term statistics support.
+> **Scope — addon-native only.** Live power readings (PV, load, grid, battery power,
+> SoC) and the electricity price are **not** duplicated here. Those sensors already
+> exist in HA from your inverter integration (e.g. Deye) and your price integration
+> (e.g. Tibber, Octopus Energy). miniEMS reads those entities internally but does not
+> re-publish them.
 
 ---
 
@@ -22,41 +32,15 @@ Sensors are provided by the **miniEMS custom integration**, which polls `/api/st
 
 ---
 
-## Today's Energy & Cost
+## Battery State
+
+Computed from the current SoC and the configured capacity / SoC limits.
 
 | Entity | Unit | Description |
 |---|---|---|
-| `sensor.miniems_today_grid_cost_eur` | € | Grid electricity cost today |
-| `sensor.miniems_today_pv_savings_eur` | € | Savings from PV self-consumption today |
-| `sensor.miniems_today_pv_used_kwh` | kWh | PV energy consumed by the house today |
-| `sensor.miniems_today_grid_import_kwh` | kWh | Total grid import today |
-| `sensor.miniems_today_load_total_kwh` | kWh | Total house load today |
-| `sensor.miniems_today_load_cost_eur` | € | Hypothetical cost if all load bought from grid |
+| `sensor.miniems_battery_kwh_freetochange` | kWh | Headroom until max SoC (chargeable capacity) |
+| `sensor.miniems_battery_kwh_useable` | kWh | Available until min SoC (dischargeable capacity) |
 
-All `today_*` sensors accumulate since midnight and have `state_class: total_increasing`.
-
----
-
-## Cost Comparison (v1.4.0)
-
-| Entity | Unit | Description |
-|---|---|---|
-| `sensor.miniems_today_cost_without_grid_charge` | € | Grid cost minus the portion paid to charge the battery from grid |
-| `sensor.miniems_today_cost_fix_price_tariff` | € | What today's load would cost at the configured fixed tariff |
-| `sensor.miniems_today_feed_in_kwh` | kWh | Energy exported to grid today |
-| `sensor.miniems_today_feed_in_revenue_eur` | € | Revenue from grid export today |
-| `sensor.miniems_today_grid_charge_kwh` | kWh | Energy charged into battery from the grid today |
-
----
-
-## Battery State (v1.4.0)
-
-| Entity | Unit | Description |
-|---|---|---|
-| `sensor.miniems_battery_kwh_freetochange` | kWh | How much more can be charged before hitting max SoC |
-| `sensor.miniems_battery_kwh_useable` | kWh | How much can be discharged before hitting min SoC |
-
-Formulas:
 ```
 free_to_charge = (max_soc − soc) / 100 × capacity_kwh
 useable        = (soc − min_soc)  / 100 × capacity_kwh
@@ -64,7 +48,55 @@ useable        = (soc − min_soc)  / 100 × capacity_kwh
 
 ---
 
+## Today's Energy
+
+Accumulate from midnight; reset daily. `state_class: total_increasing`.
+
+| Entity | Unit | Description |
+|---|---|---|
+| `sensor.miniems_today_pv_used_kwh` | kWh | PV energy self-consumed by the house today |
+| `sensor.miniems_today_grid_import_kwh` | kWh | Total grid import today |
+| `sensor.miniems_today_load_total_kwh` | kWh | Total house load today |
+| `sensor.miniems_today_feed_in_kwh` | kWh | Energy exported to grid today |
+| `sensor.miniems_today_grid_charge_kwh` | kWh | Energy charged into battery from the grid today |
+
+---
+
+## Today's Cost & Savings
+
+| Entity | Unit | Description |
+|---|---|---|
+| `sensor.miniems_today_grid_cost_eur` | € | Actual cost of grid import today |
+| `sensor.miniems_today_pv_savings_eur` | € | Savings from PV self-consumption today |
+| `sensor.miniems_today_load_cost_eur` | € | Hypothetical cost if all load were bought from grid |
+| `sensor.miniems_today_feed_in_revenue_eur` | € | Revenue from grid export today |
+| `sensor.miniems_today_cost_without_grid_charge` | € | Grid cost minus the portion paid to charge the battery from grid |
+| `sensor.miniems_today_cost_fix_price_tariff` | € | What today's load would cost at the configured fixed tariff |
+
+---
+
+## Price Tier Usage
+
+Load (kWh) split by electricity price tier. Tier boundaries are set by
+`cheap_rate_threshold_eur` and `medium_rate_threshold_eur` in Settings.
+
+| Entity | Unit | Description |
+|---|---|---|
+| `sensor.miniems_today_kwh_high_rate` | kWh | Load today at **high** rate (`price ≥ medium_rate_threshold`) |
+| `sensor.miniems_today_kwh_medium_rate` | kWh | Load today at **medium** rate |
+| `sensor.miniems_today_kwh_low_rate` | kWh | Load today at **low** rate (`price < cheap_rate_threshold`) |
+| `sensor.miniems_month_kwh_high_rate` | kWh | Load this calendar month at **high** rate |
+| `sensor.miniems_month_kwh_medium_rate` | kWh | Load this calendar month at **medium** rate |
+| `sensor.miniems_month_kwh_low_rate` | kWh | Load this calendar month at **low** rate |
+
+All six sensors have `state_class: total_increasing` and are restored from the
+database on restart.
+
+---
+
 ## Weekly / Monthly / Yearly Totals
+
+Aggregated from the `daily_stats` database table.
 
 | Entity | Unit | Description |
 |---|---|---|
@@ -79,42 +111,16 @@ useable        = (soc − min_soc)  / 100 × capacity_kwh
 
 ---
 
-## Price Tier Usage
-
-Six sensors track household load (kWh) split by electricity price tier. The tier boundaries are set by `cheap_rate_threshold_eur` and `medium_rate_threshold_eur` in Settings.
+## Predictions
 
 | Entity | Unit | Description |
 |---|---|---|
-| `sensor.miniems_today_kwh_high_rate` | kWh | Load consumed today at **high** rate (`price ≥ medium_rate_threshold`) |
-| `sensor.miniems_today_kwh_medium_rate` | kWh | Load consumed today at **medium** rate |
-| `sensor.miniems_today_kwh_low_rate` | kWh | Load consumed today at **low** rate (`price < cheap_rate_threshold`) |
-| `sensor.miniems_month_kwh_high_rate` | kWh | Load consumed this calendar month at **high** rate |
-| `sensor.miniems_month_kwh_medium_rate` | kWh | Load consumed this calendar month at **medium** rate |
-| `sensor.miniems_month_kwh_low_rate` | kWh | Load consumed this calendar month at **low** rate |
-
-All six sensors have `state_class: total_increasing` and are resilient to restarts — values are restored from the local database on startup.
-
----
-
-## Prediction
-
-| Entity | Unit | Description |
-|---|---|---|
-| `sensor.miniems_predicted_load_kwh` | kWh | Predicted daily house load |
-| `sensor.miniems_predicted_pv_kwh` | kWh | Internal PV yield estimate (fallback model) |
+| `sensor.miniems_predicted_load_kwh` | kWh | Predicted daily house load (temperature-matched historical data) |
+| `sensor.miniems_predicted_pv_kwh` | kWh | Internal PV yield estimate (fallback when Solcast unavailable) |
 
 ---
 
 ## Using Sensors in HA
-
-### Energy Dashboard
-
-Add these to the HA Energy Dashboard:
-
-| Slot | Entity |
-|---|---|
-| Solar production | `sensor.miniems_today_pv_used_kwh` |
-| Grid consumption | `sensor.miniems_today_grid_import_kwh` |
 
 ### Example Lovelace card
 

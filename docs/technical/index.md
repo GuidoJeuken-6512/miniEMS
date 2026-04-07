@@ -1,3 +1,7 @@
+---
+revision_date: 2026-03-14
+---
+
 # Technical Reference
 
 This section documents the internal design of miniEMS v1.4.0 for contributors and advanced users who want to understand how the system works.

@@ -18,7 +18,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from const import CONFIG_FILE, OPTIONS_FILE, SUPERVISOR_RESTART_URL, VERSION
+import const
+from const import CONFIG_FILE, OPTIONS_FILE, SUPERVISOR_RESTART_URL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -116,7 +117,7 @@ def create_app(
         lang = await get_ha_language(request)
         translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            request, "dashboard.html", {"version": VERSION, "translations": translations, "lang": lang}
+            request, "dashboard.html", {"version": const.VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/api/status")
@@ -130,7 +131,7 @@ def create_app(
         lang = await get_ha_language(request)
         translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            request, "settings.html", {"version": VERSION, "translations": translations, "lang": lang}
+            request, "settings.html", {"version": const.VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/log", response_class=HTMLResponse)
@@ -138,7 +139,7 @@ def create_app(
         lang = await get_ha_language(request)
         translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            request, "log.html", {"version": VERSION, "translations": translations, "lang": lang}
+            request, "log.html", {"version": const.VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/config-json", response_class=HTMLResponse)
@@ -146,7 +147,7 @@ def create_app(
         lang = await get_ha_language(request)
         translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            request, "config_json.html", {"version": VERSION, "translations": translations, "lang": lang}
+            request, "config_json.html", {"version": const.VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/options-json", response_class=HTMLResponse)
@@ -154,7 +155,7 @@ def create_app(
         lang = await get_ha_language(request)
         translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            request, "options_json.html", {"version": VERSION, "translations": translations, "lang": lang}
+            request, "options_json.html", {"version": const.VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/database", response_class=HTMLResponse)
@@ -162,7 +163,7 @@ def create_app(
         lang = await get_ha_language(request)
         translations = load_translations(lang)
         return _TEMPLATES.TemplateResponse(
-            request, "database.html", {"version": VERSION, "translations": translations, "lang": lang}
+            request, "database.html", {"version": const.VERSION, "translations": translations, "lang": lang}
         )
 
     @app.get("/api/database")

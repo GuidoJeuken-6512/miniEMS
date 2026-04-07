@@ -97,8 +97,7 @@
       "type": "pickString",
       "description": "Name of addon (to add your addon to this list, please edit .vscode/tasks.json)",
       "options": [
-        "miniems",
-        "SimpleScheduler"
+        "miniems"
       ]
     }
   ]

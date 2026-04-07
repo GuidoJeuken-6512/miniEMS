@@ -1,3 +1,7 @@
+---
+revision_date: 2026-04-06
+---
+
 # Configuration
 
 All settings are managed through the **Settings** tab in the miniEMS dashboard.
@@ -41,6 +45,8 @@ Find these in **HA → Developer Tools → States** — filter by `deye` to loca
 | `cheap_rate_threshold_eur` | `0.28` | Grid charging triggers when price is **below** this value — also the **low** tier ceiling |
 | `medium_rate_threshold_eur` | `0.20` | Price tier boundary: **low** below `cheap_rate_threshold_eur`, **medium** between the two, **high** at or above this value |
 | `feed_in_tariff_eur_kwh` | `0.08` | Revenue per kWh exported to the grid |
+| `grid_import_energy_entity` | `sensor.deye8k_today_energy_import` | HA entity providing the inverter's daily grid import total (kWh, resets at midnight). When set, replaces the calculated import kWh; grid cost is still accumulated per tick. Leave empty to fall back to calculation from `grid_power_entity`. |
+| `feed_in_energy_entity` | `sensor.deye8k_today_energy_export` | HA entity providing the inverter's daily feed-in total (kWh, resets at midnight). When set, this replaces the calculated feed-in value. Leave empty to fall back to calculation from `grid_power_entity`. |
 | `fix_price` | `0.30` | Fixed-rate tariff for the "Cost at Fix Price" comparison sensor |
 
 !!! info "Price tier logic"

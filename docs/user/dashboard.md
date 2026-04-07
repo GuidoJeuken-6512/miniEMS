@@ -1,3 +1,7 @@
+---
+revision_date: 2026-03-14
+---
+
 # Dashboard & UI
 
 The miniEMS dashboard is an ingress panel accessible directly from the HA sidebar. It auto-refreshes every 5 seconds and is fully translated (German/English, auto-detected from HA).

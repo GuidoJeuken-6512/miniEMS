@@ -9,7 +9,8 @@ import logging
 import shutil
 from pathlib import Path
 
-from const import INTEGRATION_SOURCE_DIR, INTEGRATION_TARGET_DIR, VERSION
+import const
+from const import INTEGRATION_SOURCE_DIR, INTEGRATION_TARGET_DIR
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,14 +37,14 @@ async def install_integration() -> None:
     # Fast path: version already installed
     if _VERSION_FILE.exists():
         try:
-            if _VERSION_FILE.read_text(encoding="utf-8").strip() == VERSION:
-                _LOGGER.debug("Integration v%s already installed – skipping", VERSION)
+            if _VERSION_FILE.read_text(encoding="utf-8").strip() == const.VERSION:
+                _LOGGER.debug("Integration v%s already installed – skipping", const.VERSION)
                 return
         except OSError:
             pass
 
     _LOGGER.info(
-        "Installing miniEMS integration v%s → %s", VERSION, INTEGRATION_TARGET_DIR
+        "Installing miniEMS integration v%s → %s", const.VERSION, INTEGRATION_TARGET_DIR
     )
 
     try:
@@ -69,7 +70,7 @@ async def install_integration() -> None:
             _LOGGER.error("Failed to copy %s → %s: %s", src, dst, exc)
 
     try:
-        _VERSION_FILE.write_text(VERSION, encoding="utf-8")
+        _VERSION_FILE.write_text(const.VERSION, encoding="utf-8")
     except OSError as exc:
         _LOGGER.warning("Failed to write version marker: %s", exc)
 

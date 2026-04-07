@@ -6,11 +6,12 @@ Never duplicate these across modules – always import from const.
 from enum import Enum
 
 # ── Add-on version ─────────────────────────────────────────────────────────
-# Increment on every change; keep in sync with config.yaml → version.
-VERSION = "1.5.0"
+# Fallback only – overwritten at startup by main._sync_version_from_supervisor()
+# which reads the real version from http://supervisor/addons/self/info.
+VERSION = "1.5.3"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
-CONFIG_SCHEMA_VERSION = 8
+CONFIG_SCHEMA_VERSION = 10
 
 # ── File paths ───────────────────────────────────────────────────────────────
 OPTIONS_FILE = "/data/options.json"   # written by HA Supervisor (UI)

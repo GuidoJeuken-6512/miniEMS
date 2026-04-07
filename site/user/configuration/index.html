@@ -693,6 +693,8 @@
       
         
       
+        
+      
     
     
     
@@ -846,6 +848,34 @@
     
   
     API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../technical/sensors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    HA Sensor Reference
   
 
     
@@ -1059,9 +1089,11 @@
               
               <article class="md-content__inner md-typeset">
                 
+  
   <div class="md-doc-meta">
-    miniEMS v1.4.0 &middot; Updated 2026-03-14
+    miniEMS &middot; Updated 2026-04-06
   </div>
+  
   
                   
 
@@ -1170,6 +1202,16 @@ All configuration is done through the miniEMS Settings page.</p>
 <td><code>feed_in_tariff_eur_kwh</code></td>
 <td><code>0.08</code></td>
 <td>Revenue per kWh exported to the grid</td>
+</tr>
+<tr>
+<td><code>grid_import_energy_entity</code></td>
+<td><code>sensor.deye8k_today_energy_import</code></td>
+<td>HA entity providing the inverter's daily grid import total (kWh, resets at midnight). When set, replaces the calculated import kWh; grid cost is still accumulated per tick. Leave empty to fall back to calculation from <code>grid_power_entity</code>.</td>
+</tr>
+<tr>
+<td><code>feed_in_energy_entity</code></td>
+<td><code>sensor.deye8k_today_energy_export</code></td>
+<td>HA entity providing the inverter's daily feed-in total (kWh, resets at midnight). When set, this replaces the calculated feed-in value. Leave empty to fall back to calculation from <code>grid_power_entity</code>.</td>
 </tr>
 <tr>
 <td><code>fix_price</code></td>
@@ -1427,6 +1469,27 @@ If Solcast is unavailable, the internal temperature-based prediction is used as 
 
 
 
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    2026-04-06
+  </span>
+
+    
+    
+    
+    
+  </aside>
 
 
 

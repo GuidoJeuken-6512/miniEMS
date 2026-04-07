@@ -60,6 +60,7 @@ nav = [
     { "Calculations" = "technical/calculations.md" },
     { "Data Storage" = "technical/data-storage.md" },
     { "API Reference" = "technical/api.md" },
+    { "HA Sensor Reference" = "technical/sensors.md" },
   ]},
 ]
 
@@ -319,7 +320,5 @@ icon = "fontawesome/brands/github"
 link = "https://github.com/GuidoJeuken-6512/miniEMS"
 
 [project.extra]
-app_version = "1.4.0"
-updated_date = "2026-03-14"
 
 

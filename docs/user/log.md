@@ -1,3 +1,7 @@
+---
+revision_date: 2026-03-14
+---
+
 # Event Log
 
 The **Log** tab (`/log`) provides a chronological, auto-refreshing event journal for miniEMS. It captures every significant state transition in a single unified view, making it easy to understand *why* the system acted the way it did.

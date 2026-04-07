@@ -63,6 +63,10 @@ class Config:
     # Feed-in tariff and fixed price tariff (Phase 6)
     feed_in_tariff_eur_kwh: float = 0.08
     fix_price: float = 0.30
+    # Feed-in energy sensor – daily total from inverter (optional; falls back to calculated)
+    feed_in_energy_entity: str = "sensor.deye8k_today_energy_export"
+    # Grid import energy sensor – daily total from inverter (optional; falls back to calculated)
+    grid_import_energy_entity: str = "sensor.deye8k_today_energy_import"
 
     @property
     def monitored_entities(self) -> list[str]:
@@ -82,7 +86,8 @@ class Config:
             ]
             if e
         ]
-        return base + solcast
+        optional = [e for e in [self.feed_in_energy_entity, self.grid_import_energy_entity] if e]
+        return base + solcast + optional
 
 
 def _defaults() -> dict:

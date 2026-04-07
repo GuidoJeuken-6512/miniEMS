@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 
 {% block content %}
+  {% if page.meta and page.meta.revision_date %}
   <div class="md-doc-meta">
-    miniEMS v{{ config.extra.app_version }} &middot; Updated {{ config.extra.updated_date }}
+    miniEMS &middot; Updated {{ page.meta.revision_date }}
   </div>
+  {% endif %}
   {{ super() }}
 {% endblock %}

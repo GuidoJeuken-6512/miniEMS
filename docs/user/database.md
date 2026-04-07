@@ -1,3 +1,7 @@
+---
+revision_date: 2026-03-14
+---
+
 # Database Viewer
 
 The **Database** tab (`/database`) gives a direct view of the `daily_stats` SQLite table — the same data that drives the consumption prediction model and the cost & savings dashboard cards.

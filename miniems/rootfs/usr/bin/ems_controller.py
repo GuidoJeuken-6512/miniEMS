@@ -121,6 +121,16 @@ class EMSController:
         if self._inverter:
             await self._inverter.apply_mode(self._mode)
 
+        feed_in_kwh_ha = (
+            ws.get_state_value(cfg.feed_in_energy_entity)
+            if cfg.feed_in_energy_entity
+            else None
+        )
+        grid_import_kwh_ha = (
+            ws.get_state_value(cfg.grid_import_energy_entity)
+            if cfg.grid_import_energy_entity
+            else None
+        )
         self._optimizer.record_tick(
             grid_power_w=grid_w,
             pv_power_w=pv_w,
@@ -129,6 +139,8 @@ class EMSController:
             price_eur_kwh=price if price is not None else 0.0,
             interval_sec=cfg.update_interval_sec,
             outdoor_temp_c=outdoor_temp,
+            feed_in_kwh_ha=feed_in_kwh_ha,
+            grid_import_kwh_ha=grid_import_kwh_ha,
         )
         await self._optimizer.flush_to_db()
 

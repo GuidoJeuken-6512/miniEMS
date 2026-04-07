@@ -1,3 +1,7 @@
+---
+revision_date: 2026-03-14
+---
+
 # API Reference
 
 miniEMS exposes a small HTTP API served by FastAPI on port 8080 (HA ingress).
