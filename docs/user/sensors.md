@@ -1,45 +1,45 @@
 ---
-revision_date: 2026-04-06
+revision_date: 2026-04-07
 ---
 
-# Home Assistant Sensors
+# Home-Assistant-Sensoren
 
-miniEMS registers **30 sensors** in Home Assistant via the bundled custom integration.
-All entity IDs use the prefix `sensor.miniems_`. The integration polls `/api/status`
-every 30 s and registers all entities under the **miniEMS** device with long-term
-statistics support.
+miniEMS registriert **28 Sensoren** in Home Assistant über die mitgelieferte benutzerdefinierte Integration.
+Alle Entitäts-IDs verwenden das Präfix `sensor.miniems_`. Die Integration fragt `/api/status`
+alle 30 s ab und registriert alle Entitäten unter dem **miniEMS**-Gerät mit Langzeit-
+statistik-Unterstützung.
 
-> **Scope — addon-native only.** Live power readings (PV, load, grid, battery power,
-> SoC) and the electricity price are **not** duplicated here. Those sensors already
-> exist in HA from your inverter integration (e.g. Deye) and your price integration
-> (e.g. Tibber, Octopus Energy). miniEMS reads those entities internally but does not
-> re-publish them.
+> **Umfang — nur Add-on-native.** Live-Leistungsmesswerte (PV, Last, Netz, Batterieleistung,
+> SoC) und der Strompreis werden hier **nicht** dupliziert. Diese Sensoren existieren bereits
+> in HA aus deiner Wechselrichter-Integration (z.B. Deye) und deiner Preis-Integration
+> (z.B. Tibber, Octopus Energy). miniEMS liest diese Entitäten intern, veröffentlicht sie
+> aber nicht erneut.
 
 ---
 
-## Operating Mode
+## Betriebsmodus
 
-| Entity | Unit | Description |
+| Entität | Einheit | Beschreibung |
 |---|---|---|
-| `sensor.miniems_mode` | — | Current EMS mode string |
+| `sensor.miniems_mode` | — | Aktueller EMS-Modus als Zeichenkette |
 
-| Value | Meaning |
+| Wert | Bedeutung |
 |---|---|
-| `Idle` | No active action — monitoring only |
-| `PV Charging` | PV surplus detected — charging from solar |
-| `Grid Charging (Cheap Rate)` | Cheap rate active and battery needs charging |
-| `Battery Protection (Min SoC)` | SoC below minimum — discharging blocked |
+| `Idle` | Keine aktive Aktion — nur Überwachung |
+| `PV Charging` | PV-Überschuss erkannt — Laden aus Solarenergie |
+| `Grid Charging (Cheap Rate)` | Günstigtarif aktiv und Batterie muss geladen werden |
+| `Battery Protection (Min SoC)` | SoC unter Minimum — Entladen blockiert |
 
 ---
 
-## Battery State
+## Batteriezustand
 
-Computed from the current SoC and the configured capacity / SoC limits.
+Berechnet aus dem aktuellen SoC und den konfigurierten Kapazitäts- und SoC-Grenzen.
 
-| Entity | Unit | Description |
+| Entität | Einheit | Beschreibung |
 |---|---|---|
-| `sensor.miniems_battery_kwh_freetochange` | kWh | Headroom until max SoC (chargeable capacity) |
-| `sensor.miniems_battery_kwh_useable` | kWh | Available until min SoC (dischargeable capacity) |
+| `sensor.miniems_battery_kwh_freetochange` | kWh | Freiraum bis zum maximalen SoC (ladbare Kapazität) |
+| `sensor.miniems_battery_kwh_useable` | kWh | Verfügbar bis zum minimalen SoC (entladbare Kapazität) |
 
 ```
 free_to_charge = (max_soc − soc) / 100 × capacity_kwh
@@ -48,81 +48,79 @@ useable        = (soc − min_soc)  / 100 × capacity_kwh
 
 ---
 
-## Today's Energy
+## Heutige Energie
 
-Accumulate from midnight; reset daily. `state_class: total_increasing`.
+Akkumuliert ab Mitternacht; tägliches Rücksetzen. `state_class: total_increasing`.
 
-| Entity | Unit | Description |
+| Entität | Einheit | Beschreibung |
 |---|---|---|
-| `sensor.miniems_today_pv_used_kwh` | kWh | PV energy self-consumed by the house today |
-| `sensor.miniems_today_grid_import_kwh` | kWh | Total grid import today |
-| `sensor.miniems_today_load_total_kwh` | kWh | Total house load today |
-| `sensor.miniems_today_feed_in_kwh` | kWh | Energy exported to grid today |
-| `sensor.miniems_today_grid_charge_kwh` | kWh | Energy charged into battery from the grid today |
+| `sensor.miniems_today_pv_used_kwh` | kWh | Heute vom Haus selbst verbrauchte PV-Energie |
+| `sensor.miniems_today_load_total_kwh` | kWh | Gesamte Hauslast heute |
+| `sensor.miniems_today_grid_charge_kwh` | kWh | Heute aus dem Netz in die Batterie geladene Energie |
 
 ---
 
-## Today's Cost & Savings
+## Heutige Kosten & Einsparungen
 
-| Entity | Unit | Description |
+| Entität | Einheit | Beschreibung |
 |---|---|---|
-| `sensor.miniems_today_grid_cost_eur` | € | Actual cost of grid import today |
-| `sensor.miniems_today_pv_savings_eur` | € | Savings from PV self-consumption today |
-| `sensor.miniems_today_load_cost_eur` | € | Hypothetical cost if all load were bought from grid |
-| `sensor.miniems_today_feed_in_revenue_eur` | € | Revenue from grid export today |
-| `sensor.miniems_today_cost_without_grid_charge` | € | Grid cost minus the portion paid to charge the battery from grid |
-| `sensor.miniems_today_cost_fix_price_tariff` | € | What today's load would cost at the configured fixed tariff |
+| `sensor.miniems_today_grid_cost_eur` | € | Tatsächliche Kosten des Netzbezugs heute |
+| `sensor.miniems_today_pv_savings_eur` | € | Einsparungen durch PV-Eigenverbrauch heute |
+| `sensor.miniems_today_load_cost_eur` | € | Hypothetische Kosten, wenn alle Last aus dem Netz bezogen würde |
+| `sensor.miniems_today_feed_in_revenue_eur` | € | Einnahmen aus Netzeinspeisung heute |
+| `sensor.miniems_today_cost_without_grid_charge` | € | Netzkosten abzüglich des für die Netzladung gezahlten Anteils |
+| `sensor.miniems_today_cost_fix_price_tariff` | € | Was die heutige Last zum konfigurierten Festtarif kosten würde |
 
 ---
 
-## Price Tier Usage
+## Tarifnutzung
 
-Load (kWh) split by electricity price tier. Tier boundaries are set by
-`cheap_rate_threshold_eur` and `medium_rate_threshold_eur` in Settings.
+Last (kWh) aufgeteilt nach Strompreistarif. Tarifgrenzen werden durch
+`cheap_rate_threshold_eur` und `medium_rate_threshold_eur` in den Einstellungen festgelegt.
 
-| Entity | Unit | Description |
+| Entität | Einheit | Beschreibung |
 |---|---|---|
-| `sensor.miniems_today_kwh_high_rate` | kWh | Load today at **high** rate (`price ≥ medium_rate_threshold`) |
-| `sensor.miniems_today_kwh_medium_rate` | kWh | Load today at **medium** rate |
-| `sensor.miniems_today_kwh_low_rate` | kWh | Load today at **low** rate (`price < cheap_rate_threshold`) |
-| `sensor.miniems_month_kwh_high_rate` | kWh | Load this calendar month at **high** rate |
-| `sensor.miniems_month_kwh_medium_rate` | kWh | Load this calendar month at **medium** rate |
-| `sensor.miniems_month_kwh_low_rate` | kWh | Load this calendar month at **low** rate |
+| `sensor.miniems_today_kwh_high_rate` | kWh | Last heute beim **hohen** Tarif (`price ≥ medium_rate_threshold`) |
+| `sensor.miniems_today_kwh_medium_rate` | kWh | Last heute beim **mittleren** Tarif |
+| `sensor.miniems_today_kwh_low_rate` | kWh | Last heute beim **niedrigen** Tarif (`price < cheap_rate_threshold`) |
+| `sensor.miniems_month_kwh_high_rate` | kWh | Last diesen Kalendermonat beim **hohen** Tarif |
+| `sensor.miniems_month_kwh_medium_rate` | kWh | Last diesen Kalendermonat beim **mittleren** Tarif |
+| `sensor.miniems_month_kwh_low_rate` | kWh | Last diesen Kalendermonat beim **niedrigen** Tarif |
 
-All six sensors have `state_class: total_increasing` and are restored from the
-database on restart.
+Alle sechs Sensoren haben `state_class: total_increasing` und werden beim Start aus der
+Datenbank wiederhergestellt.
 
 ---
 
-## Weekly / Monthly / Yearly Totals
+## Wochen-/Monats-/Jahrestotale
 
-Aggregated from the `daily_stats` database table.
+Aggregiert aus der Datenbanktabelle `daily_stats`.
 
-| Entity | Unit | Description |
+| Entität | Einheit | Beschreibung |
 |---|---|---|
-| `sensor.miniems_week_grid_cost_eur` | € | Rolling 7-day grid cost |
-| `sensor.miniems_week_pv_savings_eur` | € | Rolling 7-day PV savings |
-| `sensor.miniems_month_grid_cost_eur` | € | Calendar month grid cost |
-| `sensor.miniems_month_pv_savings_eur` | € | Calendar month PV savings |
-| `sensor.miniems_month_load_cost_eur` | € | Calendar month hypothetical full-grid cost |
-| `sensor.miniems_year_grid_cost_eur` | € | Calendar year grid cost |
-| `sensor.miniems_year_pv_savings_eur` | € | Calendar year PV savings |
-| `sensor.miniems_year_load_cost_eur` | € | Calendar year hypothetical full-grid cost |
+| `sensor.miniems_week_grid_cost_eur` | € | Rollende 7-Tage-Netzkosten |
+| `sensor.miniems_week_pv_savings_eur` | € | Rollende 7-Tage-PV-Einsparungen |
+| `sensor.miniems_month_grid_cost_eur` | € | Kalendermonat-Netzkosten |
+| `sensor.miniems_month_pv_savings_eur` | € | Kalendermonat-PV-Einsparungen |
+| `sensor.miniems_month_load_cost_eur` | € | Kalendermonat hypothetische Vollnetz-Kosten |
+| `sensor.miniems_year_grid_cost_eur` | € | Kalenderjahr-Netzkosten |
+| `sensor.miniems_year_pv_savings_eur` | € | Kalenderjahr-PV-Einsparungen |
+| `sensor.miniems_year_load_cost_eur` | € | Kalenderjahr hypothetische Vollnetz-Kosten |
 
 ---
 
-## Predictions
+## Vorhersagen
 
-| Entity | Unit | Description |
+| Entität | Einheit | Beschreibung |
 |---|---|---|
-| `sensor.miniems_predicted_load_kwh` | kWh | Predicted daily house load (temperature-matched historical data) |
-| `sensor.miniems_predicted_pv_kwh` | kWh | Internal PV yield estimate (fallback when Solcast unavailable) |
+| `sensor.miniems_predicted_load_kwh` | kWh | Vorhergesagte tägliche Hauslast (temperaturabgeglichene historische Daten) |
+| `sensor.miniems_predicted_pv_kwh` | kWh | Interne PV-Ertragsschätzung (Fallback wenn Solcast nicht verfügbar) |
 
 ---
 
-## Using Sensors in HA
+## Sensoren in HA verwenden
 
-### Example Lovelace card
+### Beispiel Lovelace-Karte
 
 ```yaml
 type: entities
@@ -137,10 +135,10 @@ entities:
   - sensor.miniems_predicted_load_kwh
 ```
 
-### Example Automation
+### Beispiel-Automatisierung
 
 ```yaml
-alias: Notify when cheap rate starts
+alias: Benachrichtigung wenn Günstigtarif beginnt
 trigger:
   - platform: state
     entity_id: sensor.miniems_mode
@@ -148,5 +146,5 @@ trigger:
 action:
   - service: notify.mobile_app_your_phone
     data:
-      message: "miniEMS: Charging from cheap grid rate."
+      message: "miniEMS: Laden aus günstigem Netzstrom."
 ```

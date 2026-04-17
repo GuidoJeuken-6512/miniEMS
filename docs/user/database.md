@@ -1,64 +1,64 @@
 ---
-revision_date: 2026-03-14
+revision_date: 2026-04-07
 ---
 
-# Database Viewer
+# Datenbank-Viewer
 
-The **Database** tab (`/database`) gives a direct view of the `daily_stats` SQLite table — the same data that drives the consumption prediction model and the cost & savings dashboard cards.
+Der Tab **Datenbank** (`/database`) bietet eine direkte Ansicht der SQLite-Tabelle `daily_stats` — dieselben Daten, die das Verbrauchsvorhersagemodell und die Kosten- & Einsparungs-Dashboard-Karten antreiben.
 
 ---
 
-## Summary Bar
+## Zusammenfassungsleiste
 
-Four cards at the top provide an at-a-glance overview:
+Vier Karten oben bieten eine schnelle Übersicht:
 
-| Card | Description |
+| Karte | Beschreibung |
 |---|---|
-| Days recorded | Total number of rows in `daily_stats` |
-| Date range | Oldest → newest date in the table |
-| Days with temperature | Rows that have a valid `avg_outdoor_temp_c` value |
-| Days without temperature | Rows missing temperature — shown in **amber** if non-zero |
+| Aufgezeichnete Tage | Gesamtzahl der Zeilen in `daily_stats` |
+| Datumsbereich | Ältestes → neuestes Datum in der Tabelle |
+| Tage mit Temperatur | Zeilen mit einem gültigen `avg_outdoor_temp_c`-Wert |
+| Tage ohne Temperatur | Zeilen ohne Temperatur — **gelb** hervorgehoben, wenn ungleich Null |
 
-Days without temperature cannot be used by the temperature-matched load prediction. If many rows are missing temperature, check that the `weather_entity` is correctly configured and reachable.
+Tage ohne Temperatur können von der temperaturabgeglichenen Lastvorhersage nicht verwendet werden. Wenn viele Zeilen ohne Temperatur vorhanden sind, prüfe, ob `weather_entity` korrekt konfiguriert und erreichbar ist.
 
 ---
 
-## Data Table
+## Datentabelle
 
-All rows from `daily_stats` are shown, sorted newest first by default. Click any column header to toggle sort direction.
+Alle Zeilen aus `daily_stats` werden angezeigt, standardmäßig neueste zuerst sortiert. Klicke auf eine Spaltenüberschrift, um die Sortierrichtung umzuschalten.
 
-| Column | Unit | Description |
+| Spalte | Einheit | Beschreibung |
 |---|---|---|
-| Date | — | ISO date `YYYY-MM-DD` |
-| Temp (°C) | °C | Average outdoor temperature — colour-coded: blue (< 0), cyan (0–10), green (10–20), amber (> 20). Grey if missing. |
-| Load (kWh) | kWh | Total household energy consumption |
-| PV Used (kWh) | kWh | PV energy consumed directly by the house |
-| Grid Import (kWh) | kWh | Total energy drawn from the grid |
-| Grid Charge (kWh) | kWh | Energy drawn from grid specifically for battery charging |
-| Feed-in (kWh) | kWh | Energy exported to the grid |
-| Peak PV (W) | W | Highest instantaneous PV power recorded during the day |
-| Grid Cost (€) | € | Cost of all grid imports |
-| PV Savings (€) | € | Cost avoided by using PV instead of grid power |
-| Avg Price (€/kWh) | €/kWh | Tick-weighted average electricity price |
-| Ticks | — | Number of EMS update cycles recorded (data quality indicator — a full day at 30 s intervals = 2880 ticks) |
-| High Rate (kWh) | kWh | Load consumed at high price tier (`price ≥ medium_rate_threshold_eur`) |
-| Medium Rate (kWh) | kWh | Load consumed at medium price tier |
-| Low Rate (kWh) | kWh | Load consumed at low price tier (`price < cheap_rate_threshold_eur`) |
+| Datum | — | ISO-Datum `JJJJ-MM-TT` |
+| Temp (°C) | °C | Durchschnittliche Außentemperatur — farbkodiert: blau (< 0), cyan (0–10), grün (10–20), gelb (> 20). Grau wenn fehlend. |
+| Last (kWh) | kWh | Gesamter Haushaltsstromverbrauch |
+| PV genutzt (kWh) | kWh | Direkt vom Haus verbrauchte PV-Energie |
+| Netzbezug (kWh) | kWh | Gesamt aus dem Netz bezogene Energie |
+| Netzladung (kWh) | kWh | Aus dem Netz speziell für die Batterieladung bezogene Energie |
+| Einspeisung (kWh) | kWh | Ins Netz exportierte Energie |
+| Peak PV (W) | W | Höchste erfasste PV-Momentanleistung des Tages |
+| Netzkosten (€) | € | Kosten aller Netzbezüge |
+| PV-Einsparungen (€) | € | Durch PV-Eigenverbrauch vermiedene Kosten |
+| Durchschn. Preis (€/kWh) | €/kWh | Tick-gewichteter durchschnittlicher Strompreis |
+| Ticks | — | Anzahl aufgezeichneter EMS-Update-Zyklen (Datenqualitätsindikator — ein voller Tag bei 30-s-Intervallen = 2880 Ticks) |
+| Hoher Tarif (kWh) | kWh | Verbrauch beim hohen Tarif (`price ≥ medium_rate_threshold_eur`) |
+| Mittlerer Tarif (kWh) | kWh | Verbrauch beim mittleren Tarif |
+| Niedriger Tarif (kWh) | kWh | Verbrauch beim niedrigen Tarif (`price < cheap_rate_threshold_eur`) |
 
-Rows shown in **grey** are missing temperature data and are excluded from the temperature-matched prediction.
-
----
-
-## How the data is collected
-
-Values accumulate in-memory throughout the day inside `CostOptimizer`. At midnight (detected when `date.today()` changes) the complete day's row is flushed to SQLite. The `last_flush_ts` column records when the last write occurred.
-
-The database is never modified by the UI — this page is read-only.
+**Grau** angezeigte Zeilen haben fehlende Temperaturdaten und werden von der temperaturabgeglichenen Vorhersage ausgeschlossen.
 
 ---
 
-## Relationship to consumption prediction
+## Wie die Daten erfasst werden
 
-The temperature-based load prediction (`consumption_model.py`) queries this table for days with a similar `avg_outdoor_temp_c` (±4 °C, last 60 days). If at least 3 such days exist, the median `load_total_kwh` of those days is used as the predicted load. Days without temperature are skipped by this query, which is why the grey rows matter.
+Werte akkumulieren den ganzen Tag über im Speicher innerhalb von `CostOptimizer`. Um Mitternacht (erkannt wenn `date.today()` sich ändert) wird die vollständige Tageszeile in SQLite geschrieben. Die Spalte `last_flush_ts` zeichnet auf, wann der letzte Schreibvorgang stattgefunden hat.
 
-See [Data Storage](../technical/data-storage.md) for the full `daily_stats` schema reference.
+Die Datenbank wird durch die UI nicht geändert — diese Seite ist schreibgeschützt.
+
+---
+
+## Zusammenhang mit der Verbrauchsvorhersage
+
+Die temperaturbasierte Lastvorhersage (`consumption_model.py`) fragt diese Tabelle nach Tagen mit ähnlicher `avg_outdoor_temp_c` ab (±4 °C, letzte 60 Tage). Wenn mindestens 3 solche Tage existieren, wird der Median `load_total_kwh` dieser Tage als vorhergesagte Last verwendet. Tage ohne Temperatur werden von dieser Abfrage übersprungen, weshalb die grauen Zeilen wichtig sind.
+
+Siehe [Datenspeicherung](../technical/data-storage.md) für die vollständige `daily_stats`-Schemareferenz.

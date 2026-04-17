@@ -182,8 +182,8 @@ def create_app(
                     data = json.load(f)
                 data.pop("_version", None)
                 return data
-            except Exception:
-                pass
+            except Exception as exc:
+                _LOGGER.warning("Failed to read config file: %s", exc)
         # Fall back to in-memory config
         if config is not None:
             return {
@@ -206,8 +206,8 @@ def create_app(
             try:
                 with open(CONFIG_FILE, encoding="utf-8") as f:
                     existing = json.load(f)
-            except Exception:
-                pass
+            except Exception as exc:
+                _LOGGER.warning("Failed to read existing config for merge: %s", exc)
 
         # Merge and coerce types
         for key, value in body.items():

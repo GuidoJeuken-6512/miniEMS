@@ -1,7 +1,7 @@
 """Octopus Energy cost optimizer – tracks costs and savings."""
 import logging
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from sensor_validator import SensorValidator
@@ -74,7 +74,9 @@ class CostOptimizer:
         if last_ts_str:
             try:
                 last_ts = datetime.fromisoformat(last_ts_str)
-                gap_sec = (datetime.utcnow() - last_ts).total_seconds()
+                if last_ts.tzinfo is None:
+                    last_ts = last_ts.replace(tzinfo=timezone.utc)
+                gap_sec = (datetime.now(timezone.utc) - last_ts).total_seconds()
                 cfg_interval = self._cfg.update_interval_sec
                 if gap_sec > 2 * cfg_interval:
                     msg = (
@@ -221,7 +223,7 @@ class CostOptimizer:
             "kwh_high_rate":        round(self._kwh_high_rate[today], 6),
             "kwh_medium_rate":      round(self._kwh_medium_rate[today], 6),
             "kwh_low_rate":         round(self._kwh_low_rate[today], 6),
-            "last_flush_ts":        datetime.utcnow().isoformat(),
+            "last_flush_ts":        datetime.now(timezone.utc).isoformat(),
         }
         if avg_temp is not None:
             fields["avg_outdoor_temp_c"] = round(avg_temp, 2)
@@ -309,8 +311,7 @@ class CostOptimizer:
 
     async def summary_with_db(self) -> dict[str, Any]:
         """Like summary() but enriched with monthly/yearly totals from SQLite."""
-        from datetime import date as _date
-        today = _date.today()
+        today = date.today()
         year_month = today.strftime("%Y-%m")
         month = await self._store.query_month(year_month)
         year  = await self._store.query_year(today.year)

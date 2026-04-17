@@ -18,7 +18,11 @@
       "Read(//config/custom_components/miniems/**)",
       "Bash(ha core:*)",
       "WebFetch(domain:developers.home-assistant.io)",
-      "Read(//data/miniems_addons/local/miniems/**)"
+      "Read(//data/miniems_addons/local/miniems/**)",
+      "WebFetch(domain:zensical.org)",
+      "Bash(grep -n \"^from datetime import\" /mnt/supervisor/addons/local/miniEMS/miniems/rootfs/usr/bin/*.py)",
+      "Bash(python3 -m py_compile *.py integration/*.py)",
+      "Bash(grep -n \"None or\" /mnt/supervisor/addons/local/miniEMS/miniems/rootfs/usr/bin/*.py)"
     ]
   }
 }

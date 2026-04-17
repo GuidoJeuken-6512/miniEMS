@@ -133,7 +133,7 @@ class InverterController:
         self._last_discharge_w = value_w
         self.discharge_power_limit_w = value_w
 
-    async def _call_service(self, domain: str, service: str, data: dict[str, Any]) -> None:
+    async def _call_service(self, domain: str, service: str, data: dict[str, Any], *, _retry: bool = False) -> None:
         url = f"{HA_SERVICES_URL}/{domain}/{service}"
         headers = {"Authorization": f"Bearer {self._active_token}", "Content-Type": "application/json"}
         try:
@@ -142,9 +142,9 @@ class InverterController:
                     url, json=data, headers=headers,
                     timeout=aiohttp.ClientTimeout(total=10),
                 ) as resp:
-                    if resp.status == 401 and self._active_token == self._sup_token and self._llt:
+                    if resp.status == 401 and not _retry and self._active_token == self._sup_token and self._llt:
                         self._active_token = self._llt
-                        await self._call_service(domain, service, data)
+                        await self._call_service(domain, service, data, _retry=True)
                     elif resp.status not in (200, 201):
                         _LOGGER.warning("Service call %s.%s failed: HTTP %d", domain, service, resp.status)
                     else:

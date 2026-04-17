@@ -14,6 +14,7 @@ from homeassistant.const import UnitOfEnergy
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import CONF_BASE_URL, DOMAIN
@@ -43,7 +44,6 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         key="miniems_mode",
         status_key="mode",
         name="Mode",
-        state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:home-lightning-bolt",
     ),
     # ── Today: cost / savings ────────────────────────────────────────────────
@@ -351,6 +351,3 @@ async def async_setup_entry(
         for description in SENSOR_DESCRIPTIONS
     )
 
-
-# ConfigEntry import needed for async_setup_entry signature
-from homeassistant.config_entries import ConfigEntry  # noqa: E402

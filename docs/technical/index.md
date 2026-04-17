@@ -1,43 +1,44 @@
 ---
-revision_date: 2026-03-14
+revision_date: 2026-04-07
 ---
 
-# Technical Reference
+# Technische Referenz
 
-This section documents the internal design of miniEMS v1.4.0 for contributors and advanced users who want to understand how the system works.
+Dieser Abschnitt dokumentiert das interne Design von miniEMS v1.5.3 für Entwickler und fortgeschrittene Nutzer, die verstehen möchten, wie das System aufgebaut ist.
 
-## Module Map
+## Modulübersicht
 
-| File | Role |
+| Datei | Aufgabe |
 |---|---|
-| `main.py` | Entry point; wires all components, manages asyncio tasks |
-| `const.py` | Shared constants: `EMSMode` enum, schema version, API URLs |
-| `config_loader.py` | Loads & merges config; runs migration; exposes `Config` dataclass |
-| `migration.py` | Schema-version migrations for `config.json` (v0 → v6) |
-| `ha_ws_client.py` | Polls HA entity states via REST; handles token fallback |
-| `ems_controller.py` | Determines operating mode; wires all sub-systems per tick |
-| `cost_optimizer.py` | Accumulates daily/weekly energy cost & savings; detects downtime gaps |
-| `consumption_model.py` | Predicts load from history; temperature-based fallback |
-| `battery_model.py` | Computes free-to-charge and useable kWh from SoC |
-| `sensor_validator.py` | Spike detection — rejects implausible power readings |
-| `solcast_client.py` | Reads Solcast PV forecast entities from HA state cache |
-| `event_log.py` | Ring buffer (100 entries) for mode-change events |
-| `weather_client.py` | Calls `weather.get_forecasts` HA action; 30-min cache |
-| `store.py` | SQLite persistence for daily energy history (`/data/miniems.db`) |
-| `inverter_controller.py` | Writes charge/discharge controls to inverter entities |
-| `mqtt_publisher.py` | Publishes sensors via MQTT Discovery |
-| `ha_sensor_publisher.py` | Pushes sensor states to HA Core REST API (fallback) |
-| `web_server.py` | FastAPI; serves dashboard, settings, log, and `/api/status` |
-| `templates/dashboard.html` | Dashboard Jinja2 template with JS auto-refresh |
-| `templates/settings.html` | Settings form Jinja2 template |
-| `templates/log.html` | Full mode-change log Jinja2 template |
-| `translations/en.yaml` | English UI strings |
-| `translations/de.yaml` | German UI strings |
-| `static/style.css` | Dashboard CSS |
+| `main.py` | Einstiegspunkt; verbindet alle Komponenten, verwaltet asyncio-Tasks |
+| `const.py` | Gemeinsame Konstanten: `EMSMode`-Enum, Schema-Version, API-URLs |
+| `config_loader.py` | Lädt und führt Konfiguration zusammen; führt Migration durch; stellt `Config`-Dataclass bereit |
+| `migration.py` | Schema-Versionsmigrationen für `config.json` (v0 → v10) |
+| `ha_ws_client.py` | Ruft HA-Entity-Zustände per REST ab; verwaltet Token-Fallback |
+| `ems_controller.py` | Bestimmt den Betriebsmodus; verbindet alle Subsysteme pro Tick |
+| `cost_optimizer.py` | Akkumuliert täglich/wöchentlich Energiekosten und Einsparungen; erkennt Ausfallzeiten |
+| `consumption_model.py` | Sagt Last aus dem Verlauf vorher; temperaturbasierter Fallback |
+| `battery_model.py` | Berechnet freie Ladekapazität und nutzbare kWh aus dem SoC |
+| `sensor_validator.py` | Spike-Erkennung — lehnt unplausible Leistungswerte ab |
+| `solcast_client.py` | Liest Solcast-PV-Vorhersage-Entities aus dem HA-State-Cache |
+| `event_log.py` | Ringpuffer (100 Einträge) für Moduszwechsel-Ereignisse |
+| `weather_client.py` | Ruft `weather.get_forecasts` HA-Action auf; 30-Minuten-Cache |
+| `store.py` | SQLite-Persistenz für tägliche Energiehistorie (`/data/miniems.db`) |
+| `inverter_controller.py` | Schreibt Lade-/Entladesteuerung an Wechselrichter-Entities |
+| `mqtt_publisher.py` | Veröffentlicht Sensoren per MQTT Discovery |
+| `ha_sensor_publisher.py` | Schreibt Sensor-Zustände an die HA-Core-REST-API (Fallback) |
+| `web_server.py` | FastAPI; liefert Dashboard, Einstellungen, Log und `/api/status` |
+| `templates/dashboard.html` | Dashboard-Jinja2-Template mit JavaScript-Auto-Refresh |
+| `templates/settings.html` | Einstellungsformular-Jinja2-Template |
+| `templates/log.html` | Vollständiges Moduszwechsel-Log-Jinja2-Template |
+| `translations/en.yaml` | Englische UI-Texte |
+| `translations/de.yaml` | Deutsche UI-Texte |
+| `static/style.css` | Dashboard-CSS |
 
-## Where to Start
+## Wo anfangen
 
-- [Architecture](architecture.md) — component diagram, asyncio task graph, auth flow
-- [Calculations](calculations.md) — all formulas used in the EMS loop
-- [Data Storage](data-storage.md) — config files, SQLite schema, in-memory state
-- [API Reference](api.md) — internal HTTP endpoints
+- [Architektur](architecture.md) — Komponentendiagramm, asyncio-Task-Graph, Authentifizierungsablauf
+- [Berechnungen](calculations.md) — alle Formeln im EMS-Loop
+- [Datenspeicherung](data-storage.md) — Konfigurationsdateien, SQLite-Schema, In-Memory-Zustand
+- [API-Referenz](api.md) — interne HTTP-Endpunkte
+- [HA-Sensor-Referenz](sensors.md) — alle 28 nativen Home-Assistant-Sensoren

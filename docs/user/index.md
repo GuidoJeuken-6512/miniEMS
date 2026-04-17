@@ -1,42 +1,42 @@
 ---
-revision_date: 2026-04-06
+revision_date: 2026-04-07
 ---
 
-# Getting Started
+# Erste Schritte
 
-**miniEMS** is a Home Assistant add-on that automatically manages the charging and discharging of a solar battery using real-time electricity prices, Solcast PV forecasts, and your own historical consumption data.
+**miniEMS** ist ein Home Assistant Add-on, das das Laden und Entladen einer Solarbatterie automatisch steuert – mithilfe von Echtzeitstrompreisen, Solcast-PV-Prognosen und historischen Verbrauchsdaten.
 
-## What it does
+## Was miniEMS tut
 
-| Feature | Description |
+| Funktion | Beschreibung |
 |---|---|
-| **Smart grid charging** | Charges the battery from the grid only during cheap-rate windows when Solcast confirms the sun won't do it instead |
-| **PV surplus charging** | Detects PV surplus and switches the inverter to charge the battery from solar |
-| **Battery protection** | Blocks discharging when SoC falls below your configured minimum |
-| **Cost tracking** | Tracks daily grid cost, PV savings, feed-in revenue, and grid-charge cost |
-| **HA sensors** | Publishes 30 computed sensors under `sensor.miniems_*` via a custom integration |
-| **Live dashboard** | Ingress panel with auto-refresh, warnings banner, and mode-change log |
-| **Solcast integration** | Reads your Solcast PV forecast directly from HA entities |
-| **Prediction fallback** | Temperature-rule fallback when Solcast or historical data is unavailable |
+| **Intelligentes Netzladen** | Lädt die Batterie nur dann aus dem Netz, wenn der Preis niedrig ist und Solcast bestätigt, dass die Sonne es nicht selbst erledigen wird |
+| **PV-Überschussladen** | Erkennt PV-Überschuss und schaltet den Wechselrichter auf Solarladen um |
+| **Batterieschutz** | Blockiert das Entladen, wenn der SoC unter den konfigurierten Mindestwert fällt |
+| **Kostenverfolgung** | Verfolgt tägliche Netzkosten, PV-Einsparungen, Einspeisevergütung und Netzladekosten |
+| **HA-Sensoren** | Veröffentlicht 28 berechnete Sensoren unter `sensor.miniems_*` über eine benutzerdefinierte Integration |
+| **Live-Dashboard** | Ingress-Panel mit automatischer Aktualisierung, Warnungsbanner und Moduswechsel-Log |
+| **Solcast-Integration** | Liest die Solcast-PV-Prognose direkt aus HA-Entitäten |
+| **Vorhersage-Fallback** | Temperaturbasierter Fallback, wenn Solcast oder historische Daten nicht verfügbar sind |
 
-## Requirements
+## Voraussetzungen
 
-| Requirement | Notes |
+| Voraussetzung | Hinweise |
 |---|---|
-| Home Assistant OS or Supervised | The add-on uses the Supervisor API |
-| Deye inverter + ha-solarman integration | Provides PV, battery, grid, and load power sensors |
-| Dynamic electricity price sensor | e.g. Tibber or Octopus Energy integration |
-| (Optional) Solcast integration | For accurate PV forecast data |
-| (Optional) Weather integration | For temperature-based load prediction |
+| Home Assistant OS oder Supervised | Das Add-on verwendet die Supervisor-API |
+| Deye-Wechselrichter + ha-solarman-Integration | Stellt Sensoren für PV-, Batterie-, Netz- und Lastleistung bereit |
+| Dynamischer Strompreissensor | z.B. Tibber- oder Octopus-Energy-Integration |
+| (Optional) Solcast-Integration | Für genaue PV-Prognosedaten |
+| (Optional) Wetter-Integration | Für temperaturbasierte Lastvorhersage |
 
-## Quick Start
+## Schnellstart
 
-1. **Install the add-on** — copy `miniems/` to `/addons/local/miniems/` and install from the Add-on Store (see [Installation](installation.md)).
-2. **Install the custom integration** — copy `integration/` to `/config/custom_components/miniems/`, restart HA, then add via **Settings → Integrations → miniEMS**.
-3. **Open the dashboard** via the HA sidebar → miniEMS.
-4. **Configure** — go to **Settings** tab and enter your entity IDs and thresholds.
-5. **Enable Battery Control** — use **Simulation Mode** first to verify the logic is correct.
-6. **Disable Simulation Mode** when you are satisfied with the behaviour.
+1. **Add-on installieren** — kopiere `miniems/` nach `/addons/local/miniems/` und installiere aus dem Add-on Store (siehe [Installation](installation.md)).
+2. **Custom Integration installieren** — kopiere `integration/` nach `/config/custom_components/miniems/`, starte HA neu, dann über **Einstellungen → Integrationen → miniEMS** hinzufügen.
+3. **Dashboard öffnen** — über die HA-Seitenleiste → miniEMS.
+4. **Konfigurieren** — im Tab **Einstellungen** Entitäts-IDs und Schwellenwerte eintragen.
+5. **Batteriesteuerung aktivieren** — zuerst den **Simulationsmodus** nutzen, um die Logik zu prüfen.
+6. **Simulationsmodus deaktivieren**, wenn das Verhalten korrekt ist.
 
-!!! tip "Simulation Mode"
-    With Simulation Mode enabled, miniEMS logs all inverter commands with a `[SIM]` prefix but never sends them. A **SIM** badge appears in the dashboard. Always test with simulation first.
+!!! tip "Simulationsmodus"
+    Mit aktiviertem Simulationsmodus protokolliert miniEMS alle Wechselrichterbefehle mit dem Präfix `[SIM]`, sendet sie aber nie. Im Dashboard erscheint ein **SIM**-Badge. Teste immer zuerst im Simulationsmodus.

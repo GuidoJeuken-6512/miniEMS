@@ -1,83 +1,71 @@
 ---
-revision_date: 2026-03-14
+revision_date: 2026-04-07
 ---
 
-# API Reference
+# API-Referenz
 
-miniEMS exposes a small HTTP API served by FastAPI on port 8080 (HA ingress).
-All endpoints are internal — they are consumed by the dashboard and the HA
-ingress proxy, not intended as a public API.
+miniEMS stellt eine kleine HTTP-API bereit, die von FastAPI auf Port 8080
+(HA Ingress) gehostet wird. Alle Endpunkte sind intern — sie werden vom Dashboard
+und dem HA-Ingress-Proxy genutzt und nicht als öffentliche API bereitgestellt.
 
 ---
 
 ## `GET /`
 
-Renders `dashboard.html` (Jinja2). Returns the live dashboard page.
+Rendert `dashboard.html` (Jinja2). Gibt die Live-Dashboard-Seite zurück.
 
-Query parameters: none.
-Response: `text/html`
+Query-Parameter: keine.
+Antwort: `text/html`
 
 ---
 
 ## `GET /settings`
 
-Renders `settings.html` (Jinja2). Returns the configuration form page.
+Rendert `settings.html` (Jinja2). Gibt die Konfigurationsformular-Seite zurück.
 
-Response: `text/html`
+Antwort: `text/html`
 
 ---
 
 ## `GET /log`
 
-Renders `log.html` (Jinja2). Returns the unified event log page showing mode changes and price changes.
+Rendert `log.html` (Jinja2). Gibt die vereinheitlichte Ereignislog-Seite zurück,
+die Moduszwechsel und Preisänderungen anzeigt.
 
-Response: `text/html`
+Antwort: `text/html`
 
 ---
 
 ## `GET /config-json`
 
-Renders `config_json.html`. Raw JSON editor for `/data/config.json`.
+Rendert `config_json.html`. Roher JSON-Editor für `/data/config.json`.
 
-Response: `text/html`
+Antwort: `text/html`
 
 ---
 
 ## `GET /options-json`
 
-Renders `options_json.html`. Raw JSON editor for `/data/options.json`.
+Rendert `options_json.html`. Roher JSON-Editor für `/data/options.json`.
 
-Response: `text/html`
+Antwort: `text/html`
 
 ---
 
 ## `GET /database`
 
-Renders `database.html`. Sortable browser for the `daily_stats` SQLite table.
+Rendert `database.html`. Sortierbarer Browser für die SQLite-Tabelle `daily_stats`.
 
-Response: `text/html`
-
----
-
-## `POST /settings`
-
-Saves configuration submitted from the settings form. Validates and type-coerces
-all fields, writes them to `/data/config.json`, then restarts the add-on via the
-Supervisor API.
-
-Request: `application/x-www-form-urlencoded`
-
-Response: `303 See Other` → redirects to `/settings` after restart, or returns
-`422 Unprocessable Entity` on validation failure.
+Antwort: `text/html`
 
 ---
 
 ## `GET /api/status`
 
-Returns the current EMS state as JSON. Consumed by the dashboard's JavaScript
-auto-refresh (every 5 s) and the log page.
+Gibt den aktuellen EMS-Zustand als JSON zurück. Wird vom JavaScript-Auto-Refresh
+des Dashboards (alle 5 s) und der Log-Seite konsumiert.
 
-Response: `application/json`
+Antwort: `application/json`
 
 ```json
 {
@@ -97,13 +85,13 @@ Response: `application/json`
   "today_grid_import_kwh": 4.1,
   "today_load_total_kwh": 7.5,
   "today_cost_without_grid_charge": 0.95,
-  "today_cost_fix_price_tarif": 2.25,
+  "today_cost_fix_price_tariff": 2.25,
   "today_feed_in_kwh": 0.6,
   "today_feed_in_revenue_eur": 0.05,
   "today_grid_charge_kwh": 1.2,
 
   "week_grid_cost_eur": 8.40,
-  "week_pv_saved_eur": 5.10,
+  "week_pv_savings_eur": 5.10,
   "month_grid_cost_eur": 31.20,
   "month_pv_savings_eur": 18.40,
   "year_grid_cost_eur": 180.00,
@@ -119,7 +107,7 @@ Response: `application/json`
   "warnings": [],
   "log": [
     {
-      "timestamp": "2026-03-15T06:15:00",
+      "timestamp": "2026-04-07T06:15:00",
       "state": "on",
       "entry_type": "mode_change",
       "battery_kwh_freetochange": 12.5,
@@ -128,7 +116,7 @@ Response: `application/json`
       "price_eur_kwh": null
     },
     {
-      "timestamp": "2026-03-15T06:00:00",
+      "timestamp": "2026-04-07T06:00:00",
       "state": "price_change",
       "entry_type": "price_change",
       "battery_kwh_freetochange": 13.1,
@@ -139,81 +127,89 @@ Response: `application/json`
   ],
 
   "simulation_mode": false,
-  "last_update": "2026-03-14T07:45:00Z"
+  "last_update": "2026-04-07T07:45:00Z"
 }
 ```
 
-### `warnings` array
+### `warnings`-Array
 
-Each warning is a string key looked up in the translation files, e.g.:
+Jede Warnung ist ein String-Schlüssel, der in den Übersetzungsdateien nachgeschlagen
+wird, z. B.:
 
 ```json
 ["warn_missing_pv_entity", "warn_missing_price_entity"]
 ```
 
-The dashboard renders these with their translated text in the warnings banner.
+Das Dashboard rendert diese mit ihrem übersetzten Text im Warnungsbanner.
 
 ### `prediction_source`
 
-| Value | Meaning |
+| Wert | Bedeutung |
 |---|---|
-| `"historical"` | Median of temperature-matched historical days |
-| `"fallback"` | Temperature rule-based estimate |
+| `"historical"` | Median temperaturähnlicher Historientage |
+| `"fallback"` | Temperaturregelbasierte Schätzung |
 
 ---
 
 ## `GET /api/config`
 
-Returns the current configuration from `/data/config.json` as JSON (internal keys stripped).
+Gibt die aktuelle Konfiguration aus `/data/config.json` als JSON zurück
+(interne Schlüssel werden entfernt).
 
-Response: `application/json`
+Antwort: `application/json`
 
 ---
 
 ## `POST /api/config`
 
-Saves updated config keys to `/data/config.json` and restarts the add-on. Values are type-coerced (bool/int/float) based on the known field list in `web_server.py`. Unknown or internal (`_`-prefixed) keys are ignored.
+Speichert aktualisierte Konfigurationsschlüssel in `/data/config.json` und
+startet das Add-on neu. Werte werden typbasiert konvertiert (bool/int/float)
+entsprechend der bekannten Feldliste in `web_server.py`. Unbekannte oder intern
+(`_`-prefixierte) Schlüssel werden ignoriert.
 
-Request: `application/json` — partial or full config object.
+Anfrage: `application/json` — partielles oder vollständiges Konfigurationsobjekt.
 
-Response: `{"status": "restarting"}` or `{"error": "..."}`.
+Antwort: `{"status": "restarting"}` oder `{"error": "..."}`.
 
 ---
 
 ## `GET /api/rawfile/{name}`
 
-Returns the raw contents of a config file as JSON. `name` is `config` or `options`.
+Gibt den rohen Inhalt einer Konfigurationsdatei als JSON zurück.
+`name` ist `config` oder `options`.
 
-| name | File |
+| name | Datei |
 |---|---|
 | `config` | `/data/config.json` |
 | `options` | `/data/options.json` |
 
-Response: `application/json` — the file's parsed JSON content, or `{}` if the file does not exist.
+Antwort: `application/json` — der geparste JSON-Inhalt der Datei oder `{}` wenn die Datei nicht vorhanden ist.
 
 ---
 
 ## `POST /api/rawfile/{name}`
 
-Writes the request body verbatim as JSON to the named file and restarts the add-on. No type coercion is applied — the exact JSON is written.
+Schreibt den Anfragekörper wörtlich als JSON in die genannte Datei und startet
+das Add-on neu. Es wird keine Typkonvertierung durchgeführt — das genaue JSON
+wird geschrieben.
 
-Request: `application/json`
+Anfrage: `application/json`
 
-Response: `{"status": "restarting"}` or `{"error": "..."}`.
+Antwort: `{"status": "restarting"}` oder `{"error": "..."}`.
 
 ---
 
 ## `GET /api/database`
 
-Returns all rows from the `daily_stats` SQLite table, newest first.
+Gibt alle Zeilen aus der SQLite-Tabelle `daily_stats` zurück, neueste zuerst.
 
-Response: `application/json`
+Antwort: `application/json`
 
 ```json
 {
   "rows": [
     {
-      "date": "2026-03-15",
+      "date": "2026-04-07",
       "grid_import_kwh": 4.123,
       "grid_cost_eur": 1.234,
       "pv_used_kwh": 8.456,
@@ -228,7 +224,7 @@ Response: `application/json`
       "grid_charge_cost_eur": 0.102,
       "feed_in_kwh": 0.5,
       "feed_in_revenue_eur": 0.04,
-      "last_flush_ts": "2026-03-15T23:59:58"
+      "last_flush_ts": "2026-04-07T23:59:58"
     }
   ]
 }
@@ -238,19 +234,19 @@ Response: `application/json`
 
 ## `GET /static/<file>`
 
-Serves static assets (`style.css`, etc.) from the `static/` directory.
+Liefert statische Assets (`style.css` usw.) aus dem Verzeichnis `static/`.
 
 ---
 
-## Supervisor API Calls (outbound)
+## Supervisor-API-Aufrufe (ausgehend)
 
-miniEMS makes the following outbound calls to the HA Supervisor/Core:
+miniEMS tätigt folgende ausgehende Aufrufe an den HA Supervisor/Core:
 
-| Endpoint | Direction | Purpose |
+| Endpunkt | Richtung | Zweck |
 |---|---|---|
-| `GET http://hassio/homeassistant/api/states/<entity>` | Read | Poll HA entity states (every 15 s) |
-| `POST http://hassio/homeassistant/api/states/sensor.miniems_*` | Write | Publish sensor states (REST fallback) |
-| `POST http://hassio/homeassistant/api/services/<domain>/<service>` | Write | Inverter control commands |
-| `POST http://hassio/homeassistant/api/services/weather/get_forecasts` | Read | Weather forecast (30 min cache) |
-| `GET http://supervisor/core/api/config` | Read | HA language + latitude (on startup) |
-| `POST http://supervisor/addons/self/restart` | Action | Triggered by Settings save |
+| `GET http://hassio/homeassistant/api/states/<entity>` | Lesen | HA-Entity-Zustände abfragen (alle 15 s) |
+| `POST http://hassio/homeassistant/api/states/sensor.miniems_*` | Schreiben | Sensor-Zustände veröffentlichen (REST-Fallback) |
+| `POST http://hassio/homeassistant/api/services/<domain>/<service>` | Schreiben | Wechselrichter-Steuerbefehle |
+| `POST http://hassio/homeassistant/api/services/weather/get_forecasts` | Lesen | Wettervorhersage (30-Minuten-Cache) |
+| `GET http://supervisor/core/api/config` | Lesen | HA-Sprache + Breitengrad (beim Start) |
+| `POST http://supervisor/addons/self/restart` | Aktion | Ausgelöst beim Speichern der Einstellungen |

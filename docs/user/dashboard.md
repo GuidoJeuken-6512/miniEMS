@@ -1,135 +1,135 @@
 ---
-revision_date: 2026-03-14
+revision_date: 2026-04-07
 ---
 
 # Dashboard & UI
 
-The miniEMS dashboard is an ingress panel accessible directly from the HA sidebar. It auto-refreshes every 5 seconds and is fully translated (German/English, auto-detected from HA).
+Das miniEMS-Dashboard ist ein Ingress-Panel, das direkt über die HA-Seitenleiste zugänglich ist. Es aktualisiert sich alle 5 Sekunden automatisch und ist vollständig übersetzt (Deutsch/Englisch, automatisch aus HA erkannt).
 
 ## Navigation
 
-Six tabs are available:
+Sechs Tabs stehen zur Verfügung:
 
-| Tab | Path | Purpose |
+| Tab | Pfad | Zweck |
 |---|---|---|
-| **Dashboard** | `/` | Live status, costs, battery, Solcast, prediction |
-| **Settings** | `/settings` | Configuration form |
-| **Log** | `/log` | Unified event log (mode changes + price changes) |
-| **config.json** | `/config-json` | Raw editor for `/data/config.json` |
-| **options.json** | `/options-json` | Raw editor for `/data/options.json` |
-| **Database** | `/database` | Browse all rows in `daily_stats` |
+| **Dashboard** | `/` | Live-Status, Kosten, Batterie, Solcast, Vorhersage |
+| **Einstellungen** | `/settings` | Konfigurationsformular |
+| **Log** | `/log` | Einheitliches Ereignislog (Moduswechsel + Preisänderungen) |
+| **config.json** | `/config-json` | Raw-Editor für `/data/config.json` |
+| **options.json** | `/options-json` | Raw-Editor für `/data/options.json` |
+| **Datenbank** | `/database` | Alle Zeilen in `daily_stats` durchsuchen |
 
 ---
 
-## Dashboard Tab
+## Dashboard-Tab
 
-### Warnings Banner
+### Warnungsbanner
 
-If any required sensor is unavailable or a config field is missing, a yellow banner appears at the top listing each issue. Fix the issues in Settings — the banner disappears automatically on the next refresh.
+Wenn ein erforderlicher Sensor nicht verfügbar oder ein Konfigurationsfeld fehlt, erscheint oben ein gelbes Banner mit einer Liste aller Probleme. Behebe die Probleme in den Einstellungen — das Banner verschwindet automatisch bei der nächsten Aktualisierung.
 
-A data-gap warning also appears here if miniEMS detects that the add-on was down for longer than two update intervals (energy accounting has a gap).
+Hier erscheint auch eine Datenlücken-Warnung, wenn miniEMS erkennt, dass das Add-on länger als zwei Update-Intervalle ausgefallen war (Energiebilanzlücke).
 
-### Mode Badge
+### Modus-Badge
 
-Shows the current EMS operating mode:
+Zeigt den aktuellen EMS-Betriebsmodus:
 
-| Badge | Meaning |
+| Badge | Bedeutung |
 |---|---|
-| `Idle` (grey) | Normal operation |
-| `PV Charging` (green) | Battery charging from PV surplus |
-| `Grid Charging (Cheap Rate)` (blue) | Battery charging from cheap grid power |
-| `Battery Protection (Min SoC)` (red) | SoC below minimum — discharging blocked |
+| `Idle` (grau) | Normalbetrieb |
+| `PV Charging` (grün) | Batterie lädt durch PV-Überschuss |
+| `Grid Charging (Cheap Rate)` (blau) | Batterie lädt aus günstigem Netzstrom |
+| `Battery Protection (Min SoC)` (rot) | SoC unter Minimum — Entladen blockiert |
 
-A **SIM** badge appears when Simulation Mode is active.
+Ein **SIM**-Badge erscheint, wenn der Simulationsmodus aktiv ist.
 
-### Live Power Grid
+### Live-Leistungsraster
 
-Six cards showing real-time values: PV Power, Load Power, Grid Power, Battery SoC, Battery Power, and Electricity Price. The price card is highlighted green when the cheap-rate threshold is met.
+Sechs Karten mit Echtzeitwerten: PV-Leistung, Lastleistung, Netzleistung, Batterie-SoC, Batterieleistung und Strompreis. Die Preiskarte wird grün hervorgehoben, wenn der Günstigschwellenwert erreicht ist.
 
-### Cost & Savings
+### Kosten & Einsparungen
 
-Today's and this week's accumulated values:
+Tages- und Wochenkumulierte Werte:
 
-- **Saved Today (PV)** — money saved by using solar instead of buying from grid
-- **Grid Cost Today** — actual cost of grid electricity imported
-- **PV Used Today** — kWh of PV energy consumed by the house
-- **Grid Import Today** — total grid import kWh
+- **Heute gespart (PV)** — eingesparter Betrag durch Nutzung von Solarstrom statt Netzkauf
+- **Netzkosten heute** — tatsächliche Kosten des bezogenen Netzstroms
+- **PV genutzt heute** — kWh verbrauchte PV-Energie im Haus
+- **Netzbezug heute** — gesamter Netzbezug in kWh
 
-### Cost Details
+### Kostendetails
 
-| Card | Formula |
+| Karte | Formel |
 |---|---|
-| Cost Without Grid Charge | `grid_cost_today − grid_charge_cost_today` |
-| Cost at Fix Price | `load_total_kwh × fix_price` |
-| Feed-in Today | kWh exported to the grid |
-| Feed-in Revenue | `feed_in_kwh × feed_in_tariff` |
-| Grid Charge Today | kWh charged from the grid (not from PV) |
+| Kosten ohne Netzladung | `netzkosten_heute − netzladekosten_heute` |
+| Kosten zum Festpreis | `last_gesamt_kwh × festpreis` |
+| Einspeisung heute | kWh ins Netz exportiert |
+| Einspeisevergütung | `einspeisung_kwh × einspeisevergütung` |
+| Netzladung heute | kWh aus dem Netz für die Batterie geladen (nicht aus PV) |
 
-### Battery State
+### Batteriezustand
 
-Free to Charge and Useable kWh, computed from SoC and your configured capacity and SoC limits.
+Freie Ladekapazität und nutzbare kWh, berechnet aus SoC und konfigurierter Kapazität sowie SoC-Grenzen.
 
-### Solcast PV Forecast
+### Solcast PV-Prognose
 
-Shows remaining PV expected for today, today's total, and tomorrow's total from Solcast. Only visible when Solcast entities are configured.
+Zeigt die verbleibende erwartete PV für heute, die Tagessumme und die morgige Gesamtmenge aus Solcast. Nur sichtbar, wenn Solcast-Entitäten konfiguriert sind.
 
-### Forecast & Prediction
+### Prognose & Vorhersage
 
-Internal consumption model output. Shows the predicted load and fallback PV yield estimate. The badge indicates the data source:
+Ausgabe des internen Verbrauchsmodells. Zeigt die vorhergesagte Last und die Fallback-PV-Ertragsschätzung. Das Badge gibt die Datenquelle an:
 
-- **historically estimated** — based on temperature-matched historical days
-- **fallback estimation** — based on temperature rules (not enough history yet)
+- **historically estimated** — basierend auf temperaturabgeglichenen historischen Tagen
+- **fallback estimation** — basierend auf Temperaturregeln (noch nicht genug Historie)
 
-### Mode Change Log (compact)
+### Moduswechsel-Log (kompakt)
 
-Shows the most recent mode change with a link to the full Log page.
-
----
-
-## Log Tab
-
-The dedicated log page shows:
-
-- **Summary bar** — current mode, SoC, free-to-charge kWh, Solcast remaining, current price
-- **Full event table** — up to the last 100 events: grid-charge mode changes and electricity price changes
-
-See [Event Log](log.md) for full details on all event types and columns.
+Zeigt den letzten Moduswechsel mit einem Link zur vollständigen Log-Seite.
 
 ---
 
-## config.json Tab
+## Log-Tab
 
-Direct raw editor for `/data/config.json` — the persistent miniEMS settings file. Displays the file as pretty-printed JSON in a monospace textarea. Changes are validated client-side before saving, then the add-on restarts automatically.
+Die dedizierte Log-Seite zeigt:
 
-A **Reformat JSON** button re-indents the content without saving, useful for reviewing edits.
+- **Zusammenfassungsleiste** — aktueller Modus, SoC, freie Ladekapazität in kWh, Solcast-Rest, aktueller Preis
+- **Vollständige Ereignistabelle** — bis zu den letzten 100 Ereignissen: Netzlade-Moduswechsel und Strompreisänderungen
 
-!!! warning "Advanced use"
-    Prefer the **Settings** tab for normal configuration. The raw editor is intended for debugging, migration fixes, or setting values not exposed in the settings form.
-
----
-
-## options.json Tab
-
-Raw editor for `/data/options.json` — the file written by the HA Supervisor. Identical interface to the config.json tab, with an additional warning banner noting that the Supervisor may overwrite this file when the add-on is reconfigured via the HA UI.
-
-!!! tip "Which file wins?"
-    `config.json` takes precedence for any value equal to the dataclass default. For all other values, `options.json` wins on startup. After the first run the merged result is written back to `config.json`, so `config.json` is the durable source of truth.
+Siehe [Ereignislog](log.md) für vollständige Details zu allen Ereignistypen und Spalten.
 
 ---
 
-## Database Tab
+## config.json-Tab
 
-Browse all rows in the `daily_stats` SQLite table. Displays a summary bar (total days recorded, date range, temperature coverage) followed by a sortable full table.
+Direkt-Raw-Editor für `/data/config.json` — die persistente miniEMS-Einstellungsdatei. Zeigt die Datei als hübsch formatiertes JSON in einem Monospace-Textbereich an. Änderungen werden client-seitig validiert, bevor sie gespeichert werden, danach startet das Add-on automatisch neu.
 
-Click any column header to sort ascending or descending. Rows without temperature data are shown in grey — these days are excluded from the temperature-matched load prediction.
+Ein **JSON neu formatieren**-Button formatiert den Inhalt ohne Speichern neu — nützlich zum Überprüfen von Änderungen.
 
-See [Data Storage](../technical/data-storage.md) for the full column reference.
+!!! warning "Fortgeschrittene Nutzung"
+    Bevorzuge für die normale Konfiguration den Tab **Einstellungen**. Der Raw-Editor ist für Debugging, Migrationskorrekturen oder das Setzen von Werten gedacht, die nicht im Einstellungsformular angezeigt werden.
 
 ---
 
-## Settings Tab
+## options.json-Tab
 
-The settings page provides a form for all configuration options. After editing, click **Save & Restart** — the add-on restarts and picks up the new configuration automatically.
+Raw-Editor für `/data/options.json` — die vom HA Supervisor geschriebene Datei. Identische Oberfläche wie beim config.json-Tab, mit einem zusätzlichen Warnungsbanner, das darauf hinweist, dass der Supervisor diese Datei überschreiben kann, wenn das Add-on über die HA-UI neu konfiguriert wird.
 
-!!! note "Restart time"
-    The add-on typically restarts within 2–5 seconds. The browser will redirect back to the dashboard after 6 seconds.
+!!! tip "Welche Datei hat Vorrang?"
+    `config.json` hat Vorrang für alle Werte, die dem Dataclass-Standard entsprechen. Für alle anderen Werte gewinnt `options.json` beim Start. Nach dem ersten Durchlauf wird das zusammengeführte Ergebnis zurück in `config.json` geschrieben, sodass `config.json` die dauerhafte Wahrheitsquelle ist.
+
+---
+
+## Datenbank-Tab
+
+Zeigt alle Zeilen in der SQLite-Tabelle `daily_stats`. Zeigt eine Zusammenfassungsleiste (Anzahl aufgezeichneter Tage, Datumsbereich, Temperaturabdeckung) gefolgt von einer sortierbaren vollständigen Tabelle.
+
+Klicke auf eine Spaltenüberschrift zum Auf- oder Abwärtssortieren. Zeilen ohne Temperaturdaten werden grau angezeigt — diese Tage werden von der temperaturabgeglichenen Lastvorhersage ausgeschlossen.
+
+Siehe [Datenspeicherung](../technical/data-storage.md) für die vollständige Spaltenreferenz.
+
+---
+
+## Einstellungen-Tab
+
+Die Einstellungsseite bietet ein Formular für alle Konfigurationsoptionen. Nach dem Bearbeiten auf **Speichern & Neu starten** klicken — das Add-on startet neu und übernimmt die neue Konfiguration automatisch.
+
+!!! note "Neustartzeit"
+    Das Add-on startet typischerweise innerhalb von 2–5 Sekunden neu. Der Browser leitet nach 6 Sekunden automatisch zurück zum Dashboard.

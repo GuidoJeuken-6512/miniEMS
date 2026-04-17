@@ -81,10 +81,7 @@ async def main() -> None:
     cost_optimizer = CostOptimizer(cfg, store)
     await cost_optimizer.restore_today()
 
-    async def on_state_change(entity_id: str, new_state: dict) -> None:
-        pass
-
-    ws_client = HAWebSocketClient(cfg.monitored_entities, on_state_change, cfg.long_lived_token)
+    ws_client = HAWebSocketClient(cfg.monitored_entities, long_lived_token=cfg.long_lived_token)
 
     inverter = InverterController(cfg, supervisor_token, cfg.long_lived_token)
     if cfg.battery_control_enabled:
@@ -137,9 +134,10 @@ async def main() -> None:
 
     def _shutdown() -> None:
         _LOGGER.info("Shutdown signal received")
+        uvi_server.should_exit = True  # let uvicorn exit its lifespan cleanly
         for t in tasks:
-            t.cancel()
-        uvi_server.should_exit = True
+            if t.get_name() != "web_server":
+                t.cancel()
 
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, _shutdown)

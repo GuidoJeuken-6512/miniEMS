@@ -4,7 +4,6 @@ Validates incoming power readings by comparing them to the previous accepted
 value.  Returns None on a spike so the caller can skip accumulation.
 """
 import logging
-from typing import TYPE_CHECKING
 
 _LOGGER = logging.getLogger(__name__)
 

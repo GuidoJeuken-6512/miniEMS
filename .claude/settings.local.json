@@ -55,7 +55,9 @@
       "Bash(docker exec addon_local_miniems wget -qO- http://localhost:8080/api/status)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in d.items\\(\\) if ''pred'' in k or ''temp'' in k or ''conf'' in k}, indent=2\\)\\)\")",
       "Bash(docker exec addon_local_miniems curl -s http://localhost:8080/api/status)",
-      "Bash(docker exec addon_local_miniems curl -s -X POST \"http://hassio/homeassistant/api/services/weather/get_forecasts?return_response\" -H \"Authorization: Bearer 1d22f8edfd216d9c790335e916293768bc545cae51808a28636d7ba59b0b5b070ea493dda845a763ddf27d06d444878c5d15be987e7cbc53\" -H \"Content-Type: application/json\" -d '{\"\"entity_id\"\":\"\"weather.openweathermap\"\",\"\"type\"\":\"\"daily\"\"}')"
+      "Bash(docker exec addon_local_miniems curl -s -X POST \"http://hassio/homeassistant/api/services/weather/get_forecasts?return_response\" -H \"Authorization: Bearer 1d22f8edfd216d9c790335e916293768bc545cae51808a28636d7ba59b0b5b070ea493dda845a763ddf27d06d444878c5d15be987e7cbc53\" -H \"Content-Type: application/json\" -d '{\"\"entity_id\"\":\"\"weather.openweathermap\"\",\"\"type\"\":\"\"daily\"\"}')",
+      "Bash(sudo mkdir:*)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('State',{}\\)\\)\")"
     ]
   }
 }

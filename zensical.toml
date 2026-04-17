@@ -45,22 +45,40 @@ Copyright &copy; 2026 The authors
 #
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
-  { "User Guide" = [
-    { "Getting Started" = "user/index.md" },
+  { "Benutzerhandbuch" = [
+    { "Erste Schritte" = "user/index.md" },
     { "Installation" = "user/installation.md" },
-    { "Configuration" = "user/configuration.md" },
-    { "Dashboard & UI" = "user/dashboard.md" },
-    { "Event Log" = "user/log.md" },
-    { "Database Viewer" = "user/database.md" },
-    { "HA Sensors" = "user/sensors.md" },
+    { "Konfiguration" = "user/configuration.md" },
+    { "Dashboard & Oberfläche" = "user/dashboard.md" },
+    { "Ereignisprotokoll" = "user/log.md" },
+    { "Datenbank" = "user/database.md" },
+    { "HA-Sensoren" = "user/sensors.md" },
   ]},
-  { "Technical Reference" = [
-    { "Overview" = "technical/index.md" },
-    { "Architecture" = "technical/architecture.md" },
-    { "Calculations" = "technical/calculations.md" },
-    { "Data Storage" = "technical/data-storage.md" },
-    { "API Reference" = "technical/api.md" },
-    { "HA Sensor Reference" = "technical/sensors.md" },
+  { "Technische Referenz" = [
+    { "Übersicht" = "technical/index.md" },
+    { "Architektur" = "technical/architecture.md" },
+    { "Berechnungen" = "technical/calculations.md" },
+    { "Datenspeicher" = "technical/data-storage.md" },
+    { "API-Referenz" = "technical/api.md" },
+    { "HA-Sensor-Referenz" = "technical/sensors.md" },
+    { "Devcontainer-Supervisor-Patches" = "technical/devcontainer-supervisor-patches.md" },
+  ]},
+  { "User Guide (EN)" = [
+    { "Getting Started" = "en/user/index.md" },
+    { "Installation" = "en/user/installation.md" },
+    { "Configuration" = "en/user/configuration.md" },
+    { "Dashboard & UI" = "en/user/dashboard.md" },
+    { "Event Log" = "en/user/log.md" },
+    { "Database Viewer" = "en/user/database.md" },
+    { "HA Sensors" = "en/user/sensors.md" },
+  ]},
+  { "Technical Reference (EN)" = [
+    { "Overview" = "en/technical/index.md" },
+    { "Architecture" = "en/technical/architecture.md" },
+    { "Calculations" = "en/technical/calculations.md" },
+    { "Data Storage" = "en/technical/data-storage.md" },
+    { "API Reference" = "en/technical/api.md" },
+    { "HA Sensor Reference" = "en/technical/sensors.md" },
   ]},
 ]
 
@@ -123,7 +141,7 @@ custom_dir = "overrides"
 # Read more:
 # - https://zensical.org/docs/setup/language/
 #
-language = "en"
+language = "de"
 
 # Zensical provides a number of feature toggles that change the behavior
 # of the documentation site.
@@ -320,5 +338,9 @@ icon = "fontawesome/brands/github"
 link = "https://github.com/GuidoJeuken-6512/miniEMS"
 
 [project.extra]
+alternate = [
+    { name = "Deutsch", link = "/", lang = "de" },
+    { name = "English", link = "/en/user/index/", lang = "en" },
+]
 
 

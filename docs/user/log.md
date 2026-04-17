@@ -1,84 +1,84 @@
 ---
-revision_date: 2026-03-14
+revision_date: 2026-04-07
 ---
 
-# Event Log
+# Ereignislog
 
-The **Log** tab (`/log`) provides a chronological, auto-refreshing event journal for miniEMS. It captures every significant state transition in a single unified view, making it easy to understand *why* the system acted the way it did.
+Der Tab **Log** (`/log`) bietet ein chronologisches, automatisch aktualisierendes Ereignisjournal für miniEMS. Es erfasst jeden wesentlichen Zustandsübergang in einer einheitlichen Ansicht und erleichtert so das Verständnis, *warum* das System so gehandelt hat.
 
 ---
 
-## Summary Bar
+## Zusammenfassungsleiste
 
-At the top of the page a live summary bar always shows the current system state:
+Am oberen Rand der Seite zeigt eine Live-Zusammenfassungsleiste immer den aktuellen Systemzustand:
 
-| Field | Description |
+| Feld | Beschreibung |
 |---|---|
-| Mode | Current EMS operating mode (badge) |
-| Battery SoC | Current state-of-charge (%) |
-| Free to Charge | Battery headroom available (kWh) |
-| Solcast Remaining | PV energy still expected today (kWh) |
-| Price | Current electricity price – highlighted green on cheap rate |
+| Modus | Aktueller EMS-Betriebsmodus (Badge) |
+| Batterie-SoC | Aktueller Ladezustand (%) |
+| Freie Ladekapazität | Verfügbarer Batteriefreiraum (kWh) |
+| Solcast-Rest | Heute noch erwartete PV-Energie (kWh) |
+| Preis | Aktueller Strompreis – grün hervorgehoben beim Günstigtarif |
 
 ---
 
-## Event Table
+## Ereignistabelle
 
-Below the summary bar the event table lists up to the **last 100 events**, newest first. Two types of events appear in the same chronological stream:
+Unterhalb der Zusammenfassungsleiste listet die Ereignistabelle bis zu den **letzten 100 Ereignissen**, neueste zuerst. Zwei Arten von Ereignissen erscheinen im selben chronologischen Strom:
 
-### Mode Change Events
+### Moduswechsel-Ereignisse
 
-Recorded every time the EMS switches between operating modes.
+Werden bei jedem Wechsel des EMS zwischen Betriebsmodi aufgezeichnet.
 
-| Column | Description |
+| Spalte | Beschreibung |
 |---|---|
-| Event | **▲ ON** (grid charging started) or **▼ OFF** (grid charging stopped) — shown in green / grey |
-| Time | ISO 8601 timestamp of the transition |
-| Price (€/kWh) | `–` (not applicable to mode changes) |
-| Free (kWh) | Battery free-to-charge headroom at the moment of the change |
-| Useable (kWh) | Battery useable energy at the moment of the change |
-| Pred. Load (kWh) | Predicted daily household load at the moment of the change |
+| Ereignis | **▲ ON** (Netzladen gestartet) oder **▼ OFF** (Netzladen gestoppt) — grün / grau angezeigt |
+| Zeit | ISO-8601-Zeitstempel des Übergangs |
+| Preis (€/kWh) | `–` (nicht anwendbar für Moduswechsel) |
+| Frei (kWh) | Verfügbarer Batteriefreiraum zum Zeitpunkt des Wechsels |
+| Nutzbar (kWh) | Nutzbare Batterieenergie zum Zeitpunkt des Wechsels |
+| Vorher. Last (kWh) | Vorhergesagte tägliche Hauslast zum Zeitpunkt des Wechsels |
 
-### Price Change Events
+### Preisänderungs-Ereignisse
 
-Recorded every time the electricity price sensor reports a new value that differs from the previous one. This lets you correlate grid-charge decisions with the exact price steps that triggered them.
+Werden aufgezeichnet, wenn der Strompreissensor einen neuen Wert meldet, der sich vom vorherigen unterscheidet. Dies erlaubt es, Netzladeentscheidungen mit den genauen Preisschritten zu korrelieren, die sie ausgelöst haben.
 
-| Column | Description |
+| Spalte | Beschreibung |
 |---|---|
-| Event | **€ Price Change** — shown in amber |
-| Time | ISO 8601 timestamp of the price update |
-| Price (€/kWh) | The **new** electricity price |
-| Free (kWh) | Battery free-to-charge headroom at the time |
-| Useable (kWh) | Battery useable energy at the time |
-| Pred. Load (kWh) | Predicted daily load at the time |
+| Ereignis | **€ Price Change** — gelb angezeigt |
+| Zeit | ISO-8601-Zeitstempel der Preisaktualisierung |
+| Preis (€/kWh) | Der **neue** Strompreis |
+| Frei (kWh) | Verfügbarer Batteriefreiraum zum Zeitpunkt |
+| Nutzbar (kWh) | Nutzbare Batterieenergie zum Zeitpunkt |
+| Vorher. Last (kWh) | Vorhergesagte Tageslast zum Zeitpunkt |
 
-!!! tip "Reading the log"
-    Look for a **€ Price Change** entry just before a **▲ ON** entry — that is the price drop that crossed the cheap-rate threshold and triggered grid charging. Similarly, a price increase followed by a **▼ OFF** entry explains why charging stopped.
-
----
-
-## Event Capacity
-
-The in-memory buffer holds the **last 100 events** (mode changes and price changes combined). Older events are silently evicted from the buffer. The hint line at the top of the table shows the current count.
+!!! tip "Das Log lesen"
+    Suche nach einem **€ Price Change**-Eintrag kurz vor einem **▲ ON**-Eintrag — das ist der Preisabfall, der den Günstigkeitsschwellenwert unterschritten und das Netzladen ausgelöst hat. Ähnlich erklärt ein Preisanstieg gefolgt von einem **▼ OFF**-Eintrag, warum das Laden gestoppt hat.
 
 ---
 
-## Persistence
+## Ereigniskapazität
 
-Events are written to the `event_log` table in `/data/miniems.db` on every append. On startup the last 100 entries are restored from the database so the log is **not lost across restarts or updates**.
-
-Old entries are pruned once per day based on the **Event Log Retention** setting (default: 30 days). See [Configuration](configuration.md#ems-parameters).
+Der In-Memory-Puffer hält die **letzten 100 Ereignisse** (Moduswechsel und Preisänderungen zusammen). Ältere Ereignisse werden still aus dem Puffer entfernt. Die Hinweiszeile am oberen Rand der Tabelle zeigt die aktuelle Anzahl.
 
 ---
 
-## Auto-Refresh
+## Persistenz
 
-The page polls `/api/status` every **5 seconds** and re-renders the table in place. No manual reload is needed.
+Ereignisse werden bei jedem Anhängen in die Tabelle `event_log` in `/data/miniems.db` geschrieben. Beim Start werden die letzten 100 Einträge aus der Datenbank wiederhergestellt, sodass das Log **nicht über Neustarts oder Updates verloren geht**.
+
+Alte Einträge werden einmal täglich basierend auf der Einstellung **Ereignislog-Aufbewahrung** bereinigt (Standard: 30 Tage). Siehe [Konfiguration](configuration.md#ems-parameter).
 
 ---
 
-## Implementation Notes
+## Automatische Aktualisierung
 
-Price changes are only recorded when the price *differs* from the previously observed value. The very first reading after startup is not logged as a change; subsequent readings are compared against the running value.
+Die Seite fragt `/api/status` alle **5 Sekunden** ab und rendert die Tabelle neu. Kein manuelles Neuladen erforderlich.
 
-For the database schema of the `event_log` table, see [Data Storage](../technical/data-storage.md#event_log-table).
+---
+
+## Implementierungshinweise
+
+Preisänderungen werden nur aufgezeichnet, wenn der Preis *sich vom zuletzt beobachteten Wert unterscheidet*. Der allererste Messwert nach dem Start wird nicht als Änderung protokolliert; nachfolgende Messwerte werden mit dem laufenden Wert verglichen.
+
+Das Datenbankschema der Tabelle `event_log` findest du unter [Datenspeicherung](../technical/data-storage.md#event_log-table).

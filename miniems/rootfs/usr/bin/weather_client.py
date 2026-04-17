@@ -160,7 +160,7 @@ class WeatherClient:
 
     async def _summarise(self, slots: list[WeatherSlot]) -> ForecastSummary:
         lat = await self._fetch_lat()
-        month = datetime.now().month
+        month = datetime.now(timezone.utc).month
         dl = daylight_hours_approx(month, lat)
 
         today = datetime.now(timezone.utc).date()

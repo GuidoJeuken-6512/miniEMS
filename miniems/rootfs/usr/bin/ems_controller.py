@@ -1,6 +1,6 @@
 """EMS decision logic – determines operating mode and triggers cost accounting."""
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING
 
 from battery_model import BatteryModel
@@ -84,7 +84,7 @@ class EMSController:
         # Log mode changes to event log
         if self._mode != prev_mode:
             entry = LogEntry(
-                timestamp=datetime.now().isoformat(timespec="seconds"),
+                timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 state="on" if self._mode == EMSMode.GRID_CHARGING else "off",
                 battery_kwh_freetochange=round(bat_kwh_free, 3) if bat_kwh_free is not None else 0.0,
                 battery_kwh_useable=round(bat_kwh_use, 3) if bat_kwh_use is not None else 0.0,
@@ -97,7 +97,7 @@ class EMSController:
         # Log electricity price changes to event log
         if price is not None and self._last_price is not None and price != self._last_price:
             price_entry = LogEntry(
-                timestamp=datetime.now().isoformat(timespec="seconds"),
+                timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 state="price_change",
                 battery_kwh_freetochange=round(bat_kwh_free, 3) if bat_kwh_free is not None else 0.0,
                 battery_kwh_useable=round(bat_kwh_use, 3) if bat_kwh_use is not None else 0.0,
@@ -227,7 +227,7 @@ class EMSController:
         if bat_soc is not None and bat_soc < cfg.battery_min_soc:
             return EMSMode.PROTECT_BATTERY
 
-        soc_ok = bat_soc is None or bat_soc < cfg.battery_max_soc
+        soc_ok = bat_soc is not None and bat_soc < cfg.battery_max_soc
 
         # PV surplus → charge battery from PV
         surplus_w = pv_w - load_w

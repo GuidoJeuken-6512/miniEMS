@@ -1,50 +1,56 @@
 ---
-revision_date: 2026-04-06
+revision_date: 2026-04-07
 ---
 
-# Calculations
+# Berechnungen
 
-## EMS Mode Decision (`EMSController._determine_mode`)
+## EMS-Moduse-Entscheidung (`EMSController._determine_mode`)
 
-The controller evaluates four mutually-exclusive modes in priority order:
+Der Controller bewertet vier sich gegenseitig ausschließende Modi in Prioritätsreihenfolge:
 
 ```
 1. BATTERY_PROTECTION  — battery_soc < battery_min_soc
-2. PV_CHARGING         — (pv_w − load_w) > pv_surplus_threshold_w  AND  soc < max_soc
+2. PV_CHARGING         — (pv_w − load_w) > pv_surplus_threshold_w  AND  soc bekannt UND soc < max_soc
 3. GRID_CHARGING       — price < cheap_rate_threshold_eur
-                         AND  soc < max_soc
+                         AND  soc bekannt UND soc < max_soc
                          AND  bat_kwh_free > solcast_remaining_today_kwh
-                              (falls back to consumption model if Solcast unavailable)
-4. IDLE                — none of the above
+                              (Fallback auf Verbrauchsmodell wenn Solcast nicht verfügbar)
+4. IDLE                — keiner der obigen Fälle, ODER SoC-Sensor nicht verfügbar
 ```
 
-### PV Surplus
+!!! note "SoC-Sensor nicht verfügbar"
+    Wenn der `battery_soc_entity`-Sensor keinen Wert liefert, werden PV Charging
+    und Grid Charging deaktiviert und das System verbleibt im **IDLE**-Modus.
+    Dies ist eine Sicherheitsmaßnahme, um unkontrolliertes Laden bei unbekanntem
+    Akkustand zu verhindern.
+
+### PV-Überschuss
 
 ```
 surplus_w = pv_power_w - load_power_w
 ```
 
-If `surplus_w > pv_surplus_threshold_w` (default 200 W) and the battery is not
-full (`soc < battery_max_soc`), the system enters **PV Charging** mode.
+Wenn `surplus_w > pv_surplus_threshold_w` (Standard: 200 W) und der Akku nicht voll ist
+(`soc < battery_max_soc`), wechselt das System in den Modus **PV Charging**.
 
-### Grid-Charge Decision (v1.4.0)
+### Netzlade-Entscheidung
 
 ```python
 bat_kwh_free = (max_soc - soc) / 100 * capacity_kwh
 
-# Primary path: Solcast available
+# Primärpfad: Solcast verfügbar
 should_grid_charge = bat_kwh_free > solcast_remaining_today_kwh
 
-# Fallback: no Solcast
+# Fallback: kein Solcast
 should_grid_charge = (predicted_load > 0) AND (useable_kwh + predicted_pv < predicted_load)
 ```
 
-The Solcast path is preferred because it accounts for actual solar irradiance
-forecasts. The fallback uses the temperature-based consumption model.
+Der Solcast-Pfad wird bevorzugt, da er tatsächliche Solarstrahlungsprognosen berücksichtigt.
+Der Fallback verwendet das temperaturbasierte Verbrauchsmodell.
 
 ---
 
-## Battery State (`BatteryModel`)
+## Akkuzustand (`BatteryModel`)
 
 ```
 free_to_charge_kwh = max(0,  (max_soc − soc) / 100  × capacity_kwh)
@@ -53,72 +59,72 @@ useable_kwh        = max(0,  (soc − min_soc) / 100  × capacity_kwh)
 
 ---
 
-## Cost & Savings — Complete Reference (`CostOptimizer`)
+## Kosten & Einsparungen — vollständige Referenz (`CostOptimizer`)
 
-`CostOptimizer.record_tick()` is called once per EMS tick (default 30 s).
-All accumulators are keyed by calendar date and flushed to SQLite after every
-tick. Values are stored at 6 decimal-place precision. On restart,
-today's accumulators are restored from SQLite before the first tick.
+`CostOptimizer.record_tick()` wird einmal pro EMS-Tick (Standard: 30 s) aufgerufen.
+Alle Akkumulatoren sind nach Kalenderdatum geordnet und werden nach jedem Tick in
+SQLite gespeichert. Werte werden mit 6 Dezimalstellen gespeichert. Beim Neustart
+werden die heutigen Akkumulatoren vor dem ersten Tick aus SQLite wiederhergestellt.
 
-### Prerequisite: Spike Filtering
+### Voraussetzung: Spike-Filterung
 
-Every power reading is validated by `SensorValidator` before use.
-A sample is rejected (replaced by the last accepted value) when:
-
-```
-|delta| > 500 W  AND  |delta| / previous_value > 50 %
-```
-
-If no prior value exists for a sensor, 0 W is used as the fallback.
-
-### Interval Duration
+Jeder Leistungswert wird vor der Verwendung von `SensorValidator` validiert.
+Ein Messwert wird abgelehnt (durch den letzten akzeptierten Wert ersetzt), wenn:
 
 ```
-hours = update_interval_sec / 3600    # default: 30 s → 0.008333 h
+|delta| > 500 W  AND  |delta| / vorheriger_Wert > 50 %
+```
+
+Wenn kein vorheriger Wert für einen Sensor vorhanden ist, wird 0 W als Fallback verwendet.
+
+### Intervall-Dauer
+
+```
+hours = update_interval_sec / 3600    # Standard: 30 s → 0.008333 h
 ```
 
 ---
 
-### Grid Import & Cost (`today_grid_import_kwh`, `today_grid_cost_eur`)
+### Netzimport & Kosten (`today_grid_import_kwh`, `today_grid_cost_eur`)
 
-#### kWh — Source A (preferred)
+#### kWh — Quelle A (bevorzugt)
 
-When `grid_import_energy_entity` is configured (default: `sensor.deye8k_today_energy_import`),
-the inverter's own daily import counter is used directly. The value is **set** each tick:
+Wenn `grid_import_energy_entity` konfiguriert ist (Standard: `sensor.deye8k_today_energy_import`),
+wird der eigene Tageszähler des Wechselrichters direkt verwendet. Der Wert wird pro Tick **gesetzt**:
 
 ```
-grid_import_kwh = grid_import_energy_entity   ← read directly from HA each tick
+grid_import_kwh = grid_import_energy_entity   ← pro Tick direkt aus HA gelesen
 ```
 
-#### kWh — Source B (calculated fallback)
+#### kWh — Quelle B (berechneter Fallback)
 
-When `grid_import_energy_entity` is empty or unavailable, kWh is accumulated from
-`grid_power_w` **only when `grid_power_w > 0`** (net import):
+Wenn `grid_import_energy_entity` leer oder nicht verfügbar ist, wird der kWh-Wert
+aus `grid_power_w` akkumuliert, **nur wenn `grid_power_w > 0`** (Nettobezug):
 
 ```
 kwh_imported     = (grid_power_w / 1000) × hours
-grid_import_kwh += kwh_imported               ← accumulated each tick
+grid_import_kwh += kwh_imported               ← pro Tick akkumuliert
 ```
 
-#### Cost — always accumulated per tick
+#### Kosten — immer pro Tick akkumuliert
 
-Grid cost cannot be derived from a daily total sensor because it requires the
-spot price at each individual interval. It is always accumulated from ticks:
+Netzkosten können nicht aus einem Tagessummensensor abgeleitet werden, da der
+Spotpreis zum jeweiligen Intervall benötigt wird. Sie werden immer aus Ticks akkumuliert:
 
 ```
 grid_cost_eur += (grid_power_w / 1000) × hours × price_eur_kwh
-                 (only when grid_power_w > 0)
+                 (nur wenn grid_power_w > 0)
 ```
 
-`price_eur_kwh` is the current dynamic spot price from `electricity_price_entity`.
+`price_eur_kwh` ist der aktuelle dynamische Spotpreis aus `electricity_price_entity`.
 
 ---
 
-### PV Savings (`today_pv_savings_eur`)
+### PV-Einsparungen (`today_pv_savings_eur`)
 
-Represents the electricity cost **avoided** by using PV instead of buying
-from the grid. Only the portion of PV that directly covers house load is
-counted — PV exported to the grid is excluded here (see Feed-in below).
+Repräsentiert die **vermiedenen** Stromkosten durch PV-Nutzung anstelle von Netzkauf.
+Nur der Anteil der PV, der direkt den Hausverbrauch deckt, wird berücksichtigt —
+ins Netz eingespeiste PV ist hier ausgeschlossen (siehe Einspeisung weiter unten).
 
 ```
 pv_to_load_w    = clamp(pv_power_w, 0, load_power_w)
@@ -127,16 +133,15 @@ pv_used_kwh    += kwh_pv_used
 pv_savings_eur += kwh_pv_used × price_eur_kwh
 ```
 
-The valuation uses the **current spot price**, so cheap-rate PV contributes
-less savings than peak-rate PV.
+Die Bewertung erfolgt zum **aktuellen Spotpreis**, daher trägt PV bei günstigem Tarif
+weniger zur Einsparung bei als PV bei Spitzentarif.
 
 ---
 
-### Total Load Cost (`today_load_cost_eur`)
+### Gesamtlastkosten (`today_load_cost_eur`)
 
-Hypothetical cost if the **entire** house load had been purchased from the
-grid at the current spot price, regardless of actual source (PV, battery,
-grid):
+Hypothetische Kosten, wenn der **gesamte** Hausverbrauch zum aktuellen Spotpreis
+aus dem Netz bezogen worden wäre, unabhängig von der tatsächlichen Quelle (PV, Akku, Netz):
 
 ```
 load_kwh       = (load_power_w / 1000) × hours
@@ -144,19 +149,18 @@ load_total_kwh += load_kwh
 load_cost_eur  += load_kwh × price_eur_kwh
 ```
 
-Always ≥ `today_grid_cost_eur` because PV and battery reduce actual grid
-purchases.
+Immer ≥ `today_grid_cost_eur`, weil PV und Akku den tatsächlichen Netzbezug reduzieren.
 
 ---
 
-### Grid-to-Battery Charging Cost (`today_grid_charge_cost_eur`)
+### Netz-zu-Akku-Ladekosten (`today_grid_charge_cost_eur`)
 
-Derived from the power balance — mode-independent, no EMS state needed.
-The Deye sign convention is: `battery_power_w > 0` = discharging,
-`battery_power_w < 0` = charging.
+Abgeleitet aus der Leistungsbilanz — modusunabhängig, kein EMS-Zustand erforderlich.
+Die Deye-Vorzeichenkonvention lautet: `battery_power_w > 0` = Entladen,
+`battery_power_w < 0` = Laden.
 
 ```
-battery_charge_w = max(0, −battery_power_w)       # positive when charging
+battery_charge_w = max(0, −battery_power_w)       # positiv beim Laden
 pv_surplus_w     = max(0, pv_power_w − load_power_w)
 grid_charge_w    = max(0, battery_charge_w − pv_surplus_w)
 
@@ -165,95 +169,95 @@ grid_charge_kwh    += kwh_gc
 grid_charge_cost_eur += kwh_gc × price_eur_kwh
 ```
 
-`grid_charge_w` is the portion of battery charging power that cannot be
-covered by excess PV — therefore it must have come from the grid.
+`grid_charge_w` ist der Teil der Akkuleistung, der nicht durch überschüssige PV
+gedeckt werden kann — er muss daher aus dem Netz stammen.
 
 ---
 
-### Feed-in Revenue (`today_feed_in_revenue_eur`)
+### Einspeisevergütung (`today_feed_in_revenue_eur`)
 
-#### Source A — HA sensor (preferred)
+#### Quelle A — HA-Sensor (bevorzugt)
 
-When `feed_in_energy_entity` is configured (default: `sensor.deye8k_today_energy_export`),
-the inverter's own daily export counter is used directly. The sensor resets at midnight
-and provides a cumulative kWh total. On each tick the value is **set**, not accumulated:
+Wenn `feed_in_energy_entity` konfiguriert ist (Standard: `sensor.deye8k_today_energy_export`),
+wird der eigene Tagesexportzähler des Wechselrichters direkt verwendet. Der Sensor
+wird um Mitternacht zurückgesetzt und liefert einen kumulativen kWh-Gesamtwert.
+Der Wert wird pro Tick **gesetzt**, nicht akkumuliert:
 
 ```
-feed_in_kwh     = feed_in_energy_entity   ← read directly from HA each tick
+feed_in_kwh     = feed_in_energy_entity   ← pro Tick direkt aus HA gelesen
 feed_in_revenue = feed_in_kwh × feed_in_tariff_eur_kwh
 ```
 
-#### Source B — calculated fallback
+#### Quelle B — berechneter Fallback
 
-When `feed_in_energy_entity` is empty or the entity is unavailable, feed-in is
-derived from `grid_power_w` **only when `grid_power_w < 0`** (net export):
+Wenn `feed_in_energy_entity` leer oder die Entity nicht verfügbar ist, wird die
+Einspeisung aus `grid_power_w` abgeleitet, **nur wenn `grid_power_w < 0`** (Nettoexport):
 
 ```
 feed_in_w        = max(0, −grid_power_w)
 kwh_exported     = (feed_in_w / 1000) × hours
-feed_in_kwh     += kwh_exported                   ← accumulated each tick
+feed_in_kwh     += kwh_exported                   ← pro Tick akkumuliert
 feed_in_revenue += kwh_exported × feed_in_tariff_eur_kwh
 ```
 
-Both sources use the **fixed feed-in tariff** (`feed_in_tariff_eur_kwh`,
-default 0.08 €/kWh), not the spot price.
+Beide Quellen verwenden den **festen Einspeisevergütungssatz** (`feed_in_tariff_eur_kwh`,
+Standard: 0,08 €/kWh), nicht den Spotpreis.
 
 ---
 
-### Derived Metrics (computed in `ems_controller.py`)
+### Abgeleitete Metriken (berechnet in `ems_controller.py`)
 
-These are calculated once per tick from the accumulated values above and
-added to the status dict.
+Diese werden einmal pro Tick aus den akkumulierten Werten oben berechnet und
+dem Status-Dict hinzugefügt.
 
-| Entity                           | Formula                                        | Meaning                                                                                |
-| -------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `today_cost_without_grid_charge` | `max(0, grid_cost_eur − grid_charge_cost_eur)` | What the grid bill would have been if the battery had never been charged from the grid |
-| `today_cost_fix_price_tariff`    | `load_total_kwh × fix_price`                   | What today's load would cost at the fixed reference tariff (default 0.30 €/kWh)        |
+| Entity | Formel | Bedeutung |
+| ---|---|---|
+| `today_cost_without_grid_charge` | `max(0, grid_cost_eur − grid_charge_cost_eur)` | Was die Netzrechnung ohne Akku-Netzladung gewesen wäre |
+| `today_cost_fix_price_tariff` | `load_total_kwh × fix_price` | Was die heutige Last beim festen Referenztarif kosten würde (Standard: 0,30 €/kWh) |
 
 ---
 
-### Weekly Aggregation (in-memory)
+### Wöchentliche Aggregation (In-Memory)
 
-Computed in `CostOptimizer` from the in-memory daily buckets without a DB
-query:
+In `CostOptimizer` aus den In-Memory-Tagesbuckets ohne DB-Abfrage berechnet:
 
 ```
-week_grid_cost_eur  = Σ grid_cost_eur[d]   for all d where (today − d).days < 7
-week_pv_savings_eur = Σ pv_savings_eur[d]  for all d where (today − d).days < 7
+week_grid_cost_eur  = Σ grid_cost_eur[d]   für alle d mit (today − d).days < 7
+week_pv_savings_eur = Σ pv_savings_eur[d]  für alle d mit (today − d).days < 7
 ```
 
-The rolling window is exactly 7 calendar days (today + 6 prior days).
+Das rollende Fenster umfasst genau 7 Kalendertage (heute + 6 vorangegangene Tage).
 
 ---
 
-### Monthly / Yearly Aggregation (SQLite)
+### Monatliche / Jährliche Aggregation (SQLite)
 
-`CostOptimizer.summary_with_db()` queries the `daily_stats` table:
+`CostOptimizer.summary_with_db()` fragt die `daily_stats`-Tabelle ab:
 
 ```sql
--- Month
+-- Monat
 SELECT SUM(grid_cost_eur), SUM(pv_savings_eur), SUM(load_cost_eur)
 FROM daily_stats WHERE date LIKE 'YYYY-MM-%'
 
--- Year
+-- Jahr
 SELECT SUM(grid_cost_eur), SUM(pv_savings_eur), SUM(load_cost_eur)
 FROM daily_stats WHERE strftime('%Y', date) = 'YYYY'
 ```
 
-| Entities                                                             | Source                     |
-| -------------------------------------------------------------------- | -------------------------- |
-| `month_grid_cost_eur`, `month_pv_savings_eur`, `month_load_cost_eur` | Calendar-month SUM from DB |
-| `year_grid_cost_eur`, `year_pv_savings_eur`, `year_load_cost_eur`    | Calendar-year SUM from DB  |
+| Entities | Quelle |
+| ---|---|
+| `month_grid_cost_eur`, `month_pv_savings_eur`, `month_load_cost_eur` | Kalendermonat-SUM aus DB |
+| `year_grid_cost_eur`, `year_pv_savings_eur`, `year_load_cost_eur` | Kalenderjahr-SUM aus DB |
 
 ---
 
-## Preisklassen-Verbrauch (Price Tier Consumption)
+## Preisklassen-Verbrauch
 
-Each tick, `load_kwh` is allocated to **exactly one** of three rate buckets
-based on the current spot price. The three buckets always sum to
-`today_load_total_kwh` for the day.
+Bei jedem Tick wird `load_kwh` genau einem von drei Tarifklassen-Buckets
+basierend auf dem aktuellen Spotpreis zugeordnet. Die drei Buckets summieren sich
+immer zu `today_load_total_kwh` für den Tag.
 
-### Tier Assignment
+### Klassenzuweisung
 
 ```
 if price_eur_kwh < cheap_rate_threshold_eur:
@@ -264,92 +268,92 @@ else:
     kwh_high_rate   += load_kwh          # teuer / high
 ```
 
-### Tier Boundaries
+### Klassengrenzen
 
-| Tier     | Condition                                        | Config key                  | Default    |
-| -------- | ------------------------------------------------ | --------------------------- | ---------- |
-| `low`    | `price < cheap_rate_threshold_eur`               | `cheap_rate_threshold_eur`  | 0.10 €/kWh |
-| `medium` | `cheap_rate ≤ price < medium_rate_threshold_eur` | `medium_rate_threshold_eur` | 0.20 €/kWh |
-| `high`   | `price ≥ medium_rate_threshold_eur`              | `medium_rate_threshold_eur` | 0.20 €/kWh |
+| Klasse | Bedingung | Config-Schlüssel | Standard |
+| ---|---|---|---|
+| `low` | `price < cheap_rate_threshold_eur` | `cheap_rate_threshold_eur` | 0,10 €/kWh |
+| `medium` | `cheap_rate ≤ price < medium_rate_threshold_eur` | `medium_rate_threshold_eur` | 0,20 €/kWh |
+| `high` | `price ≥ medium_rate_threshold_eur` | `medium_rate_threshold_eur` | 0,20 €/kWh |
 
-Both thresholds are configurable on the Settings page.
+Beide Schwellenwerte sind auf der Einstellungsseite konfigurierbar.
 
-### Daily Entities
+### Tages-Entities
 
-| Entity                  | Accumulator                            | Resets   |
-| ----------------------- | -------------------------------------- | -------- |
-| `today_kwh_low_rate`    | in-memory, restored from DB on restart | midnight |
-| `today_kwh_medium_rate` | in-memory, restored from DB on restart | midnight |
-| `today_kwh_high_rate`   | in-memory, restored from DB on restart | midnight |
+| Entity | Akkumulator | Zurückgesetzt |
+| ---|---|---|
+| `today_kwh_low_rate` | In-Memory, beim Neustart aus DB wiederhergestellt | Mitternacht |
+| `today_kwh_medium_rate` | In-Memory, beim Neustart aus DB wiederhergestellt | Mitternacht |
+| `today_kwh_high_rate` | In-Memory, beim Neustart aus DB wiederhergestellt | Mitternacht |
 
-### Monthly Aggregation
+### Monatliche Aggregation
 
-`month_kwh_high_rate`, `month_kwh_medium_rate`, `month_kwh_low_rate` are
-SQLite SUMs of the daily `kwh_high_rate`, `kwh_medium_rate`, `kwh_low_rate`
-columns, queried via `store.query_month()`.
+`month_kwh_high_rate`, `month_kwh_medium_rate`, `month_kwh_low_rate` sind
+SQLite-SUMs der täglichen Spalten `kwh_high_rate`, `kwh_medium_rate`, `kwh_low_rate`,
+abgefragt über `store.query_month()`.
 
 ---
 
-## Consumption & PV Prediction (`ConsumptionModel`)
+## Verbrauchs- & PV-Vorhersage (`ConsumptionModel`)
 
-Computed once per EMS tick in `consumption_model.py`.
-Data source: SQLite daily history (`store.py`) + optional HA weather forecast.
+Einmal pro EMS-Tick in `consumption_model.py` berechnet.
+Datenquelle: SQLite-Tageshistorie (`store.py`) + optionale HA-Wettervorhersage.
 
-### Predicted Load (`predicted_load_kwh`)
-
-```
-If weather_entity configured AND forecast available:
-  target_temp   = tomorrow's max temperature (from HA forecast)
-  similar_days  = days in last 60 d with |avg_temp − target| ≤ 4 °C
-  If len(similar_days) ≥ 3:
-    predicted_load = median(load_total_kwh of similar_days)  → source: "historical"
-  Else:
-    → temperature fallback rules (see below)                 → source: "fallback"
-Else:
-  → temperature fallback rules                               → source: "fallback"
-No history:
-  predicted_load = 0.0 kWh                                   → source: "fallback"
-```
-
-#### Temperature Fallback Rules (v1.4.0)
-
-| Condition                              | Predicted Load |
-| -------------------------------------- | -------------- |
-| Night temp < 0 °C and day temp < 0 °C  | 30 kWh         |
-| Night temp < 0 °C and day temp < 10 °C | 20 kWh         |
-| Night temp > 0 °C and day temp < 15 °C | 10 kWh         |
-| Otherwise                              | 5 kWh          |
-
-### Predicted PV Yield (`predicted_pv_kwh`)
-
-Internal estimate used only when Solcast is unavailable.
+### Vorhergesagte Last (`predicted_load_kwh`)
 
 ```
-peaks    = [peak_pv_w | last 14 days, peak_pv_w > 100 W]
-p75      = 75th percentile(peaks)   (conservative estimate)
+Wenn weather_entity konfiguriert UND Vorhersage verfügbar:
+  target_temp   = maximale Temperatur von morgen (aus HA-Vorhersage)
+  similar_days  = Tage der letzten 60 Tage mit |avg_temp − target| ≤ 4 °C
+  Wenn len(similar_days) ≥ 3:
+    predicted_load = Median(load_total_kwh ähnlicher Tage)  → Quelle: "historical"
+  Sonst:
+    → temperaturbasierte Fallback-Regeln (siehe unten)       → Quelle: "fallback"
+Sonst:
+  → temperaturbasierte Fallback-Regeln                       → Quelle: "fallback"
+Keine Historie:
+  predicted_load = 0.0 kWh                                   → Quelle: "fallback"
+```
 
-With forecast:
-  clear_frac  = avg(1 − cloud_coverage / 100) across forecast slots
-  daylight_h  = astronomical day length for HA latitude + current month
+#### Temperatur-Fallback-Regeln
+
+| Bedingung | Vorhergesagte Last |
+| ---|---|
+| Nachttemp. < 0 °C und Tagtemp. < 0 °C | 30 kWh |
+| Nachttemp. < 0 °C und Tagtemp. < 10 °C | 20 kWh |
+| Nachttemp. > 0 °C und Tagtemp. < 15 °C | 10 kWh |
+| Andernfalls | 5 kWh |
+
+### Vorhergesagter PV-Ertrag (`predicted_pv_kwh`)
+
+Interne Schätzung, nur verwendet wenn Solcast nicht verfügbar.
+
+```
+peaks    = [peak_pv_w | letzte 14 Tage, peak_pv_w > 100 W]
+p75      = 75. Perzentile(peaks)   (konservative Schätzung)
+
+Mit Vorhersage:
+  clear_frac  = Mittelwert(1 − cloud_coverage / 100) über Vorhersage-Slots
+  daylight_h  = astronomische Tageslänge für HA-Breitengrad + aktueller Monat
   pv_factor   = clear_frac × min(1.0, daylight_h / 12.0)
 
-Without forecast:
-  pv_factor   = 0.5          (neutral assumption)
-  daylight_h  = approximation for 51°N + current month
+Ohne Vorhersage:
+  pv_factor   = 0.5          (neutrale Annahme)
+  daylight_h  = Näherung für 51°N + aktueller Monat
 
 predicted_pv = max(0, (p75 / 1000) × pv_factor × daylight_h)
 ```
 
-**Day-length formula** (`daylight_hours_approx` in `weather_client.py`):
+**Tageslängen-Formel** (`daylight_hours_approx` in `weather_client.py`):
 
 ```
 day_of_year = (month − 1) × 30 + 15
-decl        = 23.45° × sin(360° × (284 + day_of_year) / 365)
-cos_ha      = −tan(lat) × tan(decl)   [clamped to −1 … 1]
+decl        = 23,45° × sin(360° × (284 + day_of_year) / 365)
+cos_ha      = −tan(lat) × tan(decl)   [auf −1 … 1 begrenzt]
 daylight_h  = 2 × arccos(cos_ha) / 15
 ```
 
-### Weather Data Cache
+### Wetter-Daten-Cache
 
-`WeatherClient` caches the result of `weather.get_forecasts` for **30 minutes**.
-The HA latitude is read once from `http://supervisor/core/api/config` and cached.
+`WeatherClient` cacht das Ergebnis von `weather.get_forecasts` für **30 Minuten**.
+Der HA-Breitengrad wird einmalig von `http://supervisor/core/api/config` gelesen und gecacht.

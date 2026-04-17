@@ -1,10 +1,10 @@
 ---
-revision_date: 2026-03-14
+revision_date: 2026-04-07
 ---
 
-# Architecture
+# Architektur
 
-## Component Overview
+## Komponentenübersicht
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
@@ -18,7 +18,7 @@ revision_date: 2026-03-14
 │                     │  + SolcastClient  + EventLog              │ │
 │  ┌──────────────┐   └──────────────┬────────────────────────────┘ │
 │  │WeatherClient │──────────────────┘                              │
-│  │(HA forecast  │   weather.get_forecasts (daily, 30 m cache)     │
+│  │(HA forecast  │   weather.get_forecasts (täglich, 30 min Cache) │
 │  │ action API)  │                                                 │
 │  └──────────────┘                                                 │
 │                          status_store {}                          │
@@ -31,8 +31,7 @@ revision_date: 2026-03-14
 │  │HASensorPublisher  │       │  /config-json /options-json  │   │
 │  │(REST fallback)    │       │  /database                   │   │
 │  │                   │       │  (de/en i18n via YAML)       │   │
-│  │(REST fallback)    │       └──────────────────────────────┘   │
-│  └────────┬──────────┘                                          │
+│  └────────┬──────────┘       └──────────────────────────────┘   │
 └───────────┼─────────────────────────────────────────────────────┘
             │
             ▼
@@ -40,39 +39,40 @@ revision_date: 2026-03-14
    sensor.miniems_* entities
 ```
 
-## Asyncio Task Graph
+## Asyncio-Task-Graph
 
-Three long-running tasks run concurrently:
+Drei lang laufende Tasks werden nebenläufig ausgeführt:
 
 ```
 asyncio.gather(
-  ws_client.run()      # polls HA states every 15 s
-  _ems_task()          # waits for ready → runs EMS loop every 30 s
-  uvi_server.serve()   # FastAPI / Uvicorn HTTP server on port 8080
+  ws_client.run()      # ruft HA-Zustände alle 15 s ab
+  _ems_task()          # wartet auf ready → führt EMS-Loop alle 30 s aus
+  uvi_server.serve()   # FastAPI / Uvicorn HTTP-Server auf Port 8080
 )
 ```
 
-`_ems_task` waits on `ws_client.wait_ready()` (an `asyncio.Event`) before
-starting, preventing the EMS from running on stale/empty state.
+`_ems_task` wartet auf `ws_client.wait_ready()` (ein `asyncio.Event`), bevor
+er startet. Dadurch wird verhindert, dass der EMS mit veralteten oder leeren
+Zustandsdaten läuft.
 
-## Sub-system Wiring (per tick)
+## Subsystem-Verdrahtung (pro Tick)
 
 ```
 EMSController.update()
   │
-  ├─ SensorValidator.validate()     # reject power spikes
-  ├─ BatteryModel.free_to_charge()  # kWh headroom calculation
-  ├─ BatteryModel.useable()         # kWh discharge capacity
-  ├─ SolcastClient.remaining_today  # Solcast remaining kWh (or None)
-  ├─ ConsumptionModel.predict()     # predicted_load_kwh + source label
-  ├─ _determine_mode()              # EMS mode logic
-  ├─ InverterController.apply_mode()# send commands (or log [SIM])
-  ├─ CostOptimizer.record_tick()    # energy/cost accumulators
-  ├─ EventLog.append()              # on mode change OR price change
-  └─ return status_store {}         # fed to web_server + publishers
+  ├─ SensorValidator.validate()     # Leistungs-Spikes ablehnen
+  ├─ BatteryModel.free_to_charge()  # kWh-Headroom-Berechnung
+  ├─ BatteryModel.useable()         # kWh Entladekapazität
+  ├─ SolcastClient.remaining_today  # verbleibende Solcast-kWh (oder None)
+  ├─ ConsumptionModel.predict()     # predicted_load_kwh + Quellbezeichnung
+  ├─ _determine_mode()              # EMS-Moduslogik
+  ├─ InverterController.apply_mode()# Befehle senden (oder [SIM] loggen)
+  ├─ CostOptimizer.record_tick()    # Energie-/Kosten-Akkumulatoren
+  ├─ EventLog.append()              # bei Moduswechsel ODER Preisänderung
+  └─ return status_store {}         # an web_server + Publisher weitergegeben
 ```
 
-## Authentication Flow
+## Authentifizierungsablauf
 
 ```
 SUPERVISOR_TOKEN  ──▶  http://hassio/homeassistant/api
@@ -81,53 +81,54 @@ SUPERVISOR_TOKEN  ──▶  http://hassio/homeassistant/api
 long_lived_token  ──▶  http://hassio/homeassistant/api
        │ 401?
        ▼
-    Log error, retry in 10 s
+    Fehler loggen, in 10 s erneut versuchen
 ```
 
-Both `HAWebSocketClient` (reads) and `HASensorPublisher` (writes) implement
-this fallback independently so each can switch tokens at runtime.
+Sowohl `HAWebSocketClient` (Lesezugriffe) als auch `HASensorPublisher`
+(Schreibzugriffe) implementieren diesen Fallback unabhängig voneinander,
+sodass jeder zur Laufzeit den Token wechseln kann.
 
-`SUPERVISOR_TOKEN` is also used by:
+`SUPERVISOR_TOKEN` wird außerdem verwendet von:
 
-- `WeatherClient` — to call `weather.get_forecasts` and fetch HA latitude
-- `web_server.py` — to query `http://supervisor/core/api/config` for the HA
-  language (de/en auto-detection)
+- `WeatherClient` — um `weather.get_forecasts` aufzurufen und den HA-Breitengrad abzurufen
+- `web_server.py` — um `http://supervisor/core/api/config` nach der HA-Sprache
+  (de/en Auto-Detection) abzufragen
 
-## Sensor Publishing: MQTT vs REST
+## Sensor-Veröffentlichung: MQTT vs. REST
 
-miniEMS publishes sensors in two ways, with automatic fallback:
+miniEMS veröffentlicht Sensoren auf zwei Wegen mit automatischem Fallback:
 
-| Method | When active | Sensors |
+| Methode | Wann aktiv | Sensoren |
 |---|---|---|
-| **MQTT Discovery** | When an MQTT broker is reachable | Full 30+ sensor set under the *miniEMS* device |
-| **HA REST API** | Always (fallback when MQTT unavailable) | Same sensors via `POST /api/states/sensor.miniems_*` |
+| **MQTT Discovery** | Wenn ein MQTT-Broker erreichbar ist | Alle 28 nativen Sensoren unter dem *miniEMS*-Gerät |
+| **HA REST API** | Immer (Fallback wenn MQTT nicht verfügbar) | Dieselben Sensoren per `POST /api/states/sensor.miniems_*` |
 
-MQTT sensors support long-term statistics in HA (`state_class: total_increasing` / `measurement`).
+MQTT-Sensoren unterstützen Langzeit-Statistiken in HA (`state_class: total_increasing` / `measurement`).
 
-## Sensor Validation (SensorValidator)
+## Sensor-Validierung (SensorValidator)
 
-Power readings are validated on every tick to reject implausible spikes:
+Leistungswerte werden bei jedem Tick validiert, um unplausible Spikes abzulehnen:
 
 ```
-reject if: |current − last_accepted| > 500 W  AND  |Δ| / last_accepted > 50%
+ablehnen wenn: |aktuell − letzter_akzeptierter_Wert| > 500 W  AND  |Δ| / letzter_akzeptierter_Wert > 50%
 ```
 
-Rejected readings return `None`; the EMS skips the tick for that sensor.
-Each entity is tracked independently.
+Abgelehnte Werte geben `None` zurück; der EMS überspringt den Tick für diesen Sensor.
+Jede Entity wird unabhängig verfolgt.
 
-## Downtime Gap Detection
+## Ausfallzeiten-Erkennung
 
-On startup, `CostOptimizer` reads `last_flush_ts` from the SQLite `daily_stats`
-table. If the gap between `last_flush_ts` and `datetime.utcnow()` exceeds two
-update intervals, a data-gap warning is raised and surfaced in the dashboard
-warnings banner.
+Beim Start liest `CostOptimizer` `last_flush_ts` aus der SQLite-Tabelle `daily_stats`.
+Wenn die Lücke zwischen `last_flush_ts` und `datetime.now(timezone.utc)` mehr als zwei
+Update-Intervalle überschreitet, wird eine Datenlücken-Warnung ausgelöst und im
+Warnungsbanner des Dashboards angezeigt.
 
-## Internationalisation (i18n)
+## Internationalisierung (i18n)
 
-On each page request, `web_server.py` queries `http://supervisor/core/api/config`
-to determine the HA language (`language` field). The corresponding YAML file
-(`translations/de.yaml` or `translations/en.yaml`) is loaded and injected into
-both Jinja2 templates and the JavaScript `const T` object so that dynamically
-rendered cards are also translated.
+Bei jeder Seitenanfrage fragt `web_server.py` `http://supervisor/core/api/config`
+ab, um die HA-Sprache (`language`-Feld) zu ermitteln. Die entsprechende YAML-Datei
+(`translations/de.yaml` oder `translations/en.yaml`) wird geladen und sowohl in die
+Jinja2-Templates als auch in das JavaScript-Objekt `const T` injiziert, sodass auch
+dynamisch gerenderte Karten übersetzt werden.
 
-Fallback order: HA Supervisor API → `Accept-Language` header → English.
+Fallback-Reihenfolge: HA Supervisor API → `Accept-Language`-Header → Englisch.

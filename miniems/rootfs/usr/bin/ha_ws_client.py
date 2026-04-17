@@ -24,7 +24,7 @@ class HAWebSocketClient:
     def __init__(
         self,
         entities: list[str],
-        on_state_change: StateCallback,
+        on_state_change: StateCallback | None = None,
         long_lived_token: str = "",
     ) -> None:
         self._entities = set(entities)
@@ -129,7 +129,7 @@ class HAWebSocketClient:
             old = self._state_cache.get(eid)
             self._state_cache[eid] = state
             loaded += 1
-            if old is None or old.get("state") != state.get("state"):
+            if (old is None or old.get("state") != state.get("state")) and self._on_state_change is not None:
                 asyncio.ensure_future(self._on_state_change(eid, state))
 
         _LOGGER.info(

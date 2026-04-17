@@ -1,124 +1,107 @@
 ---
-revision_date: 2026-04-06
+revision_date: 2026-04-07
 ---
 
 # Installation
 
-miniEMS consists of two parts that must both be installed:
+miniEMS besteht aus zwei Teilen, die beide installiert werden müssen:
 
-| Part | What it is | Where it runs |
+| Teil | Was es ist | Wo es läuft |
 |---|---|---|
-| **miniEMS Add-on** | The EMS engine — reads sensors, makes decisions, hosts the dashboard | HA add-on (Docker container) |
-| **miniEMS Integration** | Custom HA integration — creates `sensor.miniems_*` entities in HA | Home Assistant core (`custom_components`) |
+| **miniEMS Add-on** | Die EMS-Engine – liest Sensoren, trifft Entscheidungen, hostet das Dashboard | HA Add-on (Docker-Container) |
+| **miniEMS Integration** | Benutzerdefinierte HA-Integration – erstellt `sensor.miniems_*`-Entitäten in HA | Home Assistant Core (`custom_components`) |
 
 ---
 
-## 1. Install the Add-on
+## 1. Add-on installieren
 
-miniEMS is distributed as a local Home Assistant add-on.
+miniEMS wird als lokales Home Assistant Add-on verteilt.
 
-1. Copy the `miniems/` folder into your HA add-on directory via SSH or Samba:
+1. Kopiere den Ordner `miniems/` per SSH oder Samba in das HA Add-on-Verzeichnis:
    ```
    /addons/local/miniems/
    ```
-2. In HA go to **Settings → Add-ons → Add-on Store → ⋮ → Check for updates**.
-3. The **miniEMS** add-on will appear under **Local add-ons**.
-4. Click **Install**.
-5. Click **Start**. The add-on will launch on port 8080 (ingress).
-6. Open the sidebar panel — you should see the **miniEMS Dashboard** with `Idle` mode. Warnings are expected at this stage.
+2. Gehe in HA zu **Einstellungen → Add-ons → Add-on Store → ⋮ → Nach Updates suchen**.
+3. Das **miniEMS**-Add-on erscheint unter **Lokale Add-ons**.
+4. Klicke auf **Installieren**.
+5. Klicke auf **Starten**. Das Add-on startet auf Port 8080 (Ingress).
+6. Öffne das Seitenleisten-Panel — du solltest das **miniEMS-Dashboard** im Modus `Idle` sehen. Warnungen sind in dieser Phase zu erwarten.
 
 ---
 
-## 2. Install the Custom Integration
+## 2. Custom Integration installieren
 
-The integration creates all `sensor.miniems_*` entities in Home Assistant by polling the add-on's `/api/status` endpoint.
+Die Integration erstellt alle `sensor.miniems_*`-Entitäten in Home Assistant, indem sie den `/api/status`-Endpunkt des Add-ons abfragt.
 
-### Copy the integration files
+!!! info "Automatische Installation"
+    Das Add-on kopiert die Integrationsdateien **automatisch** beim Start nach
+    `/config/custom_components/miniems/`. Es sind keine manuellen Kopierschritte nötig.
+    Stelle sicher, dass das Add-on läuft (Schritt 1), bevor du HA neu startest.
 
-Copy the `integration/` folder from the add-on source into HA's `custom_components` directory:
+### Home Assistant neu starten
 
-```
-/config/custom_components/miniems/
-```
+Ein **vollständiger HA-Neustart** ist erforderlich, um die neue benutzerdefinierte Komponente zu laden — nur das Add-on neu zu starten reicht nicht aus.
 
-The folder must contain these files:
+**Einstellungen → System → Home Assistant neu starten**
 
-```
-custom_components/miniems/
-├── __init__.py
-├── config_flow.py
-├── coordinator.py
-├── manifest.json
-├── sensor.py
-└── strings.json
-```
+### Integration hinzufügen
 
-!!! tip "Where to find the source files"
-    The integration source is included in the add-on package at:
-    `miniems/rootfs/usr/bin/integration/`
-
-### Restart Home Assistant
-
-A **full HA restart** is required to load the new custom component — restarting only the add-on is not enough.
-
-**Settings → System → Restart Home Assistant**
-
-### Add the integration
-
-1. Go to **Settings → Integrations → + Add integration**.
-2. Search for **miniEMS** and select it.
-3. Enter the **Base URL** of the add-on API:
+1. Gehe zu **Einstellungen → Integrationen → + Integration hinzufügen**.
+2. Suche nach **miniEMS** und wähle es aus.
+3. Gib die **Base-URL** der Add-on-API ein:
 
    | Setup | URL |
    |---|---|
-   | Default (same host) | `http://homeassistant:8080` |
-   | Custom / external | `http://<your-ha-ip>:8080` |
+   | Standard (gleicher Host) | `http://homeassistant:8080` |
+   | Benutzerdefiniert / extern | `http://<deine-ha-ip>:8080` |
 
-4. Click **Submit**. The integration tests the connection to `/api/status`. If it succeeds, the **miniEMS** device and all 30 sensors are created immediately.
+4. Klicke auf **Senden**. Die Integration testet die Verbindung zu `/api/status`. Bei Erfolg werden das **miniEMS**-Gerät und alle 28 Sensoren sofort erstellt.
 
-### Options (optional)
+### Optionen (optional)
 
-After setup you can adjust the poll interval:
+Nach der Einrichtung kann das Abfrageintervall angepasst werden:
 
-**Settings → Integrations → miniEMS → Configure**
+**Einstellungen → Integrationen → miniEMS → Konfigurieren**
 
-| Option | Default | Range | Description |
+| Option | Standard | Bereich | Beschreibung |
 |---|---|---|---|
-| Poll interval | 30 s | 10 – 300 s | How often the integration fetches `/api/status` |
+| Abfrageintervall | 30 s | 10 – 300 s | Wie oft die Integration `/api/status` abruft |
 
 ---
 
-## 3. Configure the Add-on
+## 3. Add-on konfigurieren
 
-1. Open the miniEMS sidebar panel and go to the **Settings** tab.
-2. Enter your entity IDs (inverter, price sensor, etc.) and thresholds.
-3. Click **Save & Restart**.
+1. Öffne das miniEMS-Seitenleisten-Panel und gehe zum Tab **Einstellungen**.
+2. Trage deine Entitäts-IDs (Wechselrichter, Preissensor usw.) und Schwellenwerte ein.
+3. Klicke auf **Speichern & Neu starten**.
 
-See [Configuration](configuration.md) for the full settings reference.
+Siehe [Konfiguration](configuration.md) für die vollständige Einstellungsreferenz.
 
 ---
 
 ## Updates
 
-### Add-on update
+### Add-on aktualisieren
 
-1. Replace the add-on files in `/addons/local/miniems/`.
-2. In HA: **Settings → Add-ons → miniEMS → Update** (or restart the add-on).
-3. Configuration is migrated automatically — no manual steps required.
+1. Ersetze die Add-on-Dateien in `/addons/local/miniems/`.
+2. In HA: **Einstellungen → Add-ons → miniEMS → Aktualisieren** (oder Add-on neu starten).
+3. Die Konfiguration wird automatisch migriert — keine manuellen Schritte erforderlich.
 
-### Integration update
+### Integration aktualisieren
 
-1. Replace the files in `/config/custom_components/miniems/` with the new version.
-2. Restart Home Assistant to reload the custom component.
+Das Add-on aktualisiert die Integrationsdateien **automatisch** beim Start, wenn eine neue Version erkannt wird.
 
-!!! note "Config persistence"
-    All settings are stored in `/data/config.json` on the HA host. They survive add-on updates, restarts, and Supervisor reloads.
+1. Aktualisiere das Add-on (siehe oben) und starte es neu.
+2. Starte Home Assistant neu, um die neue benutzerdefinierte Komponente zu laden.
+
+!!! note "Konfigurationspersistenz"
+    Alle Einstellungen werden in `/data/config.json` auf dem HA-Host gespeichert. Sie überleben Add-on-Updates, Neustarts und Supervisor-Neuladen.
 
 ---
 
-## Uninstall
+## Deinstallation
 
-1. Remove the integration: **Settings → Integrations → miniEMS → Delete**.
-2. Stop and remove the add-on via **Settings → Add-ons → miniEMS → Uninstall**.
-3. Delete the integration files: `/config/custom_components/miniems/`.
-4. To also remove stored data: delete `/data/miniems.db` and `/data/config.json` via the HA Terminal add-on.
+1. Integration entfernen: **Einstellungen → Integrationen → miniEMS → Löschen**.
+2. Add-on stoppen und entfernen über **Einstellungen → Add-ons → miniEMS → Deinstallieren**.
+3. Integrationsdateien löschen: `/config/custom_components/miniems/`.
+4. Um auch gespeicherte Daten zu entfernen: `/data/miniems.db` und `/data/config.json` über das HA-Terminal-Add-on löschen.
