@@ -131,6 +131,32 @@ class EMSController:
             if cfg.grid_import_energy_entity
             else None
         )
+        # Scenario 2 sensors (optional – None when entity not configured or unavailable)
+        bat_charge_kwh_ha = (
+            ws.get_state_value(cfg.battery_charge_entity)
+            if cfg.battery_charge_entity
+            else None
+        )
+        bat_discharge_kwh_ha = (
+            ws.get_state_value(cfg.battery_discharge_entity)
+            if cfg.battery_discharge_entity
+            else None
+        )
+        bat_capacity_kwh_ha = (
+            ws.get_state_value(cfg.battery_capacity_entity)
+            if cfg.battery_capacity_entity
+            else None
+        )
+        today_production_kwh_ha = (
+            ws.get_state_value(cfg.today_production_entity)
+            if cfg.today_production_entity
+            else None
+        )
+        today_losses_kwh_ha = (
+            ws.get_state_value(cfg.today_losses_entity)
+            if cfg.today_losses_entity
+            else None
+        )
         self._optimizer.record_tick(
             grid_power_w=grid_w,
             pv_power_w=pv_w,
@@ -141,6 +167,10 @@ class EMSController:
             outdoor_temp_c=outdoor_temp,
             feed_in_kwh_ha=feed_in_kwh_ha,
             grid_import_kwh_ha=grid_import_kwh_ha,
+            bat_charge_kwh_ha=bat_charge_kwh_ha,
+            bat_discharge_kwh_ha=bat_discharge_kwh_ha,
+            today_production_kwh_ha=today_production_kwh_ha,
+            today_losses_kwh_ha=today_losses_kwh_ha,
         )
         await self._optimizer.flush_to_db()
 
@@ -189,7 +219,22 @@ class EMSController:
         gc_cost = summary.get("today_grid_charge_cost_eur", 0.0)
         load_kwh = summary.get("today_load_total_kwh", 0.0)
         result["today_cost_without_grid_charge"] = round(max(0.0, grid_cost - gc_cost), 6)
-        result["today_cost_fix_price_tariff"] = round(load_kwh * cfg.fix_price, 6)
+        result["today_cost_fix_price_tariff"] = round(load_kwh * cfg.fix_price + cfg.daily_base_price_eur, 6)
+
+        # Scenario 2: battery capacity from sensor (fallback to config value)
+        if bat_capacity_kwh_ha is not None:
+            result["battery_capacity_kwh"] = round(bat_capacity_kwh_ha, 2)
+        else:
+            result["battery_capacity_kwh"] = cfg.battery_capacity_kwh
+
+        # Battery state string from sensor
+        bat_state_ha = (
+            ws.get_state_value(cfg.battery_state_entity)
+            if cfg.battery_state_entity
+            else None
+        )
+        if bat_state_ha is not None:
+            result["battery_state"] = bat_state_ha
 
         # Solcast values
         if self._solcast:

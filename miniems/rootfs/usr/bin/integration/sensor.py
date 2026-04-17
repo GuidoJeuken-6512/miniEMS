@@ -297,6 +297,62 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:battery-minus",
     ),
+    MiniEMSSensorDescription(
+        key="miniems_battery_capacity_kwh",
+        status_key="battery_capacity_kwh",
+        name="Battery Capacity",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:battery",
+    ),
+    # ── Scenario 2: efficiency / bilanz / ROI ────────────────────────────────
+    # These sensors are only available when the corresponding inverter entities
+    # are configured (today_production_entity, today_losses_entity, etc.).
+    MiniEMSSensorDescription(
+        key="miniems_today_efficiency_pct",
+        status_key="today_efficiency_pct",
+        name="Today Inverter Efficiency",
+        native_unit_of_measurement="%",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:gauge",
+    ),
+    MiniEMSSensorDescription(
+        key="miniems_today_grid_charge_kwh_bilanz",
+        status_key="today_grid_charge_kwh_bilanz",
+        name="Today Grid Charge (Energy Balance)",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:battery-charging-outline",
+    ),
+    MiniEMSSensorDescription(
+        key="miniems_today_grid_charge_cost_bilanz_eur",
+        status_key="today_grid_charge_cost_bilanz_eur",
+        name="Today Grid Charge Cost (Energy Balance)",
+        native_unit_of_measurement=_EUR,
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:cash",
+    ),
+    MiniEMSSensorDescription(
+        key="miniems_today_grid_charge_roi_eur",
+        status_key="today_grid_charge_roi_eur",
+        name="Today Grid Charge ROI",
+        native_unit_of_measurement=_EUR,
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:trending-up",
+    ),
+    MiniEMSSensorDescription(
+        key="miniems_today_base_price_eur",
+        status_key="today_base_price_eur",
+        name="Today Base Price",
+        native_unit_of_measurement=_EUR,
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:receipt",
+    ),
 )
 
 

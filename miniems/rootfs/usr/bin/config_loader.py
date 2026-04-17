@@ -67,6 +67,23 @@ class Config:
     feed_in_energy_entity: str = "sensor.deye8k_today_energy_export"
     # Grid import energy sensor – daily total from inverter (optional; falls back to calculated)
     grid_import_energy_entity: str = "sensor.deye8k_today_energy_import"
+    # --- Scenario 2: Grid-charge cost / efficiency / ROI (optional; enables bilanz-based calculation) ---
+    # Daily battery charge/discharge totals from inverter
+    battery_charge_entity: str = "sensor.deye8k_today_battery_charge"
+    battery_discharge_entity: str = "sensor.deye8k_today_battery_discharge"
+    # Battery capacity sensor – replaces fixed battery_capacity_kwh when set
+    battery_capacity_entity: str = "sensor.deye8k_battery_capacity"
+    # Battery state enum sensor (charging / discharging / idle)
+    battery_state_entity: str = "sensor.deye8k_battery_state"
+    # PV production and losses – required for inverter efficiency calculation
+    today_production_entity: str = "sensor.deye8k_today_production"
+    today_losses_entity: str = "sensor.deye8k_today_losses"
+    # Real-time power losses (W) – for live efficiency display
+    power_losses_entity: str = "sensor.deye8k_power_losses"
+    # Fixed daily base/standing charge (€/day) added on top of energy costs
+    daily_base_price_eur: float = 0.0
+    # Average discharge tariff for ROI calculation (€/kWh); 0 = auto-derive from price tiers
+    avg_discharge_tariff_eur_kwh: float = 0.0
 
     @property
     def monitored_entities(self) -> list[str]:
@@ -87,7 +104,19 @@ class Config:
             if e
         ]
         optional = [e for e in [self.feed_in_energy_entity, self.grid_import_energy_entity] if e]
-        return base + solcast + optional
+        scenario2 = [
+            e for e in [
+                self.battery_charge_entity,
+                self.battery_discharge_entity,
+                self.battery_capacity_entity,
+                self.battery_state_entity,
+                self.today_production_entity,
+                self.today_losses_entity,
+                self.power_losses_entity,
+            ]
+            if e
+        ]
+        return base + solcast + optional + scenario2
 
 
 def _defaults() -> dict:
