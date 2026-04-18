@@ -22,6 +22,13 @@ else
     echo "Warning: SimpleScheduler directory not found in workspace at $WORKSPACE_DIR/SimpleScheduler"
 fi
 
+# Patch supervisor_run to inject devcontainer patches as volume mounts.
+# This ensures the firewall and API patches are active from first supervisor boot,
+# avoiding the docker_gateway_unprotected health block.
+echo "Patching supervisor_run..."
+sudo sed -i "s|-v /etc/machine-id:/etc/machine-id:ro \\\\|-v /etc/machine-id:/etc/machine-id:ro \\\\\n        -v \"\${WORKSPACE_DIRECTORY:-$WORKSPACE_DIR}/supervisor_firewall_patch.py:/usr/src/supervisor/supervisor/host/firewall.py:ro\" \\\\|" /usr/bin/supervisor_run
+grep -q "supervisor_firewall_patch" /usr/bin/supervisor_run && echo "supervisor_run patched OK" || echo "WARNING: supervisor_run patch failed"
+
 echo "Devcontainer setup complete."
 
 

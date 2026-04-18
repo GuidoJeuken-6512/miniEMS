@@ -1,13 +1,17 @@
 """integration_installer.py – copies bundled integration files to /config/custom_components/miniems/.
 
 Called once at addon startup. Skips write if the installed version already matches.
+After a successful update, triggers a reload of the integration via the HA API.
 """
 from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import shutil
 from pathlib import Path
+
+import aiohttp
 
 import const
 from const import INTEGRATION_SOURCE_DIR, INTEGRATION_TARGET_DIR
@@ -79,3 +83,47 @@ async def install_integration() -> None:
         files_written,
         files_skipped,
     )
+
+    if files_written > 0:
+        await _reload_integration()
+
+
+async def _reload_integration() -> None:
+    """Ask HA Core to reload the miniems integration via the Supervisor proxy."""
+    token = os.environ.get("SUPERVISOR_TOKEN", "")
+    if not token:
+        _LOGGER.warning("No SUPERVISOR_TOKEN – cannot reload integration")
+        return
+    url = f"{const.HA_API_BASE}/config/config_entries/entry/reload"
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Fetch the config entry id for the miniems domain
+            async with session.get(
+                f"{const.HA_API_BASE}/config/config_entries",
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                if resp.status != 200:
+                    _LOGGER.warning("Could not fetch config entries (HTTP %s)", resp.status)
+                    return
+                entries = await resp.json()
+
+            entry_id = next(
+                (e["entry_id"] for e in entries if e.get("domain") == "miniems"), None
+            )
+            if not entry_id:
+                _LOGGER.warning("miniems config entry not found – skipping reload")
+                return
+
+            async with session.post(
+                f"{const.HA_API_BASE}/config/config_entries/{entry_id}/reload",
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                if resp.status in (200, 204):
+                    _LOGGER.info("Integration reloaded successfully (entry %s)", entry_id)
+                else:
+                    _LOGGER.warning("Integration reload returned HTTP %s", resp.status)
+    except Exception as exc:
+        _LOGGER.warning("Integration reload failed: %s", exc)

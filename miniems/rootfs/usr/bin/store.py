@@ -62,6 +62,8 @@ class EnergyStore:
             "kwh_high_rate REAL DEFAULT 0",
             "kwh_medium_rate REAL DEFAULT 0",
             "kwh_low_rate REAL DEFAULT 0",
+            "grid_charge_kwh_bilanz REAL DEFAULT 0",
+            "efficiency_pct REAL DEFAULT 0",
         ):
             try:
                 await self._db.execute(f"ALTER TABLE daily_stats ADD COLUMN {col_def}")

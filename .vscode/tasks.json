@@ -4,7 +4,7 @@
     {
       "label": "Start Home Assistant",
       "type": "shell",
-      "command": "if docker ps > /dev/null 2>&1 && docker ps | grep -q hassio_supervisor; then echo 'Home Assistant supervisor is already running'; docker ps | grep hassio_supervisor; elif docker ps > /dev/null 2>&1; then echo 'Docker is running but supervisor container not found. Starting...'; nohup supervisor_run > /tmp/supervisor.log 2>&1 & sleep 5; echo 'Supervisor starting. Check /tmp/supervisor.log for details.'; else echo 'Starting Home Assistant (Docker may take up to 30 seconds to start)...'; nohup supervisor_run > /tmp/supervisor.log 2>&1 & sleep 10; for i in {1..6}; do if docker ps > /dev/null 2>&1; then echo \"Docker started successfully\"; break; else echo \"Waiting for Docker... ($i/6)\"; sleep 5; fi; done; if docker ps > /dev/null 2>&1; then echo 'Home Assistant supervisor is starting. Check /tmp/supervisor.log for details.'; else echo 'Error: Docker failed to start. Check /tmp/supervisor.log'; fi; fi",
+      "command": "mkdir -p /run/supervisor && if docker ps > /dev/null 2>&1 && docker ps | grep -q hassio_supervisor; then echo 'Home Assistant supervisor is already running'; docker ps | grep hassio_supervisor; else supervisor_run; fi",
       "group": {
         "kind": "test",
         "isDefault": true
@@ -18,7 +18,7 @@
     {
       "label": "Restart Home Assistant",
       "type": "shell",
-      "command": "echo 'Stopping Home Assistant...'; pkill -f 'supervisor_run|supervisor' || true; sleep 2; echo 'Starting Home Assistant...'; nohup supervisor_run > /tmp/supervisor.log 2>&1 & sleep 3; if pgrep -f 'supervisor_run|supervisor' > /dev/null; then echo 'Home Assistant restarted successfully'; else echo 'Failed to restart. Check /tmp/supervisor.log'; fi",
+      "command": "echo 'Restarting Home Assistant...'; mkdir -p /run/supervisor && supervisor_run",
       "group": {
         "kind": "test",
         "isDefault": false
@@ -32,7 +32,7 @@
     {
       "label": "Start Home Assistant (Foreground)",
       "type": "shell",
-      "command": "supervisor_run",
+      "command": "mkdir -p /run/supervisor && supervisor_run",
       "group": {
         "kind": "test",
         "isDefault": false

@@ -57,7 +57,21 @@
       "Bash(docker exec addon_local_miniems curl -s http://localhost:8080/api/status)",
       "Bash(docker exec addon_local_miniems curl -s -X POST \"http://hassio/homeassistant/api/services/weather/get_forecasts?return_response\" -H \"Authorization: Bearer 1d22f8edfd216d9c790335e916293768bc545cae51808a28636d7ba59b0b5b070ea493dda845a763ddf27d06d444878c5d15be987e7cbc53\" -H \"Content-Type: application/json\" -d '{\"\"entity_id\"\":\"\"weather.openweathermap\"\",\"\"type\"\":\"\"daily\"\"}')",
       "Bash(sudo mkdir:*)",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('State',{}\\)\\)\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('State',{}\\)\\)\")",
+      "Bash(curl -s http://supervisor/resolution)",
+      "Bash(python3 -m json.tool)",
+      "Bash(env)",
+      "Bash(curl -s --unix-socket /var/run/docker.sock http://localhost/version)",
+      "Bash(ping -c1 172.30.32.2)",
+      "Bash(ping -c1 supervisor)",
+      "Bash(docker cp *)",
+      "Bash(chmod +x /mnt/supervisor/addons/local/miniEMS/apply_supervisor_patch.sh)",
+      "Bash(bash /mnt/supervisor/addons/local/miniEMS/apply_supervisor_patch.sh)",
+      "Bash(supervisor_run)",
+      "Bash(echo \"supervisor_run started \\(PID $!\\)\")",
+      "Bash(sudo service *)",
+      "Bash(sudo sed *)",
+      "Bash(sqlite3 /mnt/supervisor/addons/data/local_miniems/miniems.db \"ALTER TABLE daily_stats ADD COLUMN grid_charge_kwh_bilanz REAL DEFAULT 0;\")"
     ]
   }
 }
