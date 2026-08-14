@@ -1,8 +1,14 @@
 """In-memory ring buffer of EMS events for miniEMS, backed by SQLite.
 
 Entries are added whenever:
-  - The EMS switches grid-charge mode on or off  (entry_type="mode_change")
-  - The electricity price changes                (entry_type="price_change")
+  - The EMS operating mode changes (Idle / PV Charging / Export Surplus /
+    Grid Charging / Battery Protection)             (entry_type="mode_change")
+  - The electricity price changes                    (entry_type="price_change")
+
+Each mode_change entry carries the new `mode` and the `reason` the decision
+logic produced for it (e.g. "time backstop", "forecast below battery need")
+so the frontend can explain grid-friendly PV strategy transitions, not just
+show that *something* changed.
 
 The buffer is capped at max_entries (oldest entries evicted automatically).
 to_list() returns entries newest-first for the frontend log panel.
@@ -32,6 +38,8 @@ class LogEntry:
     predicted_load_kwh: float | None
     entry_type: str = "mode_change"        # "mode_change" | "price_change"
     price_eur_kwh: float | None = None     # filled for price_change entries
+    mode: str = ""                         # EMSMode.value at the time of this entry
+    reason: str = ""                       # ModeDecision.reason, e.g. "time backstop"
 
 
 class EventLog:
@@ -66,6 +74,8 @@ class EventLog:
                 predicted_load_kwh=row["predicted_load_kwh"],
                 entry_type=row["entry_type"],
                 price_eur_kwh=row["price_eur_kwh"],
+                mode=row.get("mode") or "",
+                reason=row.get("reason") or "",
             ))
         _LOGGER.info("EventLog: restored %d entries from DB", len(rows))
 

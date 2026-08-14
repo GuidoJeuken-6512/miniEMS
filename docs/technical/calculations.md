@@ -1,52 +1,111 @@
 ---
-revision_date: 2026-04-07
+revision_date: 2026-08-14
 ---
 
 # Berechnungen
 
-## EMS-Moduse-Entscheidung (`EMSController._determine_mode`)
+## EMS-Modus-Entscheidung (`EMSController._decide` / `_commit`)
 
-Der Controller bewertet vier sich gegenseitig ausschließende Modi in Prioritätsreihenfolge:
+Der Controller bewertet fünf sich gegenseitig ausschließende Modi, in dieser Prioritätsreihenfolge, bei jedem Tick neu:
 
 ```
-1. BATTERY_PROTECTION  — battery_soc < battery_min_soc
-2. PV_CHARGING         — (pv_w − load_w) > pv_surplus_threshold_w  AND  soc bekannt UND soc < max_soc
-3. GRID_CHARGING       — price < cheap_rate_threshold_eur
-                         AND  soc bekannt UND soc < max_soc
-                         AND  bat_kwh_free > solcast_remaining_today_kwh
-                              (Fallback auf Verbrauchsmodell wenn Solcast nicht verfügbar)
-4. IDLE                — keiner der obigen Fälle, ODER SoC-Sensor nicht verfügbar
+1. IDLE               — battery_soc_entity fehlt oder veraltet (sensor_max_age_sec)
+2. PROTECT_BATTERY     — soc < battery_min_soc
+                         ODER (zuvor PROTECT_BATTERY UND soc < battery_min_soc + battery_soc_hysteresis_pct)
+3. IDLE                — soc ≥ battery_max_soc ("battery full")
+4. EXPORT_SURPLUS       — (pv_w − load_w) > pv_surplus_threshold_w  UND  Export-Halt aktiv (siehe unten)
+   PV_CHARGING          — (pv_w − load_w) > pv_surplus_threshold_w  UND  Export-Halt NICHT aktiv
+5. GRID_CHARGING        — Preis günstig UND Netzlade-Bedingungen erfüllt (siehe unten)
+6. IDLE                — keiner der obigen Fälle ("no action")
 ```
+
+Jede Bedingung wird **fail closed** ausgewertet: Fehlt oder veraltet ein benötigter Sensorwert, wählt der Controller den sicheren Weg (kein Laden vom Netz, kein Zurückhalten von PV-Ladung) statt zu raten.
 
 !!! note "SoC-Sensor nicht verfügbar"
-    Wenn der `battery_soc_entity`-Sensor keinen Wert liefert, werden PV Charging
-    und Grid Charging deaktiviert und das System verbleibt im **IDLE**-Modus.
-    Dies ist eine Sicherheitsmaßnahme, um unkontrolliertes Laden bei unbekanntem
-    Akkustand zu verhindern.
+    Liefert `battery_soc_entity` keinen Wert oder ist länger als `sensor_max_age_sec` (Standard 300 s) nicht aktualisiert worden, springt der Controller sofort und ohne Verzögerung (`urgent`) in **IDLE** und überlässt die Steuerung der eigenen Selbstverbrauchslogik des Wechselrichters. Das ist die zentrale Sicherheitsmaßnahme gegen unkontrolliertes Laden bei unbekanntem Akkustand.
 
 ### PV-Überschuss
 
 ```
-surplus_w = pv_power_w - load_power_w
+surplus_w = pv_power_w − load_power_w
 ```
 
-Wenn `surplus_w > pv_surplus_threshold_w` (Standard: 200 W) und der Akku nicht voll ist
-(`soc < battery_max_soc`), wechselt das System in den Modus **PV Charging**.
+Nur berechnet, wenn **beide** Leistungssensoren einen aktuellen Wert liefern (nicht älter als `sensor_max_age_sec`); sonst gilt `surplus_w` als unbekannt und der Controller fährt mit Schritt 5 (Netzladen) fort. Ist `surplus_w > pv_surplus_threshold_w` (Standard 200 W), entscheidet der Export-Halt (nächster Abschnitt), ob der Modus **PV Charging** oder **Export Surplus** wird.
 
-### Netzlade-Entscheidung
+### Netzfreundlicher Export-Halt (`_should_hold_pv_charge`, Modus `EXPORT_SURPLUS`)
 
-```python
-bat_kwh_free = (max_soc - soc) / 100 * capacity_kwh
+Optionale Strategie (`pv_export_priority_enabled`, Standard aus): exportiert PV-Überschuss ins Netz, statt die Batterie sofort zu laden, solange die Solcast-Restprognose für den Tag über dem noch benötigten Bedarf liegt. Jeder der folgenden Punkte muss erfüllt sein, damit gehalten (`hold = True`, Modus `EXPORT_SURPLUS`) statt geladen wird — **jeder** fehlgeschlagene Punkt löst sofort `PV_CHARGING` aus:
 
-# Primärpfad: Solcast verfügbar
-should_grid_charge = bat_kwh_free > solcast_remaining_today_kwh
+```
+1. pv_export_priority_enabled == true
+2. now.hour < pv_charge_backstop_hour              (Standard 14 Uhr — danach immer laden)
+3. bat_soc ≥ pv_export_min_soc_pct                 (Standard 30 % — darunter immer laden)
+4. bat_kwh_free > 0.05 kWh                          (praktisch noch Platz vorhanden)
+5. solcast_remaining_today_kwh verfügbar UND nicht veraltet (forecast_max_age_sec)
 
-# Fallback: kein Solcast
-should_grid_charge = (predicted_load > 0) AND (useable_kwh + predicted_pv < predicted_load)
+target    = bat_kwh_free × pv_charge_margin_factor          # Standard-Faktor 1,2
+hyst      = clamp(pv_charge_hysteresis_frac, 0.0, 0.5)       # Standard 0,10 (±10 %)
+threshold = target × (1 − hyst)   wenn aktuell EXPORT_SURPLUS   # leichter halten
+          = target × (1 + hyst)   sonst                        # schwerer eintreten
+
+hold = solcast_remaining_today_kwh > threshold
 ```
 
-Der Solcast-Pfad wird bevorzugt, da er tatsächliche Solarstrahlungsprognosen berücksichtigt.
-Der Fallback verwendet das temperaturbasierte Verbrauchsmodell.
+Die Schwelle ist bewusst asymmetrisch (Hysterese): Um **in** den Export-Halt zu wechseln, muss die Restprognose deutlich über dem Bedarf liegen; um ihn **zu verlassen**, genügt ein kleinerer Rückgang. So flattert der Modus nicht um den Umschaltpunkt.
+
+Ist der Export-Halt aktiv, setzt `InverterController.apply_mode()` den Ladestrom auf `export_hold_charge_current_a` (Standard 0 A = Laden komplett blockiert) und lässt den Entladestrom auf Maximum, damit eine vorbeiziehende Wolke weiterhin aus der Batterie statt aus dem Netz gedeckt wird.
+
+### Netzlade-Entscheidung (`_should_grid_charge`, Modus `GRID_CHARGING`)
+
+```
+1. electricity_price_entity verfügbar UND nicht veraltet (price_max_age_sec)
+2. price_eur_kwh < cheap_rate_threshold_eur
+3. bat_kwh_free > grid_charge_min_free_kwh          (Standard 1,0 kWh — sonst lohnt sich Laden nicht)
+
+Wenn solcast_remaining_today_kwh verfügbar (nicht veraltet):
+    should_grid_charge = bat_kwh_free > solcast_remaining_today_kwh × pv_charge_margin_factor
+                                          + grid_charge_min_free_kwh
+
+Sonst (keine Prognose verfügbar):
+    # "Es kann heute keine Sonne mehr kommen" — nur im konfigurierten Dunkelfenster laden
+    should_grid_charge = grid_charge_dark_start_hour ≤ now.hour < grid_charge_dark_end_hour
+                          (Standard 21–6 Uhr; über Mitternacht hinweg zulässig)
+```
+
+!!! warning "Nicht mehr an das interne Verbrauchsmodell gekoppelt"
+    Frühere miniEMS-Versionen nutzten bei fehlender Solcast-Prognose die interne Verbrauchsvorhersage (`ConsumptionModel`, Abschnitt unten) als Fallback für die Netzlade-Entscheidung. Das ist seit der netzfreundlichen PV-Strategie (Phase 7) nicht mehr der Fall: Ohne Solcast-Prognose wird **ausschließlich** anhand des Dunkelfensters entschieden. `ConsumptionModel.predicted_pv_kwh` und `.predicted_load_kwh` fließen aktuell in **keine** Steuerungsentscheidung mehr ein — sie sind reine Dashboard-Anzeigewerte (siehe Abschnitt „Verbrauchs- & PV-Vorhersage" weiter unten auf dieser Seite).
+
+### Batterieschutz-Hysterese
+
+```
+Eintritt:  soc < battery_min_soc                                     → PROTECT_BATTERY (sofort)
+Verlassen: erst wenn soc ≥ battery_min_soc + battery_soc_hysteresis_pct   (Standard 2 %)
+```
+
+Ohne dieses Totband würde der Modus bei einem SoC, der exakt um `battery_min_soc` schwankt, bei jedem Tick zwischen `PROTECT_BATTERY` und einem anderen Modus hin- und herspringen.
+
+### Modus-Entprellung (`_commit`, `mode_dwell_sec`)
+
+Ein neu vorgeschlagener Modus wird nicht sofort übernommen, sondern muss erst eine Weile stabil angefordert werden — außer die Entscheidung ist als **urgent** markiert (SoC-Schutz, fehlender/veralteter SoC-Sensor, oder ein durch eine Sicherheits-Guard beendeter Export-Halt):
+
+```
+Wenn decision.mode == aktueller Modus:
+    kein Wechsel, pending zurückgesetzt
+
+Wenn decision.urgent ODER mode_dwell_sec ≤ 0:
+    sofort übernehmen
+
+Sonst:
+    Wenn decision.mode ≠ zuvor vorgeschlagener Modus:
+        neuer Vorschlag, Timer bei now starten
+    waited = now − pending_since
+    Wenn waited < mode_dwell_sec:
+        aktuellen Modus beibehalten (wartet weiter)
+    Sonst:
+        Modus übernehmen
+```
+
+Standard `mode_dwell_sec` = 300 s. Das verhindert schnelles Umschalten bei kurzen Preis- oder PV-Schwankungen, ohne bei echten Notfällen (leerer Akku, Sensorausfall) zu verzögern.
 
 ---
 
@@ -56,6 +115,14 @@ Der Fallback verwendet das temperaturbasierte Verbrauchsmodell.
 free_to_charge_kwh = max(0,  (max_soc − soc) / 100  × capacity_kwh)
 useable_kwh        = max(0,  (soc − min_soc) / 100  × capacity_kwh)
 ```
+
+`capacity_kwh` kommt standardmäßig aus `battery_capacity_kwh` (fester Config-Wert), wird aber bei jedem Tick durch den Live-Sensor `battery_capacity_entity` ersetzt, falls dieser konfiguriert ist **und** ein plausibler Wert liefert:
+
+```
+plausibel := 0.5 × battery_capacity_kwh ≤ Sensorwert ≤ 2.0 × battery_capacity_kwh
+```
+
+Diese Plausibilitätsbande verhindert, dass ein falsch skalierter Sensor (z. B. eine Ah- statt kWh-Angabe) die Lade-/Entscheidungslogik mit einem absurden Kapazitätswert versorgt — außerhalb der Bande wird stattdessen der feste Config-Wert verwendet.
 
 ---
 
@@ -75,7 +142,7 @@ Ein Messwert wird abgelehnt (durch den letzten akzeptierten Wert ersetzt), wenn:
 |delta| > 500 W  AND  |delta| / vorheriger_Wert > 50 %
 ```
 
-Wenn kein vorheriger Wert für einen Sensor vorhanden ist, wird 0 W als Fallback verwendet.
+Wenn kein vorheriger Wert für einen Sensor vorhanden ist, wird die erste Messung immer akzeptiert.
 
 ### Intervall-Dauer
 
@@ -170,7 +237,9 @@ grid_charge_cost_eur += kwh_gc × price_eur_kwh
 ```
 
 `grid_charge_w` ist der Teil der Akkuleistung, der nicht durch überschüssige PV
-gedeckt werden kann — er muss daher aus dem Netz stammen.
+gedeckt werden kann — er muss daher aus dem Netz stammen. Diese leistungsbasierte
+Schätzung ist die Grundlage für `today_grid_charge_cost_eur`; sie ist unabhängig
+von der bilanzbasierten Scenario-2-Berechnung weiter unten.
 
 ---
 
@@ -205,6 +274,62 @@ Standard: 0,08 €/kWh), nicht den Spotpreis.
 
 ---
 
+### Bilanzbasierte Netzladung, Wirkungsgrad & ROI (Scenario 2, optional)
+
+Nur aktiv, wenn die entsprechenden erweiterten Sensoren konfiguriert sind — siehe Abschnitt „Erweiterte Sensoren für bilanzbasierte Kostenberechnung" in der [Konfiguration](../user/configuration.md). Ergänzt — ersetzt nicht — die leistungsbasierte Berechnung oben; alle Werte sind `None`/abwesend, solange die nötigen Eingaben fehlen.
+
+#### Bilanzierte Netzlademenge (`today_grid_charge_kwh_bilanz`)
+
+Berechnet aus den **Tages-Gesamtsensoren** des Wechselrichters statt aus Momentanleistungen — dadurch robuster gegenüber kurzen Messlücken:
+
+```
+Energie_Netzladen = today_energy_import − today_load_consumption + today_battery_discharge
+today_grid_charge_kwh_bilanz = max(0, Energie_Netzladen)
+```
+
+Nur berechnet, wenn `battery_discharge_entity` **und** `grid_import_energy_entity` verfügbar sind (`today_load_consumption` kommt aus dem intern mitgeführten `load_total_kwh`-Akkumulator).
+
+`today_grid_charge_cost_bilanz_eur` wendet den durchschnittlichen Preis pro kWh des leistungsbasierten Akkumulators auf diese Menge an:
+
+```
+today_grid_charge_cost_bilanz_eur = today_grid_charge_kwh_bilanz
+                                     × (today_grid_charge_cost_eur / today_grid_charge_kwh)
+                                     (0, wenn today_grid_charge_kwh == 0)
+```
+
+#### Wechselrichter-Wirkungsgrad (`today_efficiency_pct`)
+
+```
+η = (today_production_entity − today_losses_entity) / today_production_entity
+    (None, wenn today_production_entity ≤ 0 oder eine der beiden Entities fehlt)
+```
+
+#### ROI der Netzladung (`today_grid_charge_roi_eur`)
+
+```
+Gewinn_Netzladen = (Energie_Netzladen × η × Ø_Tarif_Entladung) − Kosten_Netzladen
+```
+
+```
+usable_kwh = today_grid_charge_kwh_bilanz × η
+saving_eur = usable_kwh × avg_discharge_tariff_eur_kwh
+roi_eur    = saving_eur − today_grid_charge_cost_eur
+```
+
+Nur berechnet, wenn `today_grid_charge_kwh_bilanz > 0`, `η > 0` **und** `avg_discharge_tariff_eur_kwh > 0` konfiguriert ist (Standard `0.0` = deaktiviert). `avg_discharge_tariff_eur_kwh` ist der angenommene Bezugspreis, den die entladene Energie sonst gekostet hätte — vergleicht also die Kosten der Netzladung mit dem Wert der damit später verdrängten (sonst teureren) Netzentnahme.
+
+#### Auswirkung auf `today_cost_without_grid_charge`
+
+Ist die bilanzbasierte Kostenschätzung verfügbar, wird sie anstelle der leistungsbasierten für diese Metrik bevorzugt:
+
+```
+gc_cost_für_subtraktion = today_grid_charge_cost_bilanz_eur, falls vorhanden,
+                          sonst today_grid_charge_cost_eur
+today_cost_without_grid_charge = max(0, today_grid_cost_eur − gc_cost_für_subtraktion)
+```
+
+---
+
 ### Abgeleitete Metriken (berechnet in `ems_controller.py`)
 
 Diese werden einmal pro Tick aus den akkumulierten Werten oben berechnet und
@@ -212,8 +337,8 @@ dem Status-Dict hinzugefügt.
 
 | Entity | Formel | Bedeutung |
 | ---|---|---|
-| `today_cost_without_grid_charge` | `max(0, grid_cost_eur − grid_charge_cost_eur)` | Was die Netzrechnung ohne Akku-Netzladung gewesen wäre |
-| `today_cost_fix_price_tariff` | `load_total_kwh × fix_price` | Was die heutige Last beim festen Referenztarif kosten würde (Standard: 0,30 €/kWh) |
+| `today_cost_without_grid_charge` | `max(0, grid_cost_eur − gc_cost_für_subtraktion)` | Was die Netzrechnung ohne Akku-Netzladung gewesen wäre (siehe Scenario-2-Vorrang oben) |
+| `today_cost_fix_price_tariff` | `load_total_kwh × fix_price + daily_base_price_eur` | Was die heutige Last beim festen Referenztarif zzgl. Grundpreis kosten würde (Standard: 0,30 €/kWh, `daily_base_price_eur` Standard 0) |
 
 ---
 
@@ -299,11 +424,21 @@ abgefragt über `store.query_month()`.
 Einmal pro EMS-Tick in `consumption_model.py` berechnet.
 Datenquelle: SQLite-Tageshistorie (`store.py`) + optionale HA-Wettervorhersage.
 
+!!! info "Nur Dashboard-Anzeige, keine Steuerungswirkung"
+    Beide Vorhersagewerte (`predicted_load_kwh`, `predicted_pv_kwh`) werden unabhängig
+    davon berechnet, ob Solcast konfiguriert ist, und ausschließlich für die
+    Dashboard-Anzeige verwendet. Die eigentliche Netzlade- und Export-Entscheidung
+    verwendet ausschließlich die Solcast-Restprognose (siehe Abschnitt
+    „Netzlade-Entscheidung" weiter oben auf dieser Seite) — dieses Modell
+    fließt dort **nicht** mehr ein.
+
 ### Vorhergesagte Last (`predicted_load_kwh`)
 
 ```
 Wenn weather_entity konfiguriert UND Vorhersage verfügbar:
-  target_temp   = maximale Temperatur von morgen (aus HA-Vorhersage)
+  target_temp   = morgiger Vorhersagewert, den das Modell als "Nachttemperatur" führt
+                  (tatsächlich: morgige Tageshöchsttemperatur aus der HA-Vorhersage — die
+                  Benennung ist historisch, siehe Quellcode-Kommentar in consumption_model.py)
   similar_days  = Tage der letzten 60 Tage mit |avg_temp − target| ≤ 4 °C
   Wenn len(similar_days) ≥ 3:
     predicted_load = Median(load_total_kwh ähnlicher Tage)  → Quelle: "historical"
@@ -311,8 +446,6 @@ Wenn weather_entity konfiguriert UND Vorhersage verfügbar:
     → temperaturbasierte Fallback-Regeln (siehe unten)       → Quelle: "fallback"
 Sonst:
   → temperaturbasierte Fallback-Regeln                       → Quelle: "fallback"
-Keine Historie:
-  predicted_load = 0.0 kWh                                   → Quelle: "fallback"
 ```
 
 #### Temperatur-Fallback-Regeln
@@ -322,18 +455,16 @@ Keine Historie:
 | Nachttemp. < 0 °C und Tagtemp. < 0 °C | 30 kWh |
 | Nachttemp. < 0 °C und Tagtemp. < 10 °C | 20 kWh |
 | Nachttemp. > 0 °C und Tagtemp. < 15 °C | 10 kWh |
-| Andernfalls | 5 kWh |
+| Andernfalls (z. B. milde/warme Tage außerhalb der drei Regeln) | Median vorhandener historischer Tage, sonst `0,0 kWh` |
 
 ### Vorhergesagter PV-Ertrag (`predicted_pv_kwh`)
 
-Interne Schätzung, nur verwendet wenn Solcast nicht verfügbar.
-
 ```
 peaks    = [peak_pv_w | letzte 14 Tage, peak_pv_w > 100 W]
-p75      = 75. Perzentile(peaks)   (konservative Schätzung)
+p75      = 75. Perzentil(peaks), Rangverfahren: sortierte Liste, Index ⌊n × 0,75⌋
 
 Mit Vorhersage:
-  clear_frac  = Mittelwert(1 − cloud_coverage / 100) über Vorhersage-Slots
+  clear_frac  = Mittelwert(1 − cloud_coverage / 100) über alle Vorhersage-Slots
   daylight_h  = astronomische Tageslänge für HA-Breitengrad + aktueller Monat
   pv_factor   = clear_frac × min(1.0, daylight_h / 12.0)
 
@@ -343,6 +474,8 @@ Ohne Vorhersage:
 
 predicted_pv = max(0, (p75 / 1000) × pv_factor × daylight_h)
 ```
+
+Liefert `0,0 kWh`, wenn in den letzten 14 Tagen kein Peak-PV-Wert über 100 W aufgezeichnet wurde (z. B. direkt nach der Installation).
 
 **Tageslängen-Formel** (`daylight_hours_approx` in `weather_client.py`):
 

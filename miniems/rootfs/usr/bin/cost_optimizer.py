@@ -31,6 +31,15 @@ class CostOptimizer:
         self._grid_charge_cost_eur: dict[date, float] = defaultdict(float)
         self._feed_in_kwh: dict[date, float] = defaultdict(float)
         self._feed_in_revenue_eur: dict[date, float] = defaultdict(float)
+        # Scenario 2: energy-balance based grid charge (from inverter daily totals)
+        # Updated each tick when bat_discharge / grid_import / load_total sensors available
+        self._grid_charge_kwh_bilanz: dict[date, float | None] = defaultdict(lambda: None)
+        # Latest inverter efficiency η (today_production - today_losses) / today_production
+        self._efficiency: dict[date, float | None] = defaultdict(lambda: None)
+        # Latest load_total from inverter daily sensor (for bilanz formula)
+        self._load_kwh_ha: dict[date, float | None] = defaultdict(lambda: None)
+        # Latest bat_discharge from inverter daily sensor
+        self._bat_discharge_kwh_ha: dict[date, float | None] = defaultdict(lambda: None)
         # Price tier load accumulators
         self._kwh_high_rate:   dict[date, float] = defaultdict(float)
         self._kwh_medium_rate: dict[date, float] = defaultdict(float)
@@ -68,6 +77,10 @@ class CostOptimizer:
         self._kwh_high_rate[today]       = row.get("kwh_high_rate", 0.0)
         self._kwh_medium_rate[today]     = row.get("kwh_medium_rate", 0.0)
         self._kwh_low_rate[today]        = row.get("kwh_low_rate", 0.0)
+        bilanz = row.get("grid_charge_kwh_bilanz")
+        self._grid_charge_kwh_bilanz[today] = bilanz  # None if never recorded
+        eff = row.get("efficiency_pct")
+        self._efficiency[today] = eff / 100.0 if eff is not None else None
 
         # Downtime gap detection
         last_ts_str = row.get("last_flush_ts")
@@ -114,6 +127,10 @@ class CostOptimizer:
         outdoor_temp_c: float | None = None,
         feed_in_kwh_ha: float | None = None,
         grid_import_kwh_ha: float | None = None,
+        bat_charge_kwh_ha: float | None = None,
+        bat_discharge_kwh_ha: float | None = None,
+        today_production_kwh_ha: float | None = None,
+        today_losses_kwh_ha: float | None = None,
     ) -> None:
         """Accumulate energy for one interval."""
         cfg = self._cfg
@@ -156,6 +173,8 @@ class CostOptimizer:
         load_kwh = (load_w / 1000) * hours
         self._load_total_kwh[now] += load_kwh
         self._load_cost_eur[now]  += load_kwh * price_eur_kwh
+        # Keep running load total for bilanz formula (power-based accumulation)
+        self._load_kwh_ha[now] = self._load_total_kwh[now]
 
         # Peak PV power (for yield prediction model)
         if pv_w > self._peak_pv_w[now]:
@@ -188,6 +207,27 @@ class CostOptimizer:
             kwh_exported = (abs(grid_w) / 1000) * hours
             self._feed_in_kwh[now]         += kwh_exported
             self._feed_in_revenue_eur[now] += kwh_exported * cfg.feed_in_tariff_eur_kwh
+
+        # Scenario 2: energy-balance based grid charge
+        # Energie_Netzladen = today_energy_import - today_load_consumption + today_battery_discharge
+        # Uses inverter daily-total sensors → more accurate than power-based accumulation
+        if bat_discharge_kwh_ha is not None and grid_import_kwh_ha is not None:
+            # Keep load_kwh_ha from latest HA load sensor if available, otherwise from accumulator
+            load_ha = self._load_kwh_ha.get(now)
+            if load_ha is not None and load_ha > 0:
+                bilanz = grid_import_kwh_ha - load_ha + bat_discharge_kwh_ha
+                self._grid_charge_kwh_bilanz[now] = max(0.0, bilanz)
+        # Track bat_discharge and load for bilanz formula
+        if bat_discharge_kwh_ha is not None:
+            self._bat_discharge_kwh_ha[now] = bat_discharge_kwh_ha
+
+        # Scenario 2: inverter efficiency η = (production - losses) / production
+        if today_production_kwh_ha is not None and today_losses_kwh_ha is not None:
+            prod = today_production_kwh_ha
+            if prod > 0:
+                self._efficiency[now] = (prod - today_losses_kwh_ha) / prod
+            else:
+                self._efficiency[now] = None
 
         # Running average price
         if price_eur_kwh > 0:
@@ -225,6 +265,12 @@ class CostOptimizer:
             "kwh_low_rate":         round(self._kwh_low_rate[today], 6),
             "last_flush_ts":        datetime.now(timezone.utc).isoformat(),
         }
+        bilanz = self._grid_charge_kwh_bilanz.get(today)
+        if bilanz is not None:
+            fields["grid_charge_kwh_bilanz"] = round(bilanz, 6)
+        eff = self._efficiency.get(today)
+        if eff is not None:
+            fields["efficiency_pct"] = round(eff * 100, 2)
         if avg_temp is not None:
             fields["avg_outdoor_temp_c"] = round(avg_temp, 2)
         await self._store.upsert_day(today, fields)
@@ -271,6 +317,36 @@ class CostOptimizer:
         today = date.today()
         return sum(v for d, v in self._pv_saved_eur.items() if (today - d).days < 7)
 
+    def today_grid_charge_kwh_bilanz(self) -> float | None:
+        return self._grid_charge_kwh_bilanz.get(date.today())
+
+    def today_efficiency(self) -> float | None:
+        return self._efficiency.get(date.today())
+
+    def today_grid_charge_roi_eur(self) -> float | None:
+        """ROI of today's grid-charging strategy.
+
+        Gewinn_Netzladen = (Energie_Netzladen × η × Ø_Tarif_Entladung) - Kosten_Netzladen
+
+        Returns None when required inputs are unavailable.
+        Requires cfg.avg_discharge_tariff_eur_kwh > 0 in config.
+        """
+        bilanz = self.today_grid_charge_kwh_bilanz()
+        if bilanz is None or bilanz <= 0:
+            return None
+        eta = self.today_efficiency()
+        if eta is None or eta <= 0:
+            return None
+        avg_discharge_tariff = self._cfg.avg_discharge_tariff_eur_kwh
+        if avg_discharge_tariff <= 0:
+            return None
+
+        # Cost of grid charging is price-weighted per tick from power-based accumulator
+        gc_cost = self.today_grid_charge_cost_eur()
+        usable_kwh = bilanz * eta
+        saving = usable_kwh * avg_discharge_tariff
+        return round(saving - gc_cost, 6)
+
     def is_cheap_rate(self, price_eur_kwh: float | None) -> bool:
         if price_eur_kwh is None:
             return False
@@ -290,7 +366,7 @@ class CostOptimizer:
         gc_cost = self.today_grid_charge_cost_eur()
         grid_cost = self.today_grid_cost_eur()
         load_kwh = self.today_load_total_kwh()
-        return {
+        result: dict[str, Any] = {
             "today_grid_cost_eur":          round(grid_cost, 6),
             "today_pv_savings_eur":         round(self.today_pv_saved_eur(), 6),
             "today_grid_import_kwh":        round(self.today_grid_import_kwh(), 3),
@@ -308,6 +384,24 @@ class CostOptimizer:
             "today_kwh_medium_rate":        round(self._kwh_medium_rate.get(today, 0.0), 3),
             "today_kwh_low_rate":           round(self._kwh_low_rate.get(today, 0.0), 3),
         }
+        # Scenario 2 – optional fields (None when sensor data unavailable)
+        bilanz = self.today_grid_charge_kwh_bilanz()
+        if bilanz is not None:
+            result["today_grid_charge_kwh_bilanz"] = round(bilanz, 3)
+            result["today_grid_charge_cost_bilanz_eur"] = round(
+                bilanz * (gc_cost / self.today_grid_charge_kwh() if self.today_grid_charge_kwh() > 0 else 0.0),
+                6,
+            )
+        eta = self.today_efficiency()
+        if eta is not None:
+            result["today_efficiency_pct"] = round(eta * 100, 1)
+        roi = self.today_grid_charge_roi_eur()
+        if roi is not None:
+            result["today_grid_charge_roi_eur"] = roi
+        base = self._cfg.daily_base_price_eur
+        if base > 0:
+            result["today_base_price_eur"] = round(base, 6)
+        return result
 
     async def summary_with_db(self) -> dict[str, Any]:
         """Like summary() but enriched with monthly/yearly totals from SQLite."""

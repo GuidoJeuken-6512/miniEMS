@@ -41,6 +41,9 @@
 
     function fmtMode(m) {
       if (!m) return '';
+      // Export first: classification is by substring, so this must not be
+      // shadowed by a later, broader match.
+      if (m.includes('Export'))  return 'mode-EXPORT';
       if (m.includes('PV'))      return 'mode-PV';
       if (m.includes('Grid'))    return 'mode-GRID';
       if (m.includes('Protect')) return 'mode-PROTECT';
@@ -101,7 +104,7 @@
         <div class="savings-grid">
           <div class="savings-card">
             <div class="slabel">${T.saved_today || 'Saved Today (PV)'}</div>
-            <div class="svalue">€${fmt(d.today_pv_saved_eur, 2)}</div>
+            <div class="svalue">€${fmt(d.today_pv_savings_eur, 2)}</div>
           </div>
           <div class="savings-card">
             <div class="slabel">${T.grid_cost_today || 'Grid Cost Today'}</div>
@@ -117,7 +120,7 @@
           </div>
           <div class="savings-card">
             <div class="slabel">${T.saved_week || 'Saved This Week'}</div>
-            <div class="svalue">€${fmt(d.week_pv_saved_eur, 2)}</div>
+            <div class="svalue">€${fmt(d.week_pv_savings_eur, 2)}</div>
           </div>
           <div class="savings-card">
             <div class="slabel">${T.grid_cost_week || 'Grid Cost This Week'}</div>
@@ -133,7 +136,7 @@
           </div>
           <div class="savings-card">
             <div class="slabel">${T.cost_fix_price || 'Cost at Fix Price'}</div>
-            <div class="svalue muted">€${fmt(d.today_cost_fix_price_tarif, 2)}</div>
+            <div class="svalue muted">€${fmt(d.today_cost_fix_price_tariff, 2)}</div>
           </div>
           ${d.today_feed_in_kwh !== undefined ? `
           <div class="savings-card">

@@ -67,6 +67,8 @@ pred_source_fallback: Fallback-Schätzung
 event_log: Ereignis-Protokoll
 mode_change_log: Ereignis-Protokoll
 log_state: Ereignis
+log_mode: Modus
+log_reason: Grund
 log_time: Zeitpunkt
 log_price: Preis (€/kWh)
 log_free: Ladekapazität (kWh)
@@ -75,6 +77,22 @@ log_pred_load: Prog. Verbrauch (kWh)
 log_empty: Noch keine Ereignisse aufgezeichnet.
 log_page_hint: Zeigt die letzten 100 Ereignisse (Modusänderungen & Preisänderungen).
 log_price_change: Preisänderung
+log_sim_hint: Simulationsmodus aktiv – Befehle werden nur protokolliert, nicht gesendet.
+
+# Gründe für Modus-Entscheidungen (netzdienliche PV-Strategie & Batteriesteuerung)
+reason_soc_unavailable: SoC-Sensor nicht verfügbar
+reason_soc_below_min: Batterieschutz – SoC unter Minimum
+reason_protect_hysteresis: Batterieschutz – Hysterese aktiv
+reason_battery_full: Akku voll
+reason_export_priority_off: PV-Strategie deaktiviert
+reason_time_backstop: Laden – spätester Ladestart erreicht
+reason_soc_below_export_floor: Laden – SoC unter Exportgrenze
+reason_no_free_capacity: Laden – Akku bereits voll genug
+reason_forecast_unavailable: Laden – PV-Prognose nicht verfügbar
+reason_forecast_above_need: Laden aufgeschoben – PV-Prognose deckt Bedarf
+reason_forecast_below_need: Laden – PV-Restprognose (kWh heute) reicht nicht mehr
+reason_grid_charge_cheap_rate: Netzladen – günstiger Tarif
+reason_no_action: Keine Aktion
 
 # Warnungen
 warnings_title: Warnungen

@@ -5,7 +5,10 @@ echo "Setting up devcontainer..."
 
 # Get the workspace directory (where this script is located)
 WORKSPACE_DIR="${WORKSPACE_DIRECTORY:-$(pwd)}"
-ADDONS_DIR="/mnt/supervisor/addons/local"
+# Supervisor 2026.x renamed its data layout from addons/ to apps/
+# (supervisor/config.py: APPS_LOCAL = "apps/local", APPS_DATA = "apps/data").
+# Local add-on sources must live under apps/local or the store cannot see them.
+ADDONS_DIR="/mnt/supervisor/apps/local"
 
 # Ensure the addons directory exists
 mkdir -p "$ADDONS_DIR"
@@ -21,6 +24,38 @@ if [ -d "$WORKSPACE_DIR/SimpleScheduler" ]; then
 else
     echo "Warning: SimpleScheduler directory not found in workspace at $WORKSPACE_DIR/SimpleScheduler"
 fi
+
+# Patch supervisor_run to inject devcontainer patches as volume mounts.
+# This ensures the firewall and API patches are active from first supervisor boot,
+# avoiding the docker_gateway_unprotected health block and the /run/os/core.sock 502s.
+echo "Patching supervisor_run..."
+if grep -q "supervisor_firewall_patch" /usr/bin/supervisor_run; then
+    echo "supervisor_run already patched, skipping (idempotent)"
+else
+    sudo sed -i "s|-v /etc/machine-id:/etc/machine-id:ro \\\\|-v /etc/machine-id:/etc/machine-id:ro \\\\\n        -v \"\${WORKSPACE_DIRECTORY:-$WORKSPACE_DIR}/supervisor_firewall_patch.py:/usr/src/supervisor/supervisor/host/firewall.py:ro\" \\\\\n        -v \"\${WORKSPACE_DIRECTORY:-$WORKSPACE_DIR}/supervisor_api_patch.py:/usr/src/supervisor/supervisor/homeassistant/api.py:ro\" \\\\|" /usr/bin/supervisor_run
+fi
+grep -q "supervisor_firewall_patch" /usr/bin/supervisor_run && echo "supervisor_run patched OK (firewall)" || echo "WARNING: supervisor_run firewall patch failed"
+grep -q "supervisor_api_patch" /usr/bin/supervisor_run && echo "supervisor_run patched OK (api)" || echo "WARNING: supervisor_run api patch failed"
+
+# Patch /etc/supervisor_scripts/common: "stty sane" errors ("Inappropriate ioctl
+# for device") when start_docker() runs without a controlling TTY (e.g. from
+# postStartCommand, which has none). Combined with "set -e" this silently kills
+# supervisor_run right after Docker initializes, before the supervisor container
+# is ever started - with no obvious error. Make it non-fatal.
+echo "Patching supervisor_scripts/common (stty under set -e)..."
+sudo sed -i "s|^    stty sane\$|    stty sane 2>/dev/null \|\| true|" /etc/supervisor_scripts/common
+grep -q "stty sane 2>/dev/null" /etc/supervisor_scripts/common && echo "supervisor_scripts/common patched OK (stty)" || echo "WARNING: supervisor_scripts/common stty patch failed"
+
+# Patch /etc/supervisor_scripts/common: the Docker-ready wait loop only checks
+# that the socket file exists and is readable, not that dockerd is actually
+# accepting requests yet. There is a real window where that's true but the
+# client still gets "Cannot connect to the Docker daemon" - which, under
+# set -e plus the "trap stop_docker ERR", kills the freshly-started daemon
+# again on the very next docker command. Probe with a real "docker version"
+# call instead of just the filesystem check.
+echo "Patching supervisor_scripts/common (docker readiness race)..."
+sudo sed -i 's#while \[\[ ! -S "$socket_path" || ! -r "$socket_path" \]\]; do#while [[ ! -S "$socket_path" || ! -r "$socket_path" ]] || ! docker version >/dev/null 2>\&1; do#' /etc/supervisor_scripts/common
+grep -q 'docker version >/dev/null' /etc/supervisor_scripts/common && echo "supervisor_scripts/common patched OK (docker readiness)" || echo "WARNING: supervisor_scripts/common docker readiness patch failed"
 
 echo "Devcontainer setup complete."
 

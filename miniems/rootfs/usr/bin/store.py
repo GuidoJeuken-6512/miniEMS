@@ -21,7 +21,9 @@ CREATE TABLE IF NOT EXISTS event_log (
     battery_kwh_freetochange REAL DEFAULT 0,
     battery_kwh_useable      REAL DEFAULT 0,
     predicted_load_kwh       REAL,
-    price_eur_kwh            REAL
+    price_eur_kwh            REAL,
+    mode                     TEXT,
+    reason                   TEXT
 )
 """
 
@@ -62,12 +64,20 @@ class EnergyStore:
             "kwh_high_rate REAL DEFAULT 0",
             "kwh_medium_rate REAL DEFAULT 0",
             "kwh_low_rate REAL DEFAULT 0",
+            "grid_charge_kwh_bilanz REAL DEFAULT 0",
+            "efficiency_pct REAL DEFAULT 0",
         ):
             try:
                 await self._db.execute(f"ALTER TABLE daily_stats ADD COLUMN {col_def}")
             except Exception:
                 pass   # column already exists – ignore
         await self._db.execute(_CREATE_EVENT_LOG_TABLE)
+        # Add columns if missing (upgrade for existing DBs)
+        for col_def in ("mode TEXT", "reason TEXT"):
+            try:
+                await self._db.execute(f"ALTER TABLE event_log ADD COLUMN {col_def}")
+            except Exception:
+                pass   # column already exists – ignore
         await self._db.commit()
         _LOGGER.info("EnergyStore opened: %s", DB_FILE)
 
@@ -171,12 +181,13 @@ class EnergyStore:
         await self._db.execute(
             """INSERT INTO event_log
                (timestamp, entry_type, state, battery_kwh_freetochange,
-                battery_kwh_useable, predicted_load_kwh, price_eur_kwh)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                battery_kwh_useable, predicted_load_kwh, price_eur_kwh, mode, reason)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [
                 entry["timestamp"], entry["entry_type"], entry["state"],
                 entry["battery_kwh_freetochange"], entry["battery_kwh_useable"],
                 entry.get("predicted_load_kwh"), entry.get("price_eur_kwh"),
+                entry.get("mode"), entry.get("reason"),
             ],
         )
         await self._db.commit()

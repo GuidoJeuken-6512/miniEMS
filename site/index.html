@@ -599,6 +599,8 @@
       
         
       
+        
+      
     
     
     
@@ -780,6 +782,34 @@
     
   
     HA-Sensor-Referenz
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./technical/devcontainer-supervisor-patches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Devcontainer-Supervisor-Patches
   
 
     
@@ -1306,10 +1336,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#features" class="md-nav__link">
+  <a href="#was-miniems-tut" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Features
+        Was miniEMS tut
       
     </span>
   </a>
@@ -1317,10 +1347,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
+  <a href="#schnellstart" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Quick Start
+        Schnellstart
       
     </span>
   </a>
@@ -1328,10 +1358,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#documentation-pages" class="md-nav__link">
+  <a href="#dokumentation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Documentation Pages
+        Dokumentation
       
     </span>
   </a>
@@ -1371,72 +1401,89 @@
               <article class="md-content__inner md-typeset">
                 
   
+  <div class="md-doc-meta">
+    miniEMS &middot; Updated 2026-08-14
+  </div>
+  
   
                   
 
 <h1 id="miniems-mini-energy-management-system">miniEMS – Mini Energy Management System<a class="headerlink" href="#miniems-mini-energy-management-system" title="Permanent link">&para;</a></h1>
-<p><strong>miniEMS</strong> is a Home Assistant add-on that manages a Deye solar inverter combined with a dynamic electricity tariff (e.g. Octopus Energy). It reads live sensor data from HA, makes charging decisions, and publishes computed cost/savings metrics back as HA entities.</p>
-<h2 id="features">Features<a class="headerlink" href="#features" title="Permanent link">&para;</a></h2>
+<p><strong>miniEMS</strong> ist ein Home Assistant Add-on, das das Laden und Entladen einer Solarbatterie automatisch steuert – mithilfe von Echtzeitstrompreisen, Solcast-PV-Prognosen und historischen Verbrauchsdaten.</p>
+<h2 id="was-miniems-tut">Was miniEMS tut<a class="headerlink" href="#was-miniems-tut" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Feature</th>
-<th>Details</th>
+<th>Funktion</th>
+<th>Beschreibung</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Mode control</td>
-<td>Idle / PV Charging / Grid Charging / Battery Protection</td>
+<td><strong>Intelligentes Netzladen</strong></td>
+<td>Lädt die Batterie nur dann aus dem Netz, wenn der Preis niedrig ist und Solcast bestätigt, dass die Sonne es nicht selbst erledigen wird</td>
 </tr>
 <tr>
-<td>Cost tracking</td>
-<td>Daily &amp; weekly grid cost and PV savings in €</td>
+<td><strong>Netzfreundliche PV-Strategie</strong></td>
+<td>Exportiert PV-Überschuss optional ins Netz, statt die Batterie tagsüber vorzeitig zu füllen (Phase 7, siehe <a href="user/configuration/">Konfiguration</a>)</td>
 </tr>
 <tr>
-<td>HA sensors</td>
-<td>Sensors published under the <code>sensor.miniems_*</code> prefix</td>
+<td><strong>Batterieschutz</strong></td>
+<td>Blockiert das Entladen, wenn der SoC unter den konfigurierten Mindestwert fällt</td>
 </tr>
 <tr>
-<td>Web dashboard</td>
-<td>Ingress panel auto-refreshing every 5 s</td>
+<td><strong>Kostenverfolgung</strong></td>
+<td>Verfolgt tägliche Netzkosten, PV-Einsparungen, Einspeisevergütung und Netzladekosten</td>
 </tr>
 <tr>
-<td>Forecast &amp; prediction</td>
-<td>Load and PV yield forecast via <code>weather.get_forecasts</code> HA action</td>
+<td><strong>HA-Sensoren</strong></td>
+<td>Veröffentlicht berechnete Sensoren unter <code>sensor.miniems_*</code> über eine benutzerdefinierte Integration</td>
 </tr>
 <tr>
-<td>i18n</td>
-<td>Dashboard and settings fully translated (de / en, auto-detected from HA)</td>
+<td><strong>Live-Dashboard</strong></td>
+<td>Ingress-Panel mit automatischer Aktualisierung, Warnungsbanner und Moduswechsel-Log</td>
 </tr>
 <tr>
-<td>Config persistence</td>
-<td>Settings survive supervisor reloads via <code>/data/config.json</code></td>
+<td><strong>Solcast-Integration</strong></td>
+<td>Liest die Solcast-PV-Prognose direkt aus HA-Entitäten</td>
 </tr>
 <tr>
-<td>Token fallback</td>
-<td>SUPERVISOR_TOKEN → Long-lived token on 401</td>
+<td><strong>Vorhersage-Fallback</strong></td>
+<td>Temperaturbasierter Fallback, wenn Solcast oder historische Daten nicht verfügbar sind</td>
 </tr>
 </tbody>
 </table>
-<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<h2 id="schnellstart">Schnellstart<a class="headerlink" href="#schnellstart" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Install the add-on from the local repository.</li>
-<li>Open <strong>Configuration</strong> and set your entity IDs (Deye inverter + Octopus Energy sensors).</li>
-<li>Start the add-on — it appears as <strong>miniEMS</strong> in the HA sidebar.</li>
-<li>HA entities <code>sensor.miniems_*</code> become available immediately after the first EMS tick.</li>
+<li><strong>Add-on installieren</strong> — siehe <a href="user/installation/">Installation</a>.</li>
+<li><strong>Dashboard öffnen</strong> — über die HA-Seitenleiste → miniEMS.</li>
+<li><strong>Konfigurieren</strong> — im Tab <strong>Einstellungen</strong> Entitäts-IDs und Schwellenwerte eintragen, siehe <a href="user/configuration/">Konfiguration</a>.</li>
+<li><strong>Batteriesteuerung aktivieren</strong> — zuerst den <strong>Simulationsmodus</strong> nutzen, um die Logik zu prüfen.</li>
 </ol>
-<h2 id="documentation-pages">Documentation Pages<a class="headerlink" href="#documentation-pages" title="Permanent link">&para;</a></h2>
+<h2 id="dokumentation">Dokumentation<a class="headerlink" href="#dokumentation" title="Permanent link">&para;</a></h2>
+<p><strong>Benutzerhandbuch</strong></p>
 <ul>
-<li><a href="architecture/">Architecture</a> — component overview and data flow</li>
-<li><a href="calculations/">Calculations</a> — EMS decision logic and cost formulas</li>
-<li><a href="data-storage/">Data Storage</a> — where state and config are persisted</li>
-<li><a href="configuration/">Configuration</a> — all configuration options explained</li>
-<li><a href="sensors/">HA Sensors</a> — sensors published to Home Assistant</li>
-<li><a href="development/">Development</a> — dev environment, rebuild workflow, debugging</li>
+<li><a href="user/">Erste Schritte</a> — Funktionsüberblick und Voraussetzungen</li>
+<li><a href="user/installation/">Installation</a></li>
+<li><a href="user/configuration/">Konfiguration</a> — alle Konfigurationswerte erklärt</li>
+<li><a href="user/dashboard/">Dashboard &amp; Oberfläche</a></li>
+<li><a href="user/log/">Ereignisprotokoll</a></li>
+<li><a href="user/database/">Datenbank</a></li>
+<li><a href="user/sensors/">HA-Sensoren</a></li>
 </ul>
+<p><strong>Technische Referenz</strong></p>
+<ul>
+<li><a href="technical/">Übersicht</a> — Modulübersicht</li>
+<li><a href="technical/architecture/">Architektur</a> — Komponentendiagramm, asyncio-Task-Graph, Authentifizierungsablauf</li>
+<li><a href="technical/calculations/">Berechnungen</a> — alle Formeln im EMS-Loop</li>
+<li><a href="technical/data-storage/">Datenspeicherung</a> — Konfigurationsdateien, SQLite-Schema, In-Memory-Zustand</li>
+<li><a href="technical/api/">API-Referenz</a> — interne HTTP-Endpunkte</li>
+<li><a href="technical/sensors/">HA-Sensor-Referenz</a></li>
+<li><a href="technical/devcontainer-supervisor-patches/">Devcontainer-Supervisor-Patches</a></li>
+</ul>
+<p><strong>English documentation</strong> is available under <a href="en/user/">User Guide (EN)</a> and <a href="en/technical/">Technical Reference (EN)</a>.</p>
 <h2 id="source-code">Source Code<a class="headerlink" href="#source-code" title="Permanent link">&para;</a></h2>
-<p>The project is hosted on GitHub:
+<p>Das Projekt ist auf GitHub gehostet:
 <a href="https://github.com/GuidoJeuken-6512/miniEMS">github.com/GuidoJeuken-6512/miniEMS</a></p>
 
 
@@ -1447,6 +1494,27 @@
 
 
 
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Letztes Update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    2026-08-14
+  </span>
+
+    
+    
+    
+    
+  </aside>
 
 
 
