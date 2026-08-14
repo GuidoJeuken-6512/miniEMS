@@ -25,6 +25,10 @@ Thumbs.db
 .supervisor-state-backup/
 .mcp.json
 
+# Generated documentation site – built by the docs.yml workflow via
+# `zensical build` and deployed straight to GitHub Pages. Not needed in git.
+site/
+
 
 
 
