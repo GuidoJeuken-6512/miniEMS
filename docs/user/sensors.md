@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-04-17
+revision_date: 2026-04-24
 ---
 
 # Home-Assistant-Sensoren
@@ -8,6 +8,11 @@ miniEMS registriert **bis zu 34 Sensoren** in Home Assistant über die mitgelief
 Alle Entitäts-IDs verwenden das Präfix `sensor.miniems_`. Die Integration fragt `/api/status`
 alle 30 s ab und registriert alle Entitäten unter dem **miniEMS**-Gerät mit Langzeit-
 statistik-Unterstützung.
+
+> **Mehrsprachige Sensornamen (ab v1.6.0):** Die Anzeigenamen aller Sensoren in der
+> Home-Assistant-Oberfläche richten sich automatisch nach der eingestellten Sprache in HA.
+> Unterstützte Sprachen: **Deutsch** und **Englisch**.
+> Die Entitäts-IDs (z.B. `sensor.miniems_today_grid_cost_eur`) bleiben dabei unverändert.
 
 > **Umfang — nur Add-on-native.** Live-Leistungsmesswerte (PV, Last, Netz, Batterieleistung,
 > SoC) und der Strompreis werden hier **nicht** dupliziert. Diese Sensoren existieren bereits

@@ -3,12 +3,12 @@
   "image": "ghcr.io/home-assistant/devcontainer:2-addons",
   "appPort": ["7123:8123", "7357:4357"],
   "postCreateCommand": "bash devcontainer_bootstrap",
-  "postStartCommand": "mkdir -p /run/supervisor /run/os && ln -sf /run/supervisor/core.sock /run/os/core.sock 2>/dev/null || true",
+  "postStartCommand": "bash -c 'sudo mkdir -p /run/supervisor /run/os; sudo ln -sf /run/supervisor/core.sock /run/os/core.sock 2>/dev/null; if docker ps 2>/dev/null | grep -q hassio_supervisor; then echo \"Home Assistant supervisor is already running\"; else echo \"Starting Home Assistant supervisor in the background (see /tmp/supervisor_run.log)...\"; nohup supervisor_run > /tmp/supervisor_run.log 2>&1 & fi; true'",
   "runArgs": ["-e", "GIT_EDITOR=code --wait", "--privileged", "--name", "miniems-devcontainer"],
   "containerEnv": {
     "WORKSPACE_DIRECTORY": "${containerWorkspaceFolder}"
   },
-  "workspaceFolder": "/mnt/supervisor/addons/local/${localWorkspaceFolderBasename}",
+  "workspaceFolder": "/mnt/supervisor/apps/local/${localWorkspaceFolderBasename}",
   "workspaceMount": "source=${localWorkspaceFolder},target=${containerWorkspaceFolder},type=bind,consistency=consistent",
   "customizations": {
     "vscode": {
@@ -28,9 +28,9 @@
     }
   },
   "mounts": [
-    "type=volume,target=/var/lib/docker",
-    "type=volume,target=/mnt/supervisor",
+    "source=miniems-docker-data,target=/var/lib/docker,type=volume",
+    "source=miniems-supervisor-data,target=/mnt/supervisor,type=volume",
     "source=C:/Cursor/ems_config/ha_config,target=/mnt/supervisor/homeassistant,type=bind,consistency=consistent",
-    "source=C:/Cursor/ems_config/miniemsdata,target=/mnt/supervisor/addons/data/local_miniems,type=bind,consistency=consistent"
+    "source=C:/Cursor/ems_config/miniemsdata,target=/mnt/supervisor/apps/data/local_miniems,type=bind,consistency=consistent"
   ]
 }

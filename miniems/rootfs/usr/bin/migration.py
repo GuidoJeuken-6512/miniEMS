@@ -14,7 +14,22 @@ CURRENT_VERSION = CONFIG_SCHEMA_VERSION
 
 def migrate(data: dict) -> dict:
     """Migrate config dict to CURRENT_VERSION. Returns updated dict."""
+    if not isinstance(data, dict):
+        _LOGGER.error("Config is %s, not an object – ignoring it and using defaults",
+                      type(data).__name__)
+        return {"_version": CURRENT_VERSION}
+
     version = data.get("_version", 0)
+    if not isinstance(version, int):
+        # A hand-edited config (raw JSON editor) can carry a string here, which
+        # would otherwise raise TypeError on the comparison below and put the
+        # add-on into a permanent crash loop.
+        try:
+            version = int(version)
+        except (TypeError, ValueError):
+            _LOGGER.warning("Config _version=%r is not a number – re-running all migrations", version)
+            version = 0
+
     if version >= CURRENT_VERSION:
         return data
 
@@ -49,6 +64,12 @@ def migrate(data: dict) -> dict:
 
     if version < 10:
         data = _v9_to_v10(data)
+
+    if version < 11:
+        data = _v10_to_v11(data)
+
+    if version < 12:
+        data = _v11_to_v12(data)
 
     data["_version"] = CURRENT_VERSION
     return data
@@ -138,6 +159,101 @@ def _v5_to_v6(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v5→v6: set %s = %r", key, default)
+    return data
+
+
+def _v10_to_v11(data: dict) -> dict:
+    """v10 → v11: battery limits switch from power (W) to current (A).
+
+    The Deye inverter does not expose a battery charge/discharge *power* entity
+    at all – it exposes *current* limits in amperes:
+        number.deye8k_battery_max_charging_current     (0–350 A)
+        number.deye8k_battery_max_discharging_current  (0–350 A)
+
+    The old *_power_w values were watts and cannot be converted without knowing
+    the battery voltage, so they are dropped in favour of the inverter's rated
+    current. Old entity ids are only carried over when they actually point at a
+    current entity; the previous defaults pointed at entities that do not exist.
+    """
+    # --- entities ---------------------------------------------------------
+    old_charge = str(data.pop("inverter_charge_power_entity", "") or "")
+    old_discharge = str(data.pop("battery_discharging_power_entity", "") or "")
+
+    def _pick(old: str, fallback: str, label: str) -> str:
+        if old.startswith("number.") and "current" in old:
+            return old
+        if old:
+            _LOGGER.warning(
+                "Migration v10→v11: %s=%r is not a battery current entity – using %r",
+                label, old, fallback,
+            )
+        return fallback
+
+    if "inverter_charge_current_entity" not in data:
+        data["inverter_charge_current_entity"] = _pick(
+            old_charge, "number.deye8k_battery_max_charging_current",
+            "inverter_charge_power_entity",
+        )
+        _LOGGER.info("Migration v10→v11: set inverter_charge_current_entity = %r",
+                     data["inverter_charge_current_entity"])
+
+    if "battery_discharging_current_entity" not in data:
+        data["battery_discharging_current_entity"] = _pick(
+            old_discharge, "number.deye8k_battery_max_discharging_current",
+            "battery_discharging_power_entity",
+        )
+        _LOGGER.info("Migration v10→v11: set battery_discharging_current_entity = %r",
+                     data["battery_discharging_current_entity"])
+
+    # --- limits: watts are not convertible, fall back to rated current ------
+    for old_key, new_key in (
+        ("battery_max_charge_power_w", "battery_max_charge_current_a"),
+        ("battery_max_discharge_power_w", "battery_max_discharge_current_a"),
+    ):
+        old_value = data.pop(old_key, None)
+        if new_key not in data:
+            data[new_key] = 185
+            _LOGGER.info(
+                "Migration v10→v11: %s=%r (W) → %s = %d (A)",
+                old_key, old_value, new_key, data[new_key],
+            )
+
+    # Retired: 185 was the inverter's ampere limit, never a watt throttle.
+    if data.pop("default_discharge_power_w", None) is not None:
+        _LOGGER.info(
+            "Migration v10→v11: removed default_discharge_power_w "
+            "(discharge now uses battery_max_discharge_current_a)"
+        )
+    return data
+
+
+def _v11_to_v12(data: dict) -> dict:
+    """v11 → v12: grid-friendly PV export strategy + mode stability settings.
+
+    Ships with pv_export_priority_enabled=False, so upgrading changes nothing
+    until the user switches it on. Everything here honours the existing
+    battery_control_simulation switch.
+    """
+    defaults = {
+        "pv_export_priority_enabled": False,
+        "pv_charge_margin_factor": 1.2,
+        "pv_charge_hysteresis_frac": 0.10,
+        "pv_export_min_soc_pct": 30,
+        "pv_charge_backstop_hour": 14,
+        "export_hold_charge_current_a": 0,
+        "mode_dwell_sec": 300,
+        "battery_soc_hysteresis_pct": 2,
+        "grid_charge_min_free_kwh": 1.0,
+        "grid_charge_dark_start_hour": 21,
+        "grid_charge_dark_end_hour": 6,
+        "sensor_max_age_sec": 300,
+        "forecast_max_age_sec": 10800,
+        "price_max_age_sec": 10800,
+    }
+    for key, default in defaults.items():
+        if key not in data:
+            data[key] = default
+            _LOGGER.info("Migration v11→v12: set %s = %r", key, default)
     return data
 
 

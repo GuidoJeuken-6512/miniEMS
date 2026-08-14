@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import aiohttp
@@ -26,7 +26,7 @@ class MiniEMSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER,
             name="miniEMS",
             update_interval=timedelta(seconds=poll_interval),
-            always_update=False,
+            always_update=True,
         )
         self._status_url = f"{base_url.rstrip('/')}/api/status"
         self._session: aiohttp.ClientSession | None = None
@@ -59,6 +59,21 @@ class MiniEMSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 data: dict[str, Any] = await resp.json()
                 if not isinstance(data, dict):
                     raise UpdateFailed("miniEMS API returned unexpected format")
+                last_updated_raw = data.get("last_updated")
+                if last_updated_raw:
+                    try:
+                        last_updated = datetime.fromisoformat(last_updated_raw)
+                        if last_updated.tzinfo is None:
+                            last_updated = last_updated.replace(tzinfo=timezone.utc)
+                        age_sec = (datetime.now(timezone.utc) - last_updated).total_seconds()
+                        if age_sec > 300:
+                            raise UpdateFailed(
+                                f"miniEMS data is stale ({age_sec:.0f}s old) – addon loop may be stuck"
+                            )
+                    except UpdateFailed:
+                        raise
+                    except Exception:
+                        pass
                 return data
         except aiohttp.ClientConnectorError as err:
             raise UpdateFailed(f"Cannot connect to miniEMS addon: {err}") from err

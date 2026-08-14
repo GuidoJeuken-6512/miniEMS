@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-04-11
+revision_date: 2026-08-14
 ---
 
 # Devcontainer – Supervisor Patches
@@ -114,22 +114,44 @@ mkdir -p /run/os
 ln -sf /run/supervisor/core.sock /run/os/core.sock
 ```
 
-Both are applied in `postStartCommand`.
+Part B's symlink is host-side only; the `hassio_supervisor` container never had `/run/os` in its own mount list, so on its own it never actually reached the supervisor process. Part A (the API patch) is the one that matters.
 
 ---
 
-## Applying the patches
+## 4. `supervisor_run` silently exits before the supervisor ever starts (no TTY)
 
-The `postStartCommand` in `.devcontainer.json` calls `apply_supervisor_patch()` in the background after the supervisor container starts. The function:
+**Symptom**
 
-1. Waits up to 60 s for `hassio_supervisor` to appear in `docker ps`.
-2. Copies `supervisor_firewall_patch.py` → `supervisor/host/firewall.py` inside the container.
-3. Copies `supervisor_api_patch.py` → `supervisor/homeassistant/api.py` inside the container.
-4. Deletes the corresponding `.pyc` bytecode files.
-5. Creates the `/run/os/core.sock` symlink on the host.
-6. Restarts `hassio_supervisor` so the patched code is loaded.
+Running `supervisor_run` non-interactively (e.g. from `postStartCommand`, which has no controlling terminal) prints:
 
-The patches survive container restarts within the same devcontainer session. They are **lost** if the supervisor image is updated (the container is recreated), but `postStartCommand` re-applies them automatically on the next start.
+```
+Waiting for Docker to initialize...
+stty: 'standard input': Inappropriate ioctl for device
+```
+
+...and then just stops. Docker is running fine, but `hassio_supervisor` never gets created — no error, no stack trace, nothing.
+
+**Root cause**
+
+`start_docker()` in `/etc/supervisor_scripts/common` ends with `stty sane` to reset the terminal after `dockerd`'s output. The whole script (and the `common` file it sources) runs under `set -e`. When there is no TTY on stdin, `stty sane` exits non-zero, and `set -e` kills the script right there — before `run_supervisor` is ever called. This is invisible when running the task from an interactive VS Code terminal (which has a TTY), which is why it went unnoticed for a long time; it only bites in non-interactive invocations such as `postStartCommand`.
+
+**Fix**
+
+Make the call non-fatal: `stty sane 2>/dev/null || true`.
+
+---
+
+## Applying the patches (current mechanism)
+
+As of v1.5.6, the patches are applied statically, not at runtime:
+
+1. **`devcontainer_bootstrap`** (runs once, via `postCreateCommand`) patches three things in the container image, before the supervisor is ever started:
+   - `/usr/bin/supervisor_run` gets `supervisor_firewall_patch.py` and `supervisor_api_patch.py` added as **read-only bind mounts** onto `supervisor/host/firewall.py` and `supervisor/homeassistant/api.py` inside the `hassio_supervisor` container's `docker run` command. The patched code is active from the very first boot — no `docker cp` + restart dance needed.
+   - `/etc/supervisor_scripts/common` gets the `stty sane` fix from section 4 above.
+   - Both patches are idempotent (safe to re-run `bash devcontainer_bootstrap` by hand).
+2. **`postStartCommand`** (runs on every container start/resume) creates `/run/supervisor` and `/run/os` (with `sudo` — `/run` is root-owned, a plain `mkdir` fails silently otherwise) and the `/run/os/core.sock` symlink, then starts `supervisor_run` in the background via `nohup` if `hassio_supervisor` isn't already running — so Home Assistant comes up automatically when the devcontainer starts, same as before v1.5.6.
+
+`apply_supervisor_patch.sh` and the old `docker cp`-based flow described above are no longer wired into the startup path; they're kept as a manual fallback (e.g. to hot-patch a running supervisor without restarting the devcontainer).
 
 ---
 
@@ -137,9 +159,11 @@ The patches survive container restarts within the same devcontainer session. The
 
 | File | Purpose |
 |------|---------|
-| `.devcontainer.json` | `mkdir -p /run/supervisor`, `apply_supervisor_patch()` wired into `postStartCommand` |
+| `.devcontainer.json` | `postStartCommand`: `sudo mkdir` for `/run/supervisor` + `/run/os`, `core.sock` symlink, auto-starts `supervisor_run` in the background if not already running |
+| `devcontainer_bootstrap` | `postCreateCommand`: bind-mounts both patch files into `supervisor_run`'s `docker run`, patches the `stty sane` bug in `/etc/supervisor_scripts/common` |
 | `supervisor_firewall_patch.py` | Patched `host/firewall.py` — skips gateway check in dev mode |
 | `supervisor_api_patch.py` | Patched `homeassistant/api.py` — forces TCP transport in dev mode |
+| `apply_supervisor_patch.sh` | Manual fallback: hot-patches and restarts an already-running `hassio_supervisor` without recreating the devcontainer |
 
 ---
 

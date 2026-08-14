@@ -33,17 +33,56 @@
 
     function fmtMode(m) {
       if (!m) return '';
+      // Export first: classification is by substring, so this must not be
+      // shadowed by a later, broader match.
+      if (m.includes('Export'))  return 'mode-EXPORT';
       if (m.includes('PV'))      return 'mode-PV';
       if (m.includes('Grid'))    return 'mode-GRID';
       if (m.includes('Protect')) return 'mode-PROTECT';
       return 'mode-IDLE';
     }
 
-    function renderEntryState(e) {
+    // Raw ModeDecision.reason strings (English, from ems_controller.py) →
+    // translation keys. Falls back to the raw string for anything unmapped,
+    // so a future new reason still shows up instead of disappearing.
+    const REASON_KEY = {
+      'soc unavailable':                    'reason_soc_unavailable',
+      'soc below min':                      'reason_soc_below_min',
+      'protect hysteresis':                 'reason_protect_hysteresis',
+      'battery full':                       'reason_battery_full',
+      'export priority off':                'reason_export_priority_off',
+      'time backstop':                      'reason_time_backstop',
+      'soc below export floor':             'reason_soc_below_export_floor',
+      'no free capacity':                   'reason_no_free_capacity',
+      'forecast unavailable':               'reason_forecast_unavailable',
+      'forecast above battery need':        'reason_forecast_above_need',
+      'forecast below battery need':        'reason_forecast_below_need',
+      'cheap rate, pv cannot fill battery': 'reason_grid_charge_cheap_rate',
+      'no action':                          'reason_no_action',
+    };
+
+    function reasonLabel(reason) {
+      if (!reason) return '–';
+      const key = REASON_KEY[reason];
+      return (key && T[key]) ? T[key] : reason;
+    }
+
+    function renderEntryMode(e) {
       if (e.entry_type === 'price_change') {
         return `<td class="log-price-change">&#8364; ${T.log_price_change || 'Price Change'}</td>`;
       }
+      if (e.mode) {
+        return `<td><span class="mode-badge ${fmtMode(e.mode)} log-table-mode">${e.mode}</span></td>`;
+      }
+      // Legacy rows recorded before mode/reason existed – fall back to on/off.
       return `<td class="${e.state === 'on' ? 'log-on' : 'log-off'}">${e.state === 'on' ? '&#9650; ON' : '&#9660; OFF'}</td>`;
+    }
+
+    function renderEntryReason(e) {
+      if (e.entry_type === 'price_change') {
+        return `<td>–</td>`;
+      }
+      return `<td class="log-reason">${reasonLabel(e.reason)}</td>`;
     }
 
     function renderEntryPrice(e) {
@@ -54,9 +93,17 @@
     }
 
     function renderLog(d) {
+      const simBadge = (d.battery_control_active && d.battery_control_simulation)
+        ? '<span class="sim-badge">SIM</span>' : '';
+
       // Warnings banner
       const warnHtml = (d.warnings && d.warnings.length > 0)
         ? `<div class="warnings-banner">${d.warnings.map(w => `<div class="warn-item">&#9888; ${w}</div>`).join('')}</div>`
+        : '';
+
+      // Simulation-mode hint (mirrors the SIM badge shown on the dashboard)
+      const simHint = simBadge
+        ? `<p class="log-sim-hint">${T.log_sim_hint || 'Simulation mode active – commands are logged only, never sent.'}</p>`
         : '';
 
       // Current mode + key values summary bar
@@ -64,7 +111,7 @@
         <div class="log-summary">
           <div class="log-summary-item">
             <span class="log-summary-label">${T.tab_dashboard || 'Mode'}</span>
-            <span class="mode-badge ${fmtMode(d.mode)} log-summary-mode">${d.mode || '–'}</span>
+            <span class="mode-badge ${fmtMode(d.mode)} log-summary-mode">${d.mode || '–'}${simBadge}</span>
           </div>
           <div class="log-summary-item">
             <span class="log-summary-label">${T.battery_soc || 'Battery SoC'}</span>
@@ -92,8 +139,9 @@
         <table class="log-table log-table-full">
           <thead>
             <tr>
-              <th>${T.log_state || 'Event'}</th>
+              <th>${T.log_mode || T.log_state || 'Mode'}</th>
               <th>${T.log_time || 'Time'}</th>
+              <th>${T.log_reason || 'Reason'}</th>
               <th>${T.log_price || 'Price (€/kWh)'}</th>
               <th>${T.log_free || 'Free (kWh)'}</th>
               <th>${T.log_useable || 'Useable (kWh)'}</th>
@@ -102,8 +150,9 @@
           </thead>
           <tbody>
             ${entries.map(e => `<tr>
-              ${renderEntryState(e)}
+              ${renderEntryMode(e)}
               <td>${e.timestamp}</td>
+              ${renderEntryReason(e)}
               ${renderEntryPrice(e)}
               <td>${fmt(e.battery_kwh_freetochange, 2)}</td>
               <td>${fmt(e.battery_kwh_useable, 2)}</td>
@@ -116,7 +165,7 @@
         ? `<p class="log-hint">${T.log_page_hint || 'Shows the last 100 events.'} (${entries.length})</p>`
         : '';
 
-      return `${warnHtml}${summaryHtml}<p class="section-title">${T.event_log || 'Event Log'}</p>${hintHtml}${tableHtml}`;
+      return `${warnHtml}${summaryHtml}${simHint}<p class="section-title">${T.event_log || 'Event Log'}</p>${hintHtml}${tableHtml}`;
     }
 
     async function refresh() {

@@ -66,16 +66,26 @@ def load_translations(lang: str) -> dict:
         return {}
 
 # Config field type map for coercion
-_BOOL_FIELDS = {"battery_control_enabled", "battery_control_simulation"}
+_BOOL_FIELDS = {
+    "battery_control_enabled", "battery_control_simulation",
+    "pv_export_priority_enabled",
+}
 _INT_FIELDS = {
     "battery_min_soc", "battery_max_soc", "pv_surplus_threshold_w",
-    "update_interval_sec", "battery_max_charge_power_w", "battery_max_discharge_power_w",
-    "default_discharge_power_w", "event_log_retention_days",
+    "update_interval_sec", "battery_max_charge_current_a", "battery_max_discharge_current_a",
+    "event_log_retention_days",
+    "pv_export_min_soc_pct", "pv_charge_backstop_hour", "export_hold_charge_current_a",
+    "mode_dwell_sec", "battery_soc_hysteresis_pct",
+    "grid_charge_dark_start_hour", "grid_charge_dark_end_hour",
+    "sensor_max_age_sec", "forecast_max_age_sec", "price_max_age_sec",
 }
+# NOTE: any float field missing here falls through to str(value) in _coerce()
+# and is persisted as a string, which then raises TypeError on first use.
 _FLOAT_FIELDS = {
     "battery_capacity_kwh", "cheap_rate_threshold_eur", "medium_rate_threshold_eur",
-    "openweathermap_lat", "openweathermap_lon",
     "feed_in_tariff_eur_kwh", "fix_price",
+    "daily_base_price_eur", "avg_discharge_tariff_eur_kwh",
+    "pv_charge_margin_factor", "pv_charge_hysteresis_frac", "grid_charge_min_free_kwh",
 }
 
 

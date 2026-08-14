@@ -1,0 +1,74 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "miniEMS Verbindung",
+        "description": "Gib die URL des miniEMS Addons ein. Standard: {default_url}",
+        "data": {
+          "base_url": "Addon-Basis-URL"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zum miniEMS Addon fehlgeschlagen. Stelle sicher, dass es läuft.",
+      "invalid_url": "Die URL muss mit http:// oder https:// beginnen."
+    },
+    "abort": {
+      "already_configured": "miniEMS ist bereits konfiguriert"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "miniEMS Optionen",
+        "data": {
+          "poll_interval": "Abfrageintervall (Sekunden, 10–300)"
+        }
+      }
+    }
+  },
+  "issues": {
+    "restart_required": {
+      "title": "miniEMS Integration aktualisiert",
+      "description": "Die miniEMS Integration wurde auf v{version} aktualisiert. Bitte starte Home Assistant neu, um alle Änderungen zu übernehmen."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "mode": { "name": "Betriebsmodus" },
+      "today_grid_cost": { "name": "Heutige Netzkosten" },
+      "today_pv_savings": { "name": "Heutige PV-Einsparung" },
+      "today_load_cost": { "name": "Heutige Verbrauchskosten" },
+      "today_feed_in_revenue": { "name": "Heutige Einspeisevergütung" },
+      "today_cost_without_grid_charge": { "name": "Heutige Kosten ohne Netzladung" },
+      "today_cost_fix_price_tariff": { "name": "Heutige Kosten Festpreistarif" },
+      "today_pv_used": { "name": "Heutige PV-Eigennutzung" },
+      "today_load_total": { "name": "Heutiger Gesamtverbrauch" },
+      "today_grid_charge": { "name": "Heutige Netzladung" },
+      "today_kwh_high_rate": { "name": "Heutige kWh Hochtarif" },
+      "today_kwh_medium_rate": { "name": "Heutige kWh Mitteltarif" },
+      "today_kwh_low_rate": { "name": "Heutige kWh Niedertarif" },
+      "week_grid_cost": { "name": "Wöchentliche Netzkosten" },
+      "week_pv_savings": { "name": "Wöchentliche PV-Einsparung" },
+      "month_grid_cost": { "name": "Monatliche Netzkosten" },
+      "month_pv_savings": { "name": "Monatliche PV-Einsparung" },
+      "month_load_cost": { "name": "Monatliche Verbrauchskosten" },
+      "month_kwh_high_rate": { "name": "Monatliche kWh Hochtarif" },
+      "month_kwh_medium_rate": { "name": "Monatliche kWh Mitteltarif" },
+      "month_kwh_low_rate": { "name": "Monatliche kWh Niedertarif" },
+      "year_grid_cost": { "name": "Jährliche Netzkosten" },
+      "year_pv_savings": { "name": "Jährliche PV-Einsparung" },
+      "year_load_cost": { "name": "Jährliche Verbrauchskosten" },
+      "predicted_load": { "name": "Prognostizierter Verbrauch" },
+      "predicted_pv_yield": { "name": "Prognostizierter PV-Ertrag" },
+      "battery_free_to_charge": { "name": "Batterie frei zum Laden" },
+      "battery_useable": { "name": "Nutzbare Batteriekapazität" },
+      "battery_capacity": { "name": "Batteriekapazität" },
+      "today_inverter_efficiency": { "name": "Heutiger Wechselrichter-Wirkungsgrad" },
+      "today_grid_charge_energy_balance": { "name": "Heutige Netzladung (Energiebilanz)" },
+      "today_grid_charge_cost_energy_balance": { "name": "Heutige Netzladekosten (Energiebilanz)" },
+      "today_grid_charge_roi": { "name": "Heutiger Netzladungs-ROI" },
+      "today_base_price": { "name": "Heutiger Grundpreis" }
+    }
+  }
+}

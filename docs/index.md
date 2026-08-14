@@ -1,37 +1,56 @@
+---
+revision_date: 2026-08-14
+---
+
 # miniEMS – Mini Energy Management System
 
-**miniEMS** is a Home Assistant add-on that manages a Deye solar inverter combined with a dynamic electricity tariff (e.g. Octopus Energy). It reads live sensor data from HA, makes charging decisions, and publishes computed cost/savings metrics back as HA entities.
+**miniEMS** ist ein Home Assistant Add-on, das das Laden und Entladen einer Solarbatterie automatisch steuert – mithilfe von Echtzeitstrompreisen, Solcast-PV-Prognosen und historischen Verbrauchsdaten.
 
-## Features
+## Was miniEMS tut
 
-| Feature               | Details                                                                  |
-| --------------------- | ------------------------------------------------------------------------ |
-| Mode control          | Idle / PV Charging / Grid Charging / Battery Protection                  |
-| Cost tracking         | Daily & weekly grid cost and PV savings in €                             |
-| HA sensors            | Sensors published under the `sensor.miniems_*` prefix                    |
-| Web dashboard         | Ingress panel auto-refreshing every 5 s                                  |
-| Forecast & prediction | Load and PV yield forecast via `weather.get_forecasts` HA action         |
-| i18n                  | Dashboard and settings fully translated (de / en, auto-detected from HA) |
-| Config persistence    | Settings survive supervisor reloads via `/data/config.json`              |
-| Token fallback        | SUPERVISOR_TOKEN → Long-lived token on 401                               |
+| Funktion | Beschreibung |
+|---|---|
+| **Intelligentes Netzladen** | Lädt die Batterie nur dann aus dem Netz, wenn der Preis niedrig ist und Solcast bestätigt, dass die Sonne es nicht selbst erledigen wird |
+| **Netzfreundliche PV-Strategie** | Exportiert PV-Überschuss optional ins Netz, statt die Batterie tagsüber vorzeitig zu füllen (Phase 7, siehe [Konfiguration](user/configuration.md)) |
+| **Batterieschutz** | Blockiert das Entladen, wenn der SoC unter den konfigurierten Mindestwert fällt |
+| **Kostenverfolgung** | Verfolgt tägliche Netzkosten, PV-Einsparungen, Einspeisevergütung und Netzladekosten |
+| **HA-Sensoren** | Veröffentlicht berechnete Sensoren unter `sensor.miniems_*` über eine benutzerdefinierte Integration |
+| **Live-Dashboard** | Ingress-Panel mit automatischer Aktualisierung, Warnungsbanner und Moduswechsel-Log |
+| **Solcast-Integration** | Liest die Solcast-PV-Prognose direkt aus HA-Entitäten |
+| **Vorhersage-Fallback** | Temperaturbasierter Fallback, wenn Solcast oder historische Daten nicht verfügbar sind |
 
-## Quick Start
+## Schnellstart
 
-1. Install the add-on from the local repository.
-2. Open **Configuration** and set your entity IDs (Deye inverter + Octopus Energy sensors).
-3. Start the add-on — it appears as **miniEMS** in the HA sidebar.
-4. HA entities `sensor.miniems_*` become available immediately after the first EMS tick.
+1. **Add-on installieren** — siehe [Installation](user/installation.md).
+2. **Dashboard öffnen** — über die HA-Seitenleiste → miniEMS.
+3. **Konfigurieren** — im Tab **Einstellungen** Entitäts-IDs und Schwellenwerte eintragen, siehe [Konfiguration](user/configuration.md).
+4. **Batteriesteuerung aktivieren** — zuerst den **Simulationsmodus** nutzen, um die Logik zu prüfen.
 
-## Documentation Pages
+## Dokumentation
 
-- [Architecture](architecture.md) — component overview and data flow
-- [Calculations](calculations.md) — EMS decision logic and cost formulas
-- [Data Storage](data-storage.md) — where state and config are persisted
-- [Configuration](configuration.md) — all configuration options explained
-- [HA Sensors](sensors.md) — sensors published to Home Assistant
-- [Development](development.md) — dev environment, rebuild workflow, debugging
+**Benutzerhandbuch**
+
+- [Erste Schritte](user/index.md) — Funktionsüberblick und Voraussetzungen
+- [Installation](user/installation.md)
+- [Konfiguration](user/configuration.md) — alle Konfigurationswerte erklärt
+- [Dashboard & Oberfläche](user/dashboard.md)
+- [Ereignisprotokoll](user/log.md)
+- [Datenbank](user/database.md)
+- [HA-Sensoren](user/sensors.md)
+
+**Technische Referenz**
+
+- [Übersicht](technical/index.md) — Modulübersicht
+- [Architektur](technical/architecture.md) — Komponentendiagramm, asyncio-Task-Graph, Authentifizierungsablauf
+- [Berechnungen](technical/calculations.md) — alle Formeln im EMS-Loop
+- [Datenspeicherung](technical/data-storage.md) — Konfigurationsdateien, SQLite-Schema, In-Memory-Zustand
+- [API-Referenz](technical/api.md) — interne HTTP-Endpunkte
+- [HA-Sensor-Referenz](technical/sensors.md)
+- [Devcontainer-Supervisor-Patches](technical/devcontainer-supervisor-patches.md)
+
+**English documentation** is available under [User Guide (EN)](en/user/index.md) and [Technical Reference (EN)](en/technical/index.md).
 
 ## Source Code
 
-The project is hosted on GitHub:
+Das Projekt ist auf GitHub gehostet:
 [github.com/GuidoJeuken-6512/miniEMS](https://github.com/GuidoJeuken-6512/miniEMS)

@@ -71,7 +71,9 @@
       "Bash(echo \"supervisor_run started \\(PID $!\\)\")",
       "Bash(sudo service *)",
       "Bash(sudo sed *)",
-      "Bash(sqlite3 /mnt/supervisor/addons/data/local_miniems/miniems.db \"ALTER TABLE daily_stats ADD COLUMN grid_charge_kwh_bilanz REAL DEFAULT 0;\")"
+      "Bash(sqlite3 /mnt/supervisor/addons/data/local_miniems/miniems.db \"ALTER TABLE daily_stats ADD COLUMN grid_charge_kwh_bilanz REAL DEFAULT 0;\")",
+      "WebSearch",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

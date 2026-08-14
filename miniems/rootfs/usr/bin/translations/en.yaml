@@ -67,6 +67,8 @@ pred_source_fallback: fallback estimation
 event_log: Event Log
 mode_change_log: Event Log
 log_state: Event
+log_mode: Mode
+log_reason: Reason
 log_time: Time
 log_price: Price (€/kWh)
 log_free: Free (kWh)
@@ -75,6 +77,22 @@ log_pred_load: Pred. Load (kWh)
 log_empty: No events recorded yet.
 log_page_hint: Shows the last 100 events (mode changes & price updates).
 log_price_change: Price Change
+log_sim_hint: Simulation mode active – commands are logged only, never sent.
+
+# Mode-decision reasons (grid-friendly PV strategy & battery control)
+reason_soc_unavailable: SoC sensor unavailable
+reason_soc_below_min: Battery protection – SoC below minimum
+reason_protect_hysteresis: Battery protection – hysteresis active
+reason_battery_full: Battery full
+reason_export_priority_off: PV strategy disabled
+reason_time_backstop: Charging – latest charge start reached
+reason_soc_below_export_floor: Charging – SoC below export floor
+reason_no_free_capacity: Charging – battery already full enough
+reason_forecast_unavailable: Charging – PV forecast unavailable
+reason_forecast_above_need: Charging deferred – PV forecast covers demand
+reason_forecast_below_need: Charging – remaining PV forecast (kWh today) no longer covers demand
+reason_grid_charge_cheap_rate: Grid charging – cheap rate
+reason_no_action: No action
 
 # Warnings
 warnings_title: Warnings

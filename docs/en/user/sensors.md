@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-04-17
+revision_date: 2026-04-24
 ---
 
 # Home Assistant Sensors
@@ -8,6 +8,11 @@ miniEMS registers **up to 34 sensors** in Home Assistant via the bundled custom 
 All entity IDs use the prefix `sensor.miniems_`. The integration polls `/api/status`
 every 30 s and registers all entities under the **miniEMS** device with long-term
 statistics support.
+
+> **Multilingual sensor names (from v1.6.0):** Sensor display names in the Home Assistant
+> UI automatically follow the language configured in HA.
+> Supported languages: **English** and **German**.
+> Entity IDs (e.g. `sensor.miniems_today_grid_cost_eur`) remain unchanged.
 
 > **Scope — addon-native only.** Live power readings (PV, load, grid, battery power,
 > SoC) and the electricity price are **not** duplicated here. Those sensors already

@@ -188,9 +188,7 @@ class HomeAssistantAPI(CoreSysAttributes):
                     seconds=tokens["expires_in"]
                 )
 
-    async def connect_websocket(
-        self, *, max_msg_size: int = 4 * 1024 * 1024
-    ) -> WSClient:
+    async def connect_websocket(self) -> WSClient:
         """Connect a WebSocket to Core, handling auth as appropriate.
 
         For Unix socket connections, no authentication is needed.
@@ -205,9 +203,7 @@ class HomeAssistantAPI(CoreSysAttributes):
             raise HomeAssistantAPIError("Core container is not running", _LOGGER.debug)
 
         if self.use_unix_socket:
-            return await WSClient.connect(
-                self.session, self.ws_url, max_msg_size=max_msg_size
-            )
+            return await WSClient.connect(self.session, self.ws_url)
 
         for attempt in (1, 2):
             try:
@@ -217,7 +213,6 @@ class HomeAssistantAPI(CoreSysAttributes):
                     self.session,
                     self.ws_url,
                     self._access_token,
-                    max_msg_size=max_msg_size,
                 )
             except HomeAssistantAPIError:
                 self._access_token = None

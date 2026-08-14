@@ -4,6 +4,7 @@ import logging
 import os
 import signal
 import sys
+from datetime import datetime, timezone
 
 import aiohttp
 import uvicorn
@@ -36,11 +37,15 @@ async def ems_loop(
     interval: int,
 ) -> None:
     """Run EMS decision loop on a fixed interval."""
+    timeout = max(90, interval * 3)
     while True:
         try:
-            data = await controller.update()
+            data = await asyncio.wait_for(controller.update(), timeout=timeout)
             status_store.clear()
             status_store.update(data)
+            status_store["last_updated"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        except asyncio.TimeoutError:
+            _LOGGER.error("EMS loop timed out after %ds – skipping tick", timeout)
         except Exception as exc:
             _LOGGER.error("EMS loop error: %s", exc, exc_info=True)
         await asyncio.sleep(interval)
@@ -145,6 +150,13 @@ async def main() -> None:
     try:
         await asyncio.gather(*tasks, return_exceptions=True)
     finally:
+        # Never leave a restricted charge/discharge limit on the inverter:
+        # once the add-on is gone, nothing else would reset it. Bounded, because
+        # the Supervisor only grants a few seconds before SIGKILL.
+        try:
+            await asyncio.wait_for(inverter.restore_safe_defaults(), timeout=5)
+        except Exception as exc:
+            _LOGGER.error("Inverter restore on shutdown failed: %s", exc)
         await store.close()
         _LOGGER.info("miniEMS stopped")
 

@@ -1,51 +1,111 @@
 ---
-revision_date: 2026-04-07
+revision_date: 2026-08-14
 ---
 
 # Calculations
 
-## EMS Mode Decision (`EMSController._determine_mode`)
+## EMS Mode Decision (`EMSController._decide` / `_commit`)
 
-The controller evaluates four mutually-exclusive modes in priority order:
+The controller evaluates five mutually-exclusive modes, in this priority order, on every tick:
 
 ```
-1. BATTERY_PROTECTION  — battery_soc < battery_min_soc
-2. PV_CHARGING         — (pv_w − load_w) > pv_surplus_threshold_w  AND  soc known AND soc < max_soc
-3. GRID_CHARGING       — price < cheap_rate_threshold_eur
-                         AND  soc known AND soc < max_soc
-                         AND  bat_kwh_free > solcast_remaining_today_kwh
-                              (falls back to consumption model if Solcast unavailable)
-4. IDLE                — none of the above, OR SoC sensor unavailable
+1. IDLE               — battery_soc_entity missing or stale (sensor_max_age_sec)
+2. PROTECT_BATTERY     — soc < battery_min_soc
+                         OR (previously PROTECT_BATTERY AND soc < battery_min_soc + battery_soc_hysteresis_pct)
+3. IDLE                — soc ≥ battery_max_soc ("battery full")
+4. EXPORT_SURPLUS       — (pv_w − load_w) > pv_surplus_threshold_w  AND  export hold active (see below)
+   PV_CHARGING          — (pv_w − load_w) > pv_surplus_threshold_w  AND  export hold NOT active
+5. GRID_CHARGING        — price cheap AND grid-charge conditions met (see below)
+6. IDLE                — none of the above ("no action")
 ```
+
+Every condition is evaluated **fail closed**: if a required sensor value is missing or stale, the controller takes the safe path (no grid charging, no withholding of PV charging) instead of guessing.
 
 !!! note "SoC sensor unavailable"
-    If `battery_soc_entity` returns no value, both PV Charging and Grid Charging
-    are disabled and the system stays in **IDLE** mode. This is a safety measure
-    to prevent uncontrolled charging when the battery state of charge is unknown.
+    If `battery_soc_entity` returns no value, or hasn't updated for longer than `sensor_max_age_sec` (default 300 s), the controller immediately and without delay (`urgent`) switches to **IDLE** and hands control back to the inverter's own self-use logic. This is the central safety measure against uncontrolled charging when the battery state of charge is unknown.
 
 ### PV Surplus
 
 ```
-surplus_w = pv_power_w - load_power_w
+surplus_w = pv_power_w − load_power_w
 ```
 
-If `surplus_w > pv_surplus_threshold_w` (default 200 W) and the battery is not
-full (`soc < battery_max_soc`), the system enters **PV Charging** mode.
+Only computed when **both** power sensors report a current value (no older than `sensor_max_age_sec`); otherwise `surplus_w` is treated as unknown and the controller proceeds to step 5 (grid charging). If `surplus_w > pv_surplus_threshold_w` (default 200 W), the export hold (next section) decides whether the mode becomes **PV Charging** or **Export Surplus**.
 
-### Grid-Charge Decision
+### Grid-Friendly Export Hold (`_should_hold_pv_charge`, mode `EXPORT_SURPLUS`)
 
-```python
-bat_kwh_free = (max_soc - soc) / 100 * capacity_kwh
+Optional strategy (`pv_export_priority_enabled`, off by default): exports PV surplus to the grid instead of charging the battery immediately, for as long as the Solcast remaining-today forecast stays above what the battery still needs. Every one of the following must hold for the hold (`hold = True`, mode `EXPORT_SURPLUS`) to apply instead of charging — **any** failed condition immediately triggers `PV_CHARGING`:
 
-# Primary path: Solcast available
-should_grid_charge = bat_kwh_free > solcast_remaining_today_kwh
+```
+1. pv_export_priority_enabled == true
+2. now.hour < pv_charge_backstop_hour              (default 14:00 — always charge after this)
+3. bat_soc ≥ pv_export_min_soc_pct                 (default 30 % — always charge below this)
+4. bat_kwh_free > 0.05 kWh                          (there's practically still room)
+5. solcast_remaining_today_kwh available AND not stale (forecast_max_age_sec)
 
-# Fallback: no Solcast
-should_grid_charge = (predicted_load > 0) AND (useable_kwh + predicted_pv < predicted_load)
+target    = bat_kwh_free × pv_charge_margin_factor          # default factor 1.2
+hyst      = clamp(pv_charge_hysteresis_frac, 0.0, 0.5)       # default 0.10 (±10 %)
+threshold = target × (1 − hyst)   if currently EXPORT_SURPLUS   # easier to stay in the hold
+          = target × (1 + hyst)   otherwise                     # harder to enter it
+
+hold = solcast_remaining_today_kwh > threshold
 ```
 
-The Solcast path is preferred because it accounts for actual solar irradiance
-forecasts. The fallback uses the temperature-based consumption model.
+The threshold is deliberately asymmetric (hysteresis): **entering** the export hold requires the remaining forecast to be clearly above the need; **leaving** it only requires a smaller drop. This keeps the mode from flapping around the trigger point.
+
+While the export hold is active, `InverterController.apply_mode()` sets the charge current to `export_hold_charge_current_a` (default 0 A = charging blocked entirely) and leaves the discharge current at maximum, so a passing cloud is still covered from the battery instead of by importing from the grid.
+
+### Grid-Charge Decision (`_should_grid_charge`, mode `GRID_CHARGING`)
+
+```
+1. electricity_price_entity available AND not stale (price_max_age_sec)
+2. price_eur_kwh < cheap_rate_threshold_eur
+3. bat_kwh_free > grid_charge_min_free_kwh          (default 1.0 kWh — otherwise not worth it)
+
+If solcast_remaining_today_kwh is available (not stale):
+    should_grid_charge = bat_kwh_free > solcast_remaining_today_kwh × pv_charge_margin_factor
+                                          + grid_charge_min_free_kwh
+
+Otherwise (no forecast available):
+    # "No more sun can arrive today" — only charge inside the configured dark window
+    should_grid_charge = grid_charge_dark_start_hour ≤ now.hour < grid_charge_dark_end_hour
+                          (default 21:00–06:00; allowed to wrap past midnight)
+```
+
+!!! warning "No longer tied to the internal consumption model"
+    Earlier miniEMS versions used the internal consumption forecast (`ConsumptionModel`, section below) as a fallback for the grid-charge decision whenever Solcast was unavailable. That is no longer the case since the grid-friendly PV strategy (Phase 7): with no Solcast forecast, the decision relies **exclusively** on the dark window. `ConsumptionModel.predicted_pv_kwh` and `.predicted_load_kwh` currently feed into **no** control decision at all — they are dashboard-display values only (see "Consumption & PV Prediction" further down this page).
+
+### Battery Protection Hysteresis
+
+```
+Enter:  soc < battery_min_soc                                     → PROTECT_BATTERY (immediate)
+Leave:  only once soc ≥ battery_min_soc + battery_soc_hysteresis_pct   (default 2 %)
+```
+
+Without this deadband, a SoC hovering right around `battery_min_soc` would flip the mode back and forth between `PROTECT_BATTERY` and something else on every tick.
+
+### Mode Debouncing (`_commit`, `mode_dwell_sec`)
+
+A newly proposed mode is not applied immediately — it must be requested continuously for a while first, unless the decision is marked **urgent** (SoC protection, a missing/stale SoC sensor, or an export hold released by a safety guard):
+
+```
+If decision.mode == current mode:
+    no change, pending reset
+
+If decision.urgent OR mode_dwell_sec ≤ 0:
+    apply immediately
+
+Otherwise:
+    If decision.mode ≠ previously proposed mode:
+        new proposal, start timer at now
+    waited = now − pending_since
+    If waited < mode_dwell_sec:
+        keep current mode (still waiting)
+    Else:
+        apply the mode
+```
+
+Default `mode_dwell_sec` = 300 s. This prevents rapid switching on short price or PV fluctuations, without delaying real emergencies (empty battery, sensor failure).
 
 ---
 
@@ -55,6 +115,14 @@ forecasts. The fallback uses the temperature-based consumption model.
 free_to_charge_kwh = max(0,  (max_soc − soc) / 100  × capacity_kwh)
 useable_kwh        = max(0,  (soc − min_soc) / 100  × capacity_kwh)
 ```
+
+`capacity_kwh` defaults to `battery_capacity_kwh` (fixed config value), but is replaced on every tick by the live sensor `battery_capacity_entity` if configured **and** it reports a plausible value:
+
+```
+plausible := 0.5 × battery_capacity_kwh ≤ sensor value ≤ 2.0 × battery_capacity_kwh
+```
+
+This plausibility band prevents a mis-scaled sensor (e.g. an Ah reading instead of kWh) from feeding an absurd capacity into the charge/decision logic — outside the band, the fixed config value is used instead.
 
 ---
 
@@ -74,7 +142,7 @@ A sample is rejected (replaced by the last accepted value) when:
 |delta| > 500 W  AND  |delta| / previous_value > 50 %
 ```
 
-If no prior value exists for a sensor, 0 W is used as the fallback.
+If no prior value exists for a sensor, the first reading is always accepted.
 
 ### Interval Duration
 
@@ -171,7 +239,9 @@ grid_charge_cost_eur += kwh_gc × price_eur_kwh
 ```
 
 `grid_charge_w` is the portion of battery charging power that cannot be
-covered by excess PV — therefore it must have come from the grid.
+covered by excess PV — therefore it must have come from the grid. This
+power-based estimate is the basis for `today_grid_charge_cost_eur`; it is
+independent of the balance-based Scenario 2 calculation further down.
 
 ---
 
@@ -205,15 +275,71 @@ default 0.08 €/kWh), not the spot price.
 
 ---
 
+### Balance-Based Grid Charging, Efficiency & ROI (Scenario 2, optional)
+
+Only active when the corresponding advanced sensors are configured — see the "Advanced Sensors for Balance-Based Cost Calculation" section in [Configuration](../user/configuration.md). Complements — does not replace — the power-based calculation above; all values are `None`/absent as long as the required inputs are missing.
+
+#### Balance-Based Grid Charge Amount (`today_grid_charge_kwh_bilanz`)
+
+Computed from the inverter's **daily total sensors** instead of instantaneous power — more robust against short measurement gaps:
+
+```
+grid_charge_energy = today_energy_import − today_load_consumption + today_battery_discharge
+today_grid_charge_kwh_bilanz = max(0, grid_charge_energy)
+```
+
+Only computed when `battery_discharge_entity` **and** `grid_import_energy_entity` are available (`today_load_consumption` comes from the internally tracked `load_total_kwh` accumulator).
+
+`today_grid_charge_cost_bilanz_eur` applies the power-based accumulator's average price per kWh to this amount:
+
+```
+today_grid_charge_cost_bilanz_eur = today_grid_charge_kwh_bilanz
+                                     × (today_grid_charge_cost_eur / today_grid_charge_kwh)
+                                     (0 when today_grid_charge_kwh == 0)
+```
+
+#### Inverter Efficiency (`today_efficiency_pct`)
+
+```
+η = (today_production_entity − today_losses_entity) / today_production_entity
+    (None when today_production_entity ≤ 0 or either entity is missing)
+```
+
+#### Grid-Charge ROI (`today_grid_charge_roi_eur`)
+
+```
+grid_charge_profit = (grid_charge_energy × η × avg_discharge_tariff) − grid_charge_cost
+```
+
+```
+usable_kwh = today_grid_charge_kwh_bilanz × η
+saving_eur = usable_kwh × avg_discharge_tariff_eur_kwh
+roi_eur    = saving_eur − today_grid_charge_cost_eur
+```
+
+Only computed when `today_grid_charge_kwh_bilanz > 0`, `η > 0`, **and** `avg_discharge_tariff_eur_kwh > 0` is configured (default `0.0` = disabled). `avg_discharge_tariff_eur_kwh` is the assumed price the discharged energy would otherwise have cost — comparing the cost of grid charging against the value of the later, otherwise more expensive, grid draw it displaces.
+
+#### Effect on `today_cost_without_grid_charge`
+
+When the balance-based cost estimate is available, it is preferred over the power-based one for this metric:
+
+```
+gc_cost_for_subtraction = today_grid_charge_cost_bilanz_eur if available,
+                          else today_grid_charge_cost_eur
+today_cost_without_grid_charge = max(0, today_grid_cost_eur − gc_cost_for_subtraction)
+```
+
+---
+
 ### Derived Metrics (computed in `ems_controller.py`)
 
 These are calculated once per tick from the accumulated values above and
 added to the status dict.
 
-| Entity                           | Formula                                        | Meaning                                                                                |
-| -------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `today_cost_without_grid_charge` | `max(0, grid_cost_eur − grid_charge_cost_eur)` | What the grid bill would have been if the battery had never been charged from the grid |
-| `today_cost_fix_price_tariff`    | `load_total_kwh × fix_price`                   | What today's load would cost at the fixed reference tariff (default 0.30 €/kWh)        |
+| Entity                           | Formula                                                | Meaning                                                                                          |
+| --------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `today_cost_without_grid_charge` | `max(0, grid_cost_eur − gc_cost_for_subtraction)`      | What the grid bill would have been if the battery had never been charged from the grid (see Scenario 2 precedence above) |
+| `today_cost_fix_price_tariff`    | `load_total_kwh × fix_price + daily_base_price_eur`    | What today's load would cost at the fixed reference tariff plus base fee (default 0.30 €/kWh, `daily_base_price_eur` default 0) |
 
 ---
 
@@ -246,7 +372,7 @@ FROM daily_stats WHERE strftime('%Y', date) = 'YYYY'
 ```
 
 | Entities                                                             | Source                     |
-| -------------------------------------------------------------------- | -------------------------- |
+| ---------------------------------------------------------------------- | ----------------------------- |
 | `month_grid_cost_eur`, `month_pv_savings_eur`, `month_load_cost_eur` | Calendar-month SUM from DB |
 | `year_grid_cost_eur`, `year_pv_savings_eur`, `year_load_cost_eur`    | Calendar-year SUM from DB  |
 
@@ -300,11 +426,21 @@ columns, queried via `store.query_month()`.
 Computed once per EMS tick in `consumption_model.py`.
 Data source: SQLite daily history (`store.py`) + optional HA weather forecast.
 
+!!! info "Dashboard display only, no control effect"
+    Both prediction values (`predicted_load_kwh`, `predicted_pv_kwh`) are computed
+    regardless of whether Solcast is configured, and are used purely for the
+    dashboard display. The actual grid-charge and export decisions rely
+    exclusively on the Solcast remaining-today forecast (see the "Grid-Charge
+    Decision" section further up this page) — this model no longer feeds into
+    that logic at all.
+
 ### Predicted Load (`predicted_load_kwh`)
 
 ```
 If weather_entity configured AND forecast available:
-  target_temp   = tomorrow's max temperature (from HA forecast)
+  target_temp   = tomorrow's forecast value the model keeps as "night temp"
+                  (actually: tomorrow's daytime high from the HA forecast — the
+                  naming is historical, see the source comment in consumption_model.py)
   similar_days  = days in last 60 d with |avg_temp − target| ≤ 4 °C
   If len(similar_days) ≥ 3:
     predicted_load = median(load_total_kwh of similar_days)  → source: "historical"
@@ -312,29 +448,25 @@ If weather_entity configured AND forecast available:
     → temperature fallback rules (see below)                 → source: "fallback"
 Else:
   → temperature fallback rules                               → source: "fallback"
-No history:
-  predicted_load = 0.0 kWh                                   → source: "fallback"
 ```
 
 #### Temperature Fallback Rules
 
-| Condition                              | Predicted Load |
-| -------------------------------------- | -------------- |
-| Night temp < 0 °C and day temp < 0 °C  | 30 kWh         |
-| Night temp < 0 °C and day temp < 10 °C | 20 kWh         |
-| Night temp > 0 °C and day temp < 15 °C | 10 kWh         |
-| Otherwise                              | 5 kWh          |
+| Condition                                                | Predicted Load                                    |
+| --------------------------------------------------------- | ----------------------------------------------------- |
+| Night temp < 0 °C and day temp < 0 °C                    | 30 kWh                                             |
+| Night temp < 0 °C and day temp < 10 °C                   | 20 kWh                                             |
+| Night temp > 0 °C and day temp < 15 °C                   | 10 kWh                                             |
+| Otherwise (e.g. mild/warm days outside the three rules)  | Median of available historical days, else `0.0 kWh` |
 
 ### Predicted PV Yield (`predicted_pv_kwh`)
 
-Internal estimate used only when Solcast is unavailable.
-
 ```
 peaks    = [peak_pv_w | last 14 days, peak_pv_w > 100 W]
-p75      = 75th percentile(peaks)   (conservative estimate)
+p75      = 75th percentile(peaks), nearest-rank: sorted list, index ⌊n × 0.75⌋
 
 With forecast:
-  clear_frac  = avg(1 − cloud_coverage / 100) across forecast slots
+  clear_frac  = avg(1 − cloud_coverage / 100) across all forecast slots
   daylight_h  = astronomical day length for HA latitude + current month
   pv_factor   = clear_frac × min(1.0, daylight_h / 12.0)
 
@@ -344,6 +476,8 @@ Without forecast:
 
 predicted_pv = max(0, (p75 / 1000) × pv_factor × daylight_h)
 ```
+
+Returns `0.0 kWh` if no peak PV value above 100 W was recorded in the last 14 days (e.g. right after installation).
 
 **Day-length formula** (`daylight_hours_approx` in `weather_client.py`):
 

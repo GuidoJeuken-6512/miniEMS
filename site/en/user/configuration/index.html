@@ -605,6 +605,8 @@
       
         
       
+        
+      
     
     
     
@@ -786,6 +788,34 @@
     
   
     HA-Sensor-Referenz
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../technical/devcontainer-supervisor-patches/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Devcontainer-Supervisor-Patches
   
 
     
@@ -1008,10 +1038,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#electricity-price" class="md-nav__link">
+  <a href="#authentication" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Electricity Price
+        Authentication
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#octopus-energy-electricity-price" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Octopus Energy / Electricity Price
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ems-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EMS Parameters
       
     </span>
   </a>
@@ -1047,10 +1099,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#solcast-pv-forecast" class="md-nav__link">
+  <a href="#grid-friendly-pv-strategy-phase-7" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Solcast PV Forecast
+        Grid-Friendly PV Strategy (Phase 7)
       
     </span>
   </a>
@@ -1069,10 +1121,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#ems-parameters" class="md-nav__link">
+  <a href="#solcast-pv-forecast" class="md-nav__link">
     <span class="md-ellipsis">
       
-        EMS Parameters
+        Solcast PV Forecast
       
     </span>
   </a>
@@ -1080,10 +1132,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#authentication" class="md-nav__link">
+  <a href="#advanced-sensors-for-balance-based-cost-calculation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Authentication
+        Advanced Sensors for Balance-Based Cost Calculation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced-cost-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Cost Parameters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#raw-file-editors-configjson-optionsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Raw File Editors (config.json / options.json)
       
     </span>
   </a>
@@ -1492,10 +1566,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#electricity-price" class="md-nav__link">
+  <a href="#authentication" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Electricity Price
+        Authentication
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#octopus-energy-electricity-price" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Octopus Energy / Electricity Price
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ems-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EMS Parameters
       
     </span>
   </a>
@@ -1531,10 +1627,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#solcast-pv-forecast" class="md-nav__link">
+  <a href="#grid-friendly-pv-strategy-phase-7" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Solcast PV Forecast
+        Grid-Friendly PV Strategy (Phase 7)
       
     </span>
   </a>
@@ -1553,10 +1649,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#ems-parameters" class="md-nav__link">
+  <a href="#solcast-pv-forecast" class="md-nav__link">
     <span class="md-ellipsis">
       
-        EMS Parameters
+        Solcast PV Forecast
       
     </span>
   </a>
@@ -1564,10 +1660,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#authentication" class="md-nav__link">
+  <a href="#advanced-sensors-for-balance-based-cost-calculation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Authentication
+        Advanced Sensors for Balance-Based Cost Calculation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced-cost-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Cost Parameters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#raw-file-editors-configjson-optionsjson" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Raw File Editors (config.json / options.json)
       
     </span>
   </a>
@@ -1637,7 +1755,7 @@
                 
   
   <div class="md-doc-meta">
-    miniEMS &middot; Updated 2026-04-07
+    miniEMS &middot; Updated 2026-08-14
   </div>
   
   
@@ -1650,6 +1768,17 @@ Values are stored in <code>/data/config.json</code> and survive restarts, update
 <p class="admonition-title">No HA add-on config UI</p>
 <p>As of v1.4.0, the HA add-on "Configuration" tab is intentionally empty.
 All configuration is done through the miniEMS Settings page.</p>
+</div>
+<div class="admonition info">
+<p class="admonition-title">How values are loaded</p>
+<p>On every startup miniEMS reads three sources, in this priority order (highest first):</p>
+<ol>
+<li><strong><code>/data/options.json</code></strong> — Supervisor-managed values that differ from the default (you changed them via the HA UI)</li>
+<li><strong><code>/data/config.json</code></strong> — the last persisted values (survives an <code>options.json</code> reset caused by Supervisor reloads / addon updates)</li>
+<li><strong>Built-in defaults</strong></li>
+</ol>
+<p>The merged result is written back to <code>/data/config.json</code> on every start, so your settings are never lost. Old field names (e.g. from versions before v2.0) are migrated automatically to their current names.</p>
+<p>Values that do <strong>not</strong> appear on the Settings form can be edited directly as JSON via the <strong>config.json</strong> / <strong>options.json</strong> tabs in the dashboard (see the "Raw File Editors" section at the bottom of this page).</p>
 </div>
 <hr />
 <h2 id="inverter-entities">Inverter Entities<a class="headerlink" href="#inverter-entities" title="Permanent link">&para;</a></h2>
@@ -1688,8 +1817,19 @@ All configuration is done through the miniEMS Settings page.</p>
 <td><code>sensor.deye_load_power</code></td>
 <td>House load (W)</td>
 </tr>
+<tr>
+<td><code>grid_import_energy_entity</code></td>
+<td><code>sensor.deye8k_today_energy_import</code></td>
+<td>HA entity providing the inverter's daily grid import total (kWh, resets at midnight). When set, replaces the calculated import kWh; grid cost is still accumulated per tick. Leave empty to fall back to calculation from <code>grid_power_entity</code>.</td>
+</tr>
+<tr>
+<td><code>feed_in_energy_entity</code></td>
+<td><code>sensor.deye8k_today_energy_export</code></td>
+<td>HA entity providing the inverter's daily feed-in total (kWh, resets at midnight). When set, replaces the calculated feed-in value. Leave empty to fall back to calculation from <code>grid_power_entity</code>.</td>
+</tr>
 </tbody>
 </table>
+<p>All five required entities above are checked for <strong>staleness</strong> (<code>sensor_max_age_sec</code>, default 300 s): if an entity stops updating for that long, miniEMS treats it as "unavailable" and falls back to the safe state (see the "Grid-Friendly PV Strategy" section further down).</p>
 <hr />
 <h2 id="battery-settings">Battery Settings<a class="headerlink" href="#battery-settings" title="Permanent link">&para;</a></h2>
 <table>
@@ -1703,23 +1843,46 @@ All configuration is done through the miniEMS Settings page.</p>
 <tbody>
 <tr>
 <td><code>battery_capacity_kwh</code></td>
-<td><code>25.0</code></td>
-<td>Usable battery capacity in kWh</td>
+<td><code>10.0</code></td>
+<td>Usable battery capacity in kWh. Overridden by <code>battery_capacity_entity</code> if set.</td>
 </tr>
 <tr>
 <td><code>battery_min_soc</code></td>
-<td><code>10</code></td>
-<td>Minimum SoC (%). Discharging is blocked below this value</td>
+<td><code>15</code></td>
+<td>Minimum SoC (%). Below this, miniEMS switches to <code>Battery Protection</code> and blocks discharging.</td>
 </tr>
 <tr>
 <td><code>battery_max_soc</code></td>
 <td><code>95</code></td>
-<td>Maximum SoC (%). Charging stops when reached</td>
+<td>Maximum SoC (%). Charging stops (<code>Idle</code> mode) once reached.</td>
 </tr>
 </tbody>
 </table>
+<div class="admonition warning">
+<p class="admonition-title">Automatic safeguard</p>
+<p>If <code>battery_min_soc ≥ battery_max_soc</code>, miniEMS automatically disables <code>battery_control_enabled</code> on startup and logs a warning — an inconsistent configuration can't reach the inverter unfiltered.</p>
+</div>
 <hr />
-<h2 id="electricity-price">Electricity Price<a class="headerlink" href="#electricity-price" title="Permanent link">&para;</a></h2>
+<h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>long_lived_token</code></td>
+<td><em>(empty)</em></td>
+<td>HA long-lived token — used as fallback if the Supervisor token is rejected with a 401. Usually not needed.</td>
+</tr>
+</tbody>
+</table>
+<p>To create one: <strong>HA → Profile → Long-Lived Access Tokens → Create Token</strong>.</p>
+<hr />
+<h2 id="octopus-energy-electricity-price">Octopus Energy / Electricity Price<a class="headerlink" href="#octopus-energy-electricity-price" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -1731,12 +1894,12 @@ All configuration is done through the miniEMS Settings page.</p>
 <tbody>
 <tr>
 <td><code>electricity_price_entity</code></td>
-<td><code>sensor.octopus_a_10fc0646_electricity_price</code></td>
+<td><code>sensor.octopus_energy_electricity_current_rate</code></td>
 <td>Current spot price sensor (€/kWh)</td>
 </tr>
 <tr>
 <td><code>cheap_rate_threshold_eur</code></td>
-<td><code>0.28</code></td>
+<td><code>0.10</code></td>
 <td>Grid charging triggers when price is <strong>below</strong> this value — also the <strong>low</strong> tier ceiling</td>
 </tr>
 <tr>
@@ -1748,16 +1911,6 @@ All configuration is done through the miniEMS Settings page.</p>
 <td><code>feed_in_tariff_eur_kwh</code></td>
 <td><code>0.08</code></td>
 <td>Revenue per kWh exported to the grid</td>
-</tr>
-<tr>
-<td><code>grid_import_energy_entity</code></td>
-<td><code>sensor.deye8k_today_energy_import</code></td>
-<td>HA entity providing the inverter's daily grid import total (kWh, resets at midnight). When set, replaces the calculated import kWh; grid cost is still accumulated per tick. Leave empty to fall back to calculation from <code>grid_power_entity</code>.</td>
-</tr>
-<tr>
-<td><code>feed_in_energy_entity</code></td>
-<td><code>sensor.deye8k_today_energy_export</code></td>
-<td>HA entity providing the inverter's daily feed-in total (kWh, resets at midnight). When set, this replaces the calculated feed-in value. Leave empty to fall back to calculation from <code>grid_power_entity</code>.</td>
 </tr>
 <tr>
 <td><code>fix_price</code></td>
@@ -1791,13 +1944,45 @@ All configuration is done through the miniEMS Settings page.</p>
 </tr>
 </tbody>
 </table>
-<p>The current tier is also shown next to the price on the dashboard (green / amber / red).</p>
+<p>The current tier is also shown next to the price on the dashboard (green / amber / red). If the price hasn't updated for longer than <code>price_max_age_sec</code> (default 10,800 s = 3 h), it's treated as stale and <strong>cannot</strong> trigger grid charging.</p>
 </div>
+<hr />
+<h2 id="ems-parameters">EMS Parameters<a class="headerlink" href="#ems-parameters" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pv_surplus_threshold_w</code></td>
+<td><code>200</code></td>
+<td>Minimum PV surplus (W, <code>pv_power - load_power</code>) to trigger PV Charging mode</td>
+</tr>
+<tr>
+<td><code>update_interval_sec</code></td>
+<td><code>30</code></td>
+<td>How often the EMS loop runs (seconds, 10–300)</td>
+</tr>
+<tr>
+<td><code>event_log_retention_days</code></td>
+<td><code>30</code></td>
+<td>How many days of event log entries to keep in the database</td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="battery-control">Battery Control<a class="headerlink" href="#battery-control" title="Permanent link">&para;</a></h2>
 <div class="admonition warning">
 <p class="admonition-title">Enable Simulation Mode first</p>
 <p>Before enabling live control, run with <code>Simulation Mode</code> on. Verify the log shows the correct commands for your inverter.</p>
+</div>
+<div class="admonition info">
+<p class="admonition-title">Amps, not watts</p>
+<p>The Deye charge/discharge limits are entities in <strong>amps</strong>, not watts — unlike in miniEMS versions before v2.0. The old <code>*_power_w</code> field names are migrated automatically to the new <code>*_current_a</code> fields on startup; any previously stored watt values are <strong>not</strong> converted, since there is no valid 1:1 conversion. Double-check the migrated values in Settings once after updating from an older version.</p>
 </div>
 <table>
 <thead>
@@ -1819,9 +2004,9 @@ All configuration is done through the miniEMS Settings page.</p>
 <td>Log commands but do not send them</td>
 </tr>
 <tr>
-<td><code>inverter_charge_power_entity</code></td>
-<td><code>number.deye_battery_charging_power</code></td>
-<td>Entity for setting charge power (W)</td>
+<td><code>inverter_charge_current_entity</code></td>
+<td><code>number.deye8k_battery_max_charging_current</code></td>
+<td>Entity for setting the charge current limit (A)</td>
 </tr>
 <tr>
 <td><code>grid_charge_switch_entity</code></td>
@@ -1829,63 +2014,74 @@ All configuration is done through the miniEMS Settings page.</p>
 <td>Switch entity that enables/disables grid charging</td>
 </tr>
 <tr>
-<td><code>battery_discharging_power_entity</code></td>
-<td><code>number.deye8k_battery_discharging_power</code></td>
-<td>Entity for setting discharge power limit (W)</td>
+<td><code>battery_discharging_current_entity</code></td>
+<td><code>number.deye8k_battery_max_discharging_current</code></td>
+<td>Entity for setting the discharge current limit (A)</td>
 </tr>
 <tr>
-<td><code>battery_max_charge_power_w</code></td>
-<td><code>5500</code></td>
-<td>Maximum charging power (W)</td>
-</tr>
-<tr>
-<td><code>battery_max_discharge_power_w</code></td>
-<td><code>5500</code></td>
-<td>Maximum discharging power (W)</td>
-</tr>
-<tr>
-<td><code>default_discharge_power_w</code></td>
+<td><code>battery_max_charge_current_a</code></td>
 <td><code>185</code></td>
-<td>Discharge power during normal (non-grid-charge) operation</td>
+<td>Maximum charge current (A). Automatically clamped to 0–350 A.</td>
+</tr>
+<tr>
+<td><code>battery_max_discharge_current_a</code></td>
+<td><code>185</code></td>
+<td>Maximum discharge current (A). Automatically clamped to 0–350 A.</td>
 </tr>
 </tbody>
 </table>
 <h3 id="how-inverter-control-works">How inverter control works<a class="headerlink" href="#how-inverter-control-works" title="Permanent link">&para;</a></h3>
+<p>Every EMS mode sets <strong>all three</strong> inverter values explicitly, so the resulting state never depends on the mode that preceded it:</p>
 <table>
 <thead>
 <tr>
 <th>EMS Mode</th>
 <th>Grid Charge Switch</th>
-<th>Discharge Power</th>
+<th>Charge Current</th>
+<th>Discharge Current</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Grid Charging</td>
 <td><code>switch.turn_on</code></td>
-<td>Set to <code>0</code> W</td>
+<td><code>battery_max_charge_current_a</code></td>
+<td><code>0</code> A (prevents immediately discharging what was just bought)</td>
 </tr>
 <tr>
 <td>PV Charging</td>
 <td><code>switch.turn_off</code></td>
-<td>Restored to <code>default_discharge_power_w</code></td>
+<td><code>battery_max_charge_current_a</code></td>
+<td><code>battery_max_discharge_current_a</code></td>
+</tr>
+<tr>
+<td>Export Surplus <em>(grid-friendly hold)</em></td>
+<td><code>switch.turn_off</code></td>
+<td><code>export_hold_charge_current_a</code></td>
+<td><code>battery_max_discharge_current_a</code></td>
 </tr>
 <tr>
 <td>Battery Protection</td>
 <td><code>switch.turn_off</code></td>
-<td>Set to <code>0</code> W</td>
+<td><code>battery_max_charge_current_a</code></td>
+<td><code>0</code> A</td>
 </tr>
 <tr>
 <td>Idle</td>
 <td><code>switch.turn_off</code></td>
-<td>Restored to <code>default_discharge_power_w</code></td>
+<td><code>battery_max_charge_current_a</code></td>
+<td><code>battery_max_discharge_current_a</code></td>
 </tr>
 </tbody>
 </table>
-<p>Commands are idempotent — miniEMS only sends a service call when the value actually changes.</p>
+<p>Commands are idempotent — miniEMS only sends a service call when the value actually changes. <code>Export Surplus</code> only appears when <code>pv_export_priority_enabled</code> is on (see below).</p>
 <hr />
-<h2 id="solcast-pv-forecast">Solcast PV Forecast<a class="headerlink" href="#solcast-pv-forecast" title="Permanent link">&para;</a></h2>
-<p><a href="https://solcast.com/">Solcast</a> provides highly accurate rooftop PV forecasts. Install the Solcast HA integration and configure the entities here.</p>
+<h2 id="grid-friendly-pv-strategy-phase-7">Grid-Friendly PV Strategy (Phase 7)<a class="headerlink" href="#grid-friendly-pv-strategy-phase-7" title="Permanent link">&para;</a></h2>
+<p>Optional strategy that <strong>exports</strong> PV surplus to the grid instead of storing it, for as long as the Solcast remaining-today forecast stays above roughly what the battery still needs. Goal: fill the battery late in the day when there's still enough sun coming — sparing the grid an unnecessary midday export spike while still leaving enough reserve for the evening.</p>
+<div class="admonition warning">
+<p class="admonition-title">Disabled by default</p>
+<p>With <code>pv_export_priority_enabled = false</code>, miniEMS behaves exactly as before: any PV surplus charges the battery immediately. The strategy also has <strong>no effect</strong> while <code>battery_control_enabled = false</code> — miniEMS logs a warning in that case.</p>
+</div>
 <table>
 <thead>
 <tr>
@@ -1896,27 +2092,79 @@ All configuration is done through the miniEMS Settings page.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>solcast_remaining_today_entity</code></td>
-<td><code>sensor.solcast_pv_forecast_prognose_verbleibende_leistung_heute</code></td>
-<td>Expected PV remaining for today (kWh) — used in grid-charge decision</td>
+<td><code>pv_export_priority_enabled</code></td>
+<td><code>false</code></td>
+<td>Master switch for the strategy</td>
 </tr>
 <tr>
-<td><code>solcast_today_entity</code></td>
-<td><code>sensor.solcast_pv_forecast_prognose_heute</code></td>
-<td>Total expected PV for today (kWh) — dashboard display</td>
+<td><code>pv_charge_margin_factor</code></td>
+<td><code>1.2</code></td>
+<td>Safety factor applied to the battery's need when comparing it to the remaining forecast. <code>&gt;1</code> charges earlier (buffer against an over-optimistic Solcast forecast). Automatically clamped to 0.5–3.0.</td>
 </tr>
 <tr>
-<td><code>solcast_tomorrow_entity</code></td>
-<td><code>sensor.solcast_pv_forecast_prognose_morgen</code></td>
-<td>Expected PV for tomorrow (kWh) — dashboard display</td>
+<td><code>pv_charge_hysteresis_frac</code></td>
+<td><code>0.10</code></td>
+<td>Deadband around the trigger point (0.10 = ±10 %) so the mode cannot flap. Automatically clamped to 0.0–0.5.</td>
+</tr>
+<tr>
+<td><code>pv_export_min_soc_pct</code></td>
+<td><code>30</code></td>
+<td>Below this SoC the export hold is <strong>never</strong> applied — the battery always charges. Must exceed <code>battery_min_soc</code>; otherwise it's automatically raised to <code>battery_min_soc + 10</code>.</td>
+</tr>
+<tr>
+<td><code>pv_charge_backstop_hour</code></td>
+<td><code>14</code></td>
+<td>Local hour (0–23) from which the battery always charges regardless of the forecast — prevents an overly optimistic afternoon from leaving the battery empty.</td>
+</tr>
+<tr>
+<td><code>export_hold_charge_current_a</code></td>
+<td><code>0</code></td>
+<td>Charge current (A) while holding the export. <code>0</code> blocks charging entirely. Automatically clamped to 0–350 A.</td>
+</tr>
+<tr>
+<td><code>mode_dwell_sec</code></td>
+<td><code>300</code></td>
+<td>A new mode must be requested continuously for this long before it actually applies (anti-flapping). Urgent transitions (SoC protection, sensor failure) bypass this delay. Automatically clamped to 0–3600 s.</td>
+</tr>
+<tr>
+<td><code>battery_soc_hysteresis_pct</code></td>
+<td><code>2</code></td>
+<td><code>Battery Protection</code> is only left once the SoC has risen above <code>battery_min_soc + battery_soc_hysteresis_pct</code> — prevents flapping right at the boundary.</td>
+</tr>
+<tr>
+<td><code>grid_charge_min_free_kwh</code></td>
+<td><code>1.0</code></td>
+<td>Minimum free battery capacity (kWh) below which grid charging is no longer considered worthwhile.</td>
+</tr>
+<tr>
+<td><code>grid_charge_dark_start_hour</code> / <code>grid_charge_dark_end_hour</code></td>
+<td><code>21</code> / <code>6</code></td>
+<td>Time window (local hours) in which grid charging is still allowed when no Solcast forecast is available ("no more sun can arrive today"). Both automatically clamped to 0–23.</td>
+</tr>
+<tr>
+<td><code>sensor_max_age_sec</code></td>
+<td><code>300</code></td>
+<td>Power/SoC sensors are considered stale after this long without an update — 5 minutes frozen on a live value means a broken connection.</td>
+</tr>
+<tr>
+<td><code>forecast_max_age_sec</code></td>
+<td><code>10800</code></td>
+<td>Staleness limit for the Solcast forecast (typically updates every ~30 min in daylight).</td>
+</tr>
+<tr>
+<td><code>price_max_age_sec</code></td>
+<td><code>10800</code></td>
+<td>Staleness limit for the dynamic tariff price (some providers hold the same value for up to an hour).</td>
 </tr>
 </tbody>
 </table>
 <div class="admonition tip">
-<p class="admonition-title">Why Solcast remaining matters</p>
-<p>The grid-charge decision compares <code>battery_kwh_freetochange</code> vs <code>solcast_remaining_today_kwh</code>.
-If the battery has more room than the sun can deliver today, miniEMS charges from the grid.
-If Solcast is unavailable, the internal temperature-based prediction is used as a fallback.</p>
+<p class="admonition-title">How the decision works</p>
+<ul>
+<li>The hold (<code>Export Surplus</code>) only starts when <strong>all</strong> conditions are met: strategy enabled, before the backstop hour, SoC above <code>pv_export_min_soc_pct</code>, free capacity available, and the Solcast remaining-today forecast (<code>solcast_remaining_today_entity</code>) above the threshold computed from <code>pv_charge_margin_factor</code>/<code>pv_charge_hysteresis_frac</code>.</li>
+<li><strong>Any</strong> missing or stale input (SoC, forecast, time window) immediately releases the hold and lets the battery charge normally — the logic always fails toward "fill the battery," never toward "leave it empty."</li>
+<li>Grid charging with no forecast is only allowed inside the dark window (<code>grid_charge_dark_start_hour</code>–<code>grid_charge_dark_end_hour</code>), not unconditionally on every uncertain forecast.</li>
+</ul>
 </div>
 <hr />
 <h2 id="forecast-prediction">Forecast &amp; Prediction<a class="headerlink" href="#forecast-prediction" title="Permanent link">&para;</a></h2>
@@ -1960,7 +2208,8 @@ If Solcast is unavailable, the internal temperature-based prediction is used as 
 </tbody>
 </table>
 <hr />
-<h2 id="ems-parameters">EMS Parameters<a class="headerlink" href="#ems-parameters" title="Permanent link">&para;</a></h2>
+<h2 id="solcast-pv-forecast">Solcast PV Forecast<a class="headerlink" href="#solcast-pv-forecast" title="Permanent link">&para;</a></h2>
+<p><a href="https://solcast.com/">Solcast</a> provides highly accurate rooftop PV forecasts. Install the Solcast HA integration and configure the entities here.</p>
 <table>
 <thead>
 <tr>
@@ -1971,24 +2220,79 @@ If Solcast is unavailable, the internal temperature-based prediction is used as 
 </thead>
 <tbody>
 <tr>
-<td><code>pv_surplus_threshold_w</code></td>
-<td><code>200</code></td>
-<td>Minimum PV surplus (W) to trigger PV Charging mode</td>
+<td><code>solcast_remaining_today_entity</code></td>
+<td><code>sensor.solcast_pv_forecast_prognose_verbleibende_leistung_heute</code></td>
+<td>Expected PV remaining for today (kWh) — used in both the grid-charge and export-hold decisions</td>
 </tr>
 <tr>
-<td><code>update_interval_sec</code></td>
-<td><code>30</code></td>
-<td>How often the EMS loop runs (seconds)</td>
+<td><code>solcast_today_entity</code></td>
+<td><code>sensor.solcast_pv_forecast_prognose_heute</code></td>
+<td>Total expected PV for today (kWh) — dashboard display</td>
 </tr>
 <tr>
-<td><code>event_log_retention_days</code></td>
-<td><code>30</code></td>
-<td>How many days of event log entries to keep in the database</td>
+<td><code>solcast_tomorrow_entity</code></td>
+<td><code>sensor.solcast_pv_forecast_prognose_morgen</code></td>
+<td>Expected PV for tomorrow (kWh) — dashboard display</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition tip">
+<p class="admonition-title">Why Solcast remaining matters</p>
+<p>Both the grid-charge decision and the grid-friendly PV strategy compare the battery's free capacity against <code>solcast_remaining_today_kwh</code>.
+If Solcast is not configured, or stale for longer than <code>forecast_max_age_sec</code>, the forecast is treated as "unavailable" and miniEMS falls back to the more conservative fallback rules above.</p>
+</div>
+<hr />
+<h2 id="advanced-sensors-for-balance-based-cost-calculation">Advanced Sensors for Balance-Based Cost Calculation<a class="headerlink" href="#advanced-sensors-for-balance-based-cost-calculation" title="Permanent link">&para;</a></h2>
+<p>These fields are <strong>optional</strong> and not yet available as form fields on the Settings page. Set them via the <strong>config.json</strong> tab (see the "Raw File Editors" section at the bottom of this page). When set, miniEMS uses the inverter's actual daily totals instead of the values extrapolated from instantaneous power — see <a href="../sensors/">Sensors</a> for calculation details.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>battery_charge_entity</code></td>
+<td><code>sensor.deye8k_today_battery_charge</code></td>
+<td>Daily battery charge total (kWh) from the inverter</td>
+</tr>
+<tr>
+<td><code>battery_discharge_entity</code></td>
+<td><code>sensor.deye8k_today_battery_discharge</code></td>
+<td>Daily battery discharge total (kWh) from the inverter</td>
+</tr>
+<tr>
+<td><code>battery_capacity_entity</code></td>
+<td><code>sensor.deye8k_battery_capacity</code></td>
+<td>Battery capacity read directly from the inverter — overrides <code>battery_capacity_kwh</code> when set</td>
+</tr>
+<tr>
+<td><code>battery_state_entity</code></td>
+<td><code>sensor.deye8k_battery_state</code></td>
+<td>Battery state enum (charging / discharging / idle)</td>
+</tr>
+<tr>
+<td><code>today_production_entity</code></td>
+<td><code>sensor.deye8k_today_production</code></td>
+<td>Daily gross PV production (kWh) — used for the inverter efficiency calculation</td>
+</tr>
+<tr>
+<td><code>today_losses_entity</code></td>
+<td><code>sensor.deye8k_today_losses</code></td>
+<td>Daily inverter losses (kWh)</td>
+</tr>
+<tr>
+<td><code>power_losses_entity</code></td>
+<td><code>sensor.deye8k_power_losses</code></td>
+<td>Real-time power losses (W) — for the live efficiency display</td>
 </tr>
 </tbody>
 </table>
 <hr />
-<h2 id="authentication">Authentication<a class="headerlink" href="#authentication" title="Permanent link">&para;</a></h2>
+<h2 id="advanced-cost-parameters">Advanced Cost Parameters<a class="headerlink" href="#advanced-cost-parameters" title="Permanent link">&para;</a></h2>
+<p>Also editable only via <strong>config.json</strong>:</p>
 <table>
 <thead>
 <tr>
@@ -1999,13 +2303,42 @@ If Solcast is unavailable, the internal temperature-based prediction is used as 
 </thead>
 <tbody>
 <tr>
-<td><code>long_lived_token</code></td>
-<td><em>(empty)</em></td>
-<td>HA long-lived token — used as fallback if the Supervisor token is rejected with a 401. Usually not needed.</td>
+<td><code>daily_base_price_eur</code></td>
+<td><code>0.0</code></td>
+<td>Fixed daily base/standing charge (€/day) added on top of energy costs — e.g. your contract's monthly base fee, spread over the day</td>
+</tr>
+<tr>
+<td><code>avg_discharge_tariff_eur_kwh</code></td>
+<td><code>0.0</code></td>
+<td>Average discharge tariff used for the battery discharge ROI calculation (€/kWh). <code>0</code> = auto-derive from the three price tiers</td>
 </tr>
 </tbody>
 </table>
-<p>To create one: <strong>HA → Profile → Long-Lived Access Tokens → Create Token</strong>.</p>
+<hr />
+<h2 id="raw-file-editors-configjson-optionsjson">Raw File Editors (config.json / options.json)<a class="headerlink" href="#raw-file-editors-configjson-optionsjson" title="Permanent link">&para;</a></h2>
+<p>The <strong>config.json</strong> and <strong>options.json</strong> tabs in the dashboard let you edit and save the entire configuration directly as JSON — useful for fields that don't (yet) have their own form field on the <strong>Settings</strong> page (see the two sections above).</p>
+<table>
+<thead>
+<tr>
+<th>Tab</th>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>config.json</strong></td>
+<td><code>/data/config.json</code></td>
+<td>Persistent values written by miniEMS itself. Takes precedence over <code>options.json</code> whenever a value differs from the built-in default. Recommended for durable changes.</td>
+</tr>
+<tr>
+<td><strong>options.json</strong></td>
+<td><code>/data/options.json</code></td>
+<td>Managed by the HA Supervisor. Can be overwritten by an addon reconfiguration or schema update — changes made here are not guaranteed to persist.</td>
+</tr>
+</tbody>
+</table>
+<p>Both editors validate the JSON before saving (use the "Reformat JSON" button to check/pretty-print) and restart the addon automatically after saving so the new configuration takes effect.</p>
 
 
 
@@ -2028,7 +2361,7 @@ If Solcast is unavailable, the internal temperature-based prediction is used as 
     <span class="md-icon" title="Letztes Update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    2026-04-07
+    2026-08-14
   </span>
 
     

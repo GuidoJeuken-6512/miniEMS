@@ -20,6 +20,10 @@ Thumbs.db
 *.tmp
 *.log
 
+# Supervisor state backup – contains access/refresh/ingress tokens, never commit.
+# Persisted to Windows via the workspace bind mount, not via git.
+.supervisor-state-backup/
+.mcp.json
 
 
 
@@ -30,3 +34,5 @@ Thumbs.db
 
 
 
+
+.claude/settings.json

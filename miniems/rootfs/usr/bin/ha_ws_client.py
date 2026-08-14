@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 from collections.abc import Callable, Awaitable
+from datetime import datetime, timezone
 from typing import Any
 
 import aiohttp
@@ -33,8 +34,12 @@ class HAWebSocketClient:
         self._long_lived_token: str = long_lived_token
         self._active_token: str = self._supervisor_token  # start with supervisor token
         self._state_cache: dict[str, dict[str, Any]] = {}
+        # Per-entity timestamp of HA's last update, for staleness detection
+        self._state_ts: dict[str, datetime] = {}
         self._ready = asyncio.Event()
         self._running: bool = False
+        self._last_loaded: int = -1
+        self._last_missing: set[str] = set()
 
     # ------------------------------------------------------------------
     # Public API
@@ -48,8 +53,15 @@ class HAWebSocketClient:
         """Wait until initial states have been loaded from HA."""
         await self._ready.wait()
 
-    def get_state_value(self, entity_id: str) -> float | None:
-        """Return the numeric state of an entity, or None if unavailable."""
+    def get_state_value(self, entity_id: str, max_age_sec: float | None = None) -> float | None:
+        """Return the numeric state of an entity, or None if unavailable.
+
+        When max_age_sec is given, a value HA has not updated within that
+        window is treated as unavailable.  Callers that must keep counting
+        regardless (e.g. energy accounting) simply omit the argument.
+        """
+        if max_age_sec is not None and self.is_stale(entity_id, max_age_sec):
+            return None
         state = self._state_cache.get(entity_id, {})
         raw = state.get("state")
         if raw is None or raw in ("unavailable", "unknown", ""):
@@ -58,6 +70,18 @@ class HAWebSocketClient:
             return float(raw)
         except (ValueError, TypeError):
             return None
+
+    def get_state_age_sec(self, entity_id: str) -> float | None:
+        """Seconds since HA last updated this entity; None if never received."""
+        ts = self._state_ts.get(entity_id)
+        if ts is None:
+            return None
+        return max(0.0, (datetime.now(timezone.utc) - ts).total_seconds())
+
+    def is_stale(self, entity_id: str, max_age_sec: float) -> bool:
+        """True when the value is older than max_age_sec or was never received."""
+        age = self.get_state_age_sec(entity_id)
+        return True if age is None else age > max_age_sec
 
     async def run(self) -> None:
         """Poll HA states every HA_POLL_INTERVAL_SEC seconds with token fallback."""
@@ -119,25 +143,57 @@ class HAWebSocketClient:
             _LOGGER.error("Long-lived token also rejected (401) – check the token.")
         return False
 
+    @staticmethod
+    def _parse_ts(state: dict[str, Any]) -> datetime | None:
+        """Parse HA's last_updated/last_changed into an aware UTC datetime."""
+        raw = state.get("last_updated") or state.get("last_changed")
+        if not raw:
+            return None
+        try:
+            ts = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+
     def _update_cache(self, states: list[dict]) -> None:
         """Update state cache and fire callbacks for changed entities."""
         loaded = 0
+        seen: set[str] = set()
         for state in states:
             eid: str = state.get("entity_id", "")
             if eid not in self._entities:
                 continue
             old = self._state_cache.get(eid)
             self._state_cache[eid] = state
+            ts = self._parse_ts(state)
+            if ts is not None:
+                self._state_ts[eid] = ts
+            seen.add(eid)
             loaded += 1
             if (old is None or old.get("state") != state.get("state")) and self._on_state_change is not None:
                 asyncio.ensure_future(self._on_state_change(eid, state))
 
-        _LOGGER.info(
-            "States refreshed: %d/%d entities (token: %s)",
-            loaded,
-            len(self._entities),
-            "supervisor" if self._active_token == self._supervisor_token else "long-lived",
-        )
+        token_name = "supervisor" if self._active_token == self._supervisor_token else "long-lived"
+        missing = self._entities - seen
+        # Log at INFO only when something actually changed; otherwise this line
+        # would repeat every poll interval (~5760x/day).
+        if loaded != self._last_loaded or missing != self._last_missing:
+            _LOGGER.info(
+                "States refreshed: %d/%d entities (token: %s)",
+                loaded, len(self._entities), token_name,
+            )
+            if missing:
+                _LOGGER.warning(
+                    "%d configured entities do not exist in Home Assistant: %s",
+                    len(missing), ", ".join(sorted(missing)),
+                )
+            self._last_loaded = loaded
+            self._last_missing = missing
+        else:
+            _LOGGER.debug(
+                "States refreshed: %d/%d entities (token: %s)",
+                loaded, len(self._entities), token_name,
+            )
 
         if not self._ready.is_set():
             self._ready.set()

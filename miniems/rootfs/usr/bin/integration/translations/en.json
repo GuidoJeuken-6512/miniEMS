@@ -62,7 +62,7 @@
       "predicted_load": { "name": "Predicted Load" },
       "predicted_pv_yield": { "name": "Predicted PV Yield" },
       "battery_free_to_charge": { "name": "Battery Free to Charge" },
-      "battery_useable": { "name": "Battery Useable" },
+      "battery_useable": { "name": "Useable Battery Capacity" },
       "battery_capacity": { "name": "Battery Capacity" },
       "today_inverter_efficiency": { "name": "Today Inverter Efficiency" },
       "today_grid_charge_energy_balance": { "name": "Today Grid Charge (Energy Balance)" },

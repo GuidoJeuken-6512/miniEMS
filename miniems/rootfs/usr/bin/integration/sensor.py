@@ -42,15 +42,15 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     # Mode
     MiniEMSSensorDescription(
         key="miniems_mode",
+        translation_key="mode",
         status_key="mode",
-        name="Mode",
         icon="mdi:home-lightning-bolt",
     ),
     # ── Today: cost / savings ────────────────────────────────────────────────
     MiniEMSSensorDescription(
         key="miniems_today_grid_cost_eur",
+        translation_key="today_grid_cost",
         status_key="today_grid_cost_eur",
-        name="Today Grid Cost",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -58,8 +58,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_today_pv_savings_eur",
+        translation_key="today_pv_savings",
         status_key="today_pv_savings_eur",
-        name="Today PV Savings",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -67,8 +67,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_today_load_cost_eur",
+        translation_key="today_load_cost",
         status_key="today_load_cost_eur",
-        name="Today Load Cost",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -76,8 +76,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_today_feed_in_revenue_eur",
+        translation_key="today_feed_in_revenue",
         status_key="today_feed_in_revenue_eur",
-        name="Today Feed-in Revenue",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -85,8 +85,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_today_cost_without_grid_charge",
+        translation_key="today_cost_without_grid_charge",
         status_key="today_cost_without_grid_charge",
-        name="Today Cost Without Grid Charge",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -94,8 +94,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_today_cost_fix_price_tariff",
+        translation_key="today_cost_fix_price_tariff",
         status_key="today_cost_fix_price_tariff",
-        name="Today Cost Fix Price Tariff",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -104,8 +104,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     # ── Today: energy ────────────────────────────────────────────────────────
     MiniEMSSensorDescription(
         key="miniems_today_pv_used_kwh",
+        translation_key="today_pv_used",
         status_key="today_pv_used_kwh",
-        name="Today PV Used",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -113,8 +113,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_today_load_total_kwh",
+        translation_key="today_load_total",
         status_key="today_load_total_kwh",
-        name="Today Load Total",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -122,8 +122,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_today_grid_charge_kwh",
+        translation_key="today_grid_charge",
         status_key="today_grid_charge_kwh",
-        name="Today Grid Charge",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -132,8 +132,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     # ── Today: tariff tiers ──────────────────────────────────────────────────
     MiniEMSSensorDescription(
         key="miniems_today_kwh_high_rate",
+        translation_key="today_kwh_high_rate",
         status_key="today_kwh_high_rate",
-        name="Today kWh High Rate",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -141,8 +141,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_today_kwh_medium_rate",
+        translation_key="today_kwh_medium_rate",
         status_key="today_kwh_medium_rate",
-        name="Today kWh Medium Rate",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -150,8 +150,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_today_kwh_low_rate",
+        translation_key="today_kwh_low_rate",
         status_key="today_kwh_low_rate",
-        name="Today kWh Low Rate",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -160,8 +160,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     # ── Week ─────────────────────────────────────────────────────────────────
     MiniEMSSensorDescription(
         key="miniems_week_grid_cost_eur",
+        translation_key="week_grid_cost",
         status_key="week_grid_cost_eur",
-        name="Week Grid Cost",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -169,8 +169,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_week_pv_savings_eur",
+        translation_key="week_pv_savings",
         status_key="week_pv_savings_eur",
-        name="Week PV Savings",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -179,8 +179,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     # ── Month ────────────────────────────────────────────────────────────────
     MiniEMSSensorDescription(
         key="miniems_month_grid_cost_eur",
+        translation_key="month_grid_cost",
         status_key="month_grid_cost_eur",
-        name="Month Grid Cost",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -188,8 +188,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_month_pv_savings_eur",
+        translation_key="month_pv_savings",
         status_key="month_pv_savings_eur",
-        name="Month PV Savings",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -197,8 +197,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_month_load_cost_eur",
+        translation_key="month_load_cost",
         status_key="month_load_cost_eur",
-        name="Month Load Cost",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -206,8 +206,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_month_kwh_high_rate",
+        translation_key="month_kwh_high_rate",
         status_key="month_kwh_high_rate",
-        name="Month kWh High Rate",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -215,8 +215,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_month_kwh_medium_rate",
+        translation_key="month_kwh_medium_rate",
         status_key="month_kwh_medium_rate",
-        name="Month kWh Medium Rate",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -224,8 +224,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_month_kwh_low_rate",
+        translation_key="month_kwh_low_rate",
         status_key="month_kwh_low_rate",
-        name="Month kWh Low Rate",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -234,8 +234,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     # ── Year ─────────────────────────────────────────────────────────────────
     MiniEMSSensorDescription(
         key="miniems_year_grid_cost_eur",
+        translation_key="year_grid_cost",
         status_key="year_grid_cost_eur",
-        name="Year Grid Cost",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -243,8 +243,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_year_pv_savings_eur",
+        translation_key="year_pv_savings",
         status_key="year_pv_savings_eur",
-        name="Year PV Savings",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -252,8 +252,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_year_load_cost_eur",
+        translation_key="year_load_cost",
         status_key="year_load_cost_eur",
-        name="Year Load Cost",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -262,8 +262,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     # ── Predictions ──────────────────────────────────────────────────────────
     MiniEMSSensorDescription(
         key="miniems_predicted_load_kwh",
+        translation_key="predicted_load",
         status_key="predicted_load_kwh",
-        name="Predicted Load",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -271,8 +271,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_predicted_pv_kwh",
+        translation_key="predicted_pv_yield",
         status_key="predicted_pv_kwh",
-        name="Predicted PV Yield",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -281,8 +281,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     # ── Battery computed ─────────────────────────────────────────────────────
     MiniEMSSensorDescription(
         key="miniems_battery_kwh_freetochange",
+        translation_key="battery_free_to_charge",
         status_key="battery_kwh_freetochange",
-        name="Battery Free to Charge",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -290,8 +290,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_battery_kwh_useable",
+        translation_key="battery_useable",
         status_key="battery_kwh_useable",
-        name="Battery Useable",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -299,8 +299,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_battery_capacity_kwh",
+        translation_key="battery_capacity",
         status_key="battery_capacity_kwh",
-        name="Battery Capacity",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -311,16 +311,16 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     # are configured (today_production_entity, today_losses_entity, etc.).
     MiniEMSSensorDescription(
         key="miniems_today_efficiency_pct",
+        translation_key="today_inverter_efficiency",
         status_key="today_efficiency_pct",
-        name="Today Inverter Efficiency",
         native_unit_of_measurement="%",
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:gauge",
     ),
     MiniEMSSensorDescription(
         key="miniems_today_grid_charge_kwh_bilanz",
+        translation_key="today_grid_charge_energy_balance",
         status_key="today_grid_charge_kwh_bilanz",
-        name="Today Grid Charge (Energy Balance)",
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -328,8 +328,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_today_grid_charge_cost_bilanz_eur",
+        translation_key="today_grid_charge_cost_energy_balance",
         status_key="today_grid_charge_cost_bilanz_eur",
-        name="Today Grid Charge Cost (Energy Balance)",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -337,8 +337,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_today_grid_charge_roi_eur",
+        translation_key="today_grid_charge_roi",
         status_key="today_grid_charge_roi_eur",
-        name="Today Grid Charge ROI",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -346,8 +346,8 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
     MiniEMSSensorDescription(
         key="miniems_today_base_price_eur",
+        translation_key="today_base_price",
         status_key="today_base_price_eur",
-        name="Today Base Price",
         native_unit_of_measurement=_EUR,
         device_class=SensorDeviceClass.MONETARY,
         state_class=SensorStateClass.MEASUREMENT,

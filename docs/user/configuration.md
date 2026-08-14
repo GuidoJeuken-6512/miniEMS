@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-04-07
+revision_date: 2026-08-14
 ---
 
 # Konfiguration
@@ -10,6 +10,17 @@ Die Werte werden in `/data/config.json` gespeichert und überleben Neustarts, Up
 !!! info "Keine HA Add-on-Konfigurations-UI"
     Ab v1.4.0 ist der HA Add-on-Tab „Configuration" absichtlich leer.
     Die gesamte Konfiguration erfolgt über die miniEMS-Einstellungsseite.
+
+!!! info "Wie Werte geladen werden"
+    Bei jedem Start liest miniEMS drei Quellen mit dieser Priorität (höchste zuerst):
+
+    1. **`/data/options.json`** — vom Supervisor verwaltete Werte, die vom Standard abweichen (du hast sie über die HA-UI geändert)
+    2. **`/data/config.json`** — zuletzt gespeicherte Werte (überlebt einen Reset von `options.json` durch Supervisor-Neuladen/Add-on-Updates)
+    3. **Eingebaute Standardwerte**
+
+    Das Ergebnis wird bei jedem Start nach `/data/config.json` zurückgeschrieben, sodass deine Einstellungen nie verloren gehen. Alte Feldnamen (z. B. aus Versionen vor v2.0) werden automatisch auf die aktuellen Namen migriert.
+
+    Werte, die **nicht** im Formular auf der Einstellungsseite auftauchen, lassen sich über die Tabs **config.json** bzw. **options.json** im Dashboard direkt als JSON bearbeiten (siehe Abschnitt „Rohdaten-Editoren" ganz unten auf dieser Seite).
 
 ---
 
@@ -24,6 +35,10 @@ Diese findest du unter **HA → Entwicklerwerkzeuge → Zustände** — filtere 
 | `battery_power_entity` | `sensor.deye_battery_power` | Batterieleistung (W) — positiv = Laden beim Deye 8K |
 | `grid_power_entity` | `sensor.deye_grid_power` | Netzleistung (W) — positiv = Bezug, negativ = Einspeisung |
 | `load_power_entity` | `sensor.deye_load_power` | Hauslast (W) |
+| `grid_import_energy_entity` | `sensor.deye8k_today_energy_import` | Tages-Netzbezug direkt vom Wechselrichter (kWh, setzt um Mitternacht zurück). Wenn gesetzt, ersetzt sie den aus `grid_power_entity` berechneten Wert; die Netzkosten werden weiterhin pro Tick akkumuliert. Leer lassen, um auf die Berechnung zurückzufallen. |
+| `feed_in_energy_entity` | `sensor.deye8k_today_energy_export` | Tages-Einspeisung direkt vom Wechselrichter (kWh, setzt um Mitternacht zurück). Wenn gesetzt, ersetzt sie den berechneten Einspeisewert. Leer lassen für die Berechnung aus `grid_power_entity`. |
+
+Alle fünf oberen Pflicht-Entitäten werden auf **Veraltung** geprüft (`sensor_max_age_sec`, Standard 300 s): Liefert eine Entität länger keinen neuen Wert, behandelt miniEMS sie als „nicht verfügbar" und fällt in den sicheren Zustand zurück (siehe Abschnitt „Netzfreundliche PV-Strategie" weiter unten).
 
 ---
 
@@ -31,22 +46,33 @@ Diese findest du unter **HA → Entwicklerwerkzeuge → Zustände** — filtere 
 
 | Einstellung | Standard | Beschreibung |
 |---|---|---|
-| `battery_capacity_kwh` | `25.0` | Nutzbare Batteriekapazität in kWh |
-| `battery_min_soc` | `10` | Mindest-SoC (%). Entladen wird darunter blockiert |
-| `battery_max_soc` | `95` | Maximaler SoC (%). Laden stoppt, wenn erreicht |
+| `battery_capacity_kwh` | `10.0` | Nutzbare Batteriekapazität in kWh. Wird durch `battery_capacity_entity` (falls gesetzt) ersetzt. |
+| `battery_min_soc` | `15` | Mindest-SoC (%). Unterhalb wechselt miniEMS in `Battery Protection` und blockiert Entladen. |
+| `battery_max_soc` | `95` | Maximaler SoC (%). Laden stoppt (Modus `Idle`), wenn erreicht. |
+
+!!! warning "Automatische Absicherung"
+    Ist `battery_min_soc ≥ battery_max_soc`, deaktiviert miniEMS beim Start automatisch `battery_control_enabled` und schreibt eine Warnung ins Log — eine unsinnige Konfiguration kann so nicht zu Fehlverhalten am Wechselrichter führen.
 
 ---
 
-## Strompreis
+## Authentifizierung
 
 | Einstellung | Standard | Beschreibung |
 |---|---|---|
-| `electricity_price_entity` | `sensor.octopus_a_10fc0646_electricity_price` | Aktueller Spotpreis-Sensor (€/kWh) |
-| `cheap_rate_threshold_eur` | `0.28` | Netzladen wird ausgelöst, wenn der Preis **unter** diesem Wert liegt — auch die Obergrenze für den **Niedrig**-Tarif |
+| `long_lived_token` | *(leer)* | Langlebiger HA-Token — wird als Fallback verwendet, wenn der Supervisor-Token mit 401 abgelehnt wird. Normalerweise nicht erforderlich. |
+
+Zum Erstellen: **HA → Profil → Langlebige Zugriffstoken → Token erstellen**.
+
+---
+
+## Octopus Energy / Strompreis
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `electricity_price_entity` | `sensor.octopus_energy_electricity_current_rate` | Aktueller Spotpreis-Sensor (€/kWh) |
+| `cheap_rate_threshold_eur` | `0.10` | Netzladen wird ausgelöst, wenn der Preis **unter** diesem Wert liegt — auch die Obergrenze für den **Niedrig**-Tarif |
 | `medium_rate_threshold_eur` | `0.20` | Tarifgrenze: **Niedrig** unter `cheap_rate_threshold_eur`, **Mittel** zwischen beiden, **Hoch** ab diesem Wert |
 | `feed_in_tariff_eur_kwh` | `0.08` | Vergütung pro kWh ins Netz eingespeister Energie |
-| `grid_import_energy_entity` | `sensor.deye8k_today_energy_import` | HA-Entität mit dem täglichen Netzbezug des Wechselrichters (kWh, Rücksetzen um Mitternacht). Wenn gesetzt, ersetzt sie den berechneten Importwert; Netzkosten werden weiterhin pro Tick akkumuliert. Leer lassen, um auf Berechnung aus `grid_power_entity` zurückzufallen. |
-| `feed_in_energy_entity` | `sensor.deye8k_today_energy_export` | HA-Entität mit dem täglichen Einspeisewert des Wechselrichters (kWh, Rücksetzen um Mitternacht). Wenn gesetzt, ersetzt dieser den berechneten Einspeisewert. Leer lassen, um auf Berechnung aus `grid_power_entity` zurückzufallen. |
 | `fix_price` | `0.30` | Festtarif für den Vergleichssensor „Kosten zum Festpreis" |
 
 !!! info "Tariflogik"
@@ -58,7 +84,17 @@ Diese findest du unter **HA → Entwicklerwerkzeuge → Zustände** — filtere 
     | **Mittel** | `cheap_rate_threshold_eur ≤ price < medium_rate_threshold_eur` |
     | **Hoch** | `price ≥ medium_rate_threshold_eur` |
 
-    Der aktuelle Tarif wird neben dem Preis im Dashboard angezeigt (grün / gelb / rot).
+    Der aktuelle Tarif wird neben dem Preis im Dashboard angezeigt (grün / gelb / rot). Ist der Preis länger als `price_max_age_sec` (Standard 10 800 s = 3 h) nicht aktualisiert worden, gilt er als veraltet und löst **kein** Netzladen aus.
+
+---
+
+## EMS-Parameter
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `pv_surplus_threshold_w` | `200` | Mindest-PV-Überschuss (W, `pv_power - load_power`) zum Auslösen des PV-Lademodus |
+| `update_interval_sec` | `30` | Wie oft die EMS-Schleife läuft (Sekunden, 10–300) |
+| `event_log_retention_days` | `30` | Wie viele Tage Ereignislog-Einträge in der Datenbank aufbewahrt werden |
 
 ---
 
@@ -67,48 +103,66 @@ Diese findest du unter **HA → Entwicklerwerkzeuge → Zustände** — filtere 
 !!! warning "Zuerst den Simulationsmodus aktivieren"
     Bevor du die Live-Steuerung aktivierst, betreibe miniEMS mit aktiviertem `Simulationsmodus`. Überprüfe im Log, ob die richtigen Befehle für deinen Wechselrichter angezeigt werden.
 
+!!! info "Ampere statt Watt"
+    Die Deye-Ladungslimits sind Entitäten in **Ampere**, nicht in Watt — anders als in miniEMS-Versionen vor v2.0. Die alten `*_power_w`-Feldnamen werden beim Start automatisch auf die neuen `*_current_a`-Felder migriert; bereits gespeicherte Watt-Werte werden dabei **nicht** umgerechnet, da 1:1 keine gültige Umrechnung existiert. Prüfe die migrierten Werte einmal in den Einstellungen nach einem Update von einer Vorversion.
+
 | Einstellung | Standard | Beschreibung |
 |---|---|---|
 | `battery_control_enabled` | `false` | Hauptschalter für die Wechselrichtersteuerung |
 | `battery_control_simulation` | `true` | Befehle protokollieren, aber nicht senden |
-| `inverter_charge_power_entity` | `number.deye_battery_charging_power` | Entität zum Setzen der Ladeleistung (W) |
+| `inverter_charge_current_entity` | `number.deye8k_battery_max_charging_current` | Entität zum Setzen des Ladestrom-Limits (A) |
 | `grid_charge_switch_entity` | `switch.deye8k_battery_grid_charging` | Schalter-Entität zum Aktivieren/Deaktivieren des Netzladens |
-| `battery_discharging_power_entity` | `number.deye8k_battery_discharging_power` | Entität zum Setzen des Entladeleistungslimits (W) |
-| `battery_max_charge_power_w` | `5500` | Maximale Ladeleistung (W) |
-| `battery_max_discharge_power_w` | `5500` | Maximale Entladeleistung (W) |
-| `default_discharge_power_w` | `185` | Entladeleistung im Normalbetrieb (kein Netzladen) |
+| `battery_discharging_current_entity` | `number.deye8k_battery_max_discharging_current` | Entität zum Setzen des Entladestrom-Limits (A) |
+| `battery_max_charge_current_a` | `185` | Maximaler Ladestrom (A). Automatisch auf 0–350 A begrenzt. |
+| `battery_max_discharge_current_a` | `185` | Maximaler Entladestrom (A). Automatisch auf 0–350 A begrenzt. |
 
 ### Wie die Wechselrichtersteuerung funktioniert
 
-| EMS-Modus | Netzlade-Schalter | Entladeleistung |
-|---|---|---|
-| Grid Charging | `switch.turn_on` | Auf `0` W setzen |
-| PV Charging | `switch.turn_off` | Auf `default_discharge_power_w` zurücksetzen |
-| Battery Protection | `switch.turn_off` | Auf `0` W setzen |
-| Idle | `switch.turn_off` | Auf `default_discharge_power_w` zurücksetzen |
+Jeder EMS-Modus setzt **alle drei** Wechselrichter-Größen explizit, damit der resultierende Zustand nie vom vorherigen Modus abhängt:
 
-Befehle sind idempotent — miniEMS sendet einen Service-Call nur, wenn sich der Wert tatsächlich ändert.
+| EMS-Modus | Netzlade-Schalter | Ladestrom | Entladestrom |
+|---|---|---|---|
+| Grid Charging | `switch.turn_on` | `battery_max_charge_current_a` | `0` A (verhindert sofortiges Wiederentladen) |
+| PV Charging | `switch.turn_off` | `battery_max_charge_current_a` | `battery_max_discharge_current_a` |
+| Export Surplus *(netzfreundliche Haltephase)* | `switch.turn_off` | `export_hold_charge_current_a` | `battery_max_discharge_current_a` |
+| Battery Protection | `switch.turn_off` | `battery_max_charge_current_a` | `0` A |
+| Idle | `switch.turn_off` | `battery_max_charge_current_a` | `battery_max_discharge_current_a` |
+
+Befehle sind idempotent — miniEMS sendet einen Service-Call nur, wenn sich der Wert tatsächlich ändert. `Export Surplus` erscheint nur, wenn `pv_export_priority_enabled` aktiv ist (siehe unten).
 
 ---
 
-## Solcast PV-Prognose
+## Netzfreundliche PV-Strategie (Phase 7)
 
-[Solcast](https://solcast.com/) liefert hochgenaue Dachanlagen-PV-Prognosen. Installiere die Solcast HA-Integration und konfiguriere die Entitäten hier.
+Optionale Strategie, die PV-Überschuss so lange **ins Netz exportiert**, statt ihn in die Batterie zu laden, bis die Solcast-Restprognose für den Tag ungefähr auf den noch benötigten Batterie-Bedarf gefallen ist. Ziel: die Batterie erst spät am Tag füllen, wenn ohnehin noch genug Sonne kommt — schont das Netz vor unnötiger Mittags-Einspeisespitze und lässt trotzdem genug Reserve für den Abend.
+
+!!! warning "Standardmäßig deaktiviert"
+    Bei `pv_export_priority_enabled = false` verhält sich miniEMS exakt wie zuvor: jeder PV-Überschuss lädt sofort die Batterie. Die Strategie hat außerdem **keine Wirkung**, solange `battery_control_enabled = false` ist — miniEMS schreibt in dem Fall eine Warnung ins Log.
 
 | Einstellung | Standard | Beschreibung |
 |---|---|---|
-| `solcast_remaining_today_entity` | `sensor.solcast_pv_forecast_prognose_verbleibende_leistung_heute` | Erwartete verbleibende PV für heute (kWh) — wird für die Netzladeentscheidung verwendet |
-| `solcast_today_entity` | `sensor.solcast_pv_forecast_prognose_heute` | Gesamte erwartete PV für heute (kWh) — Dashboard-Anzeige |
-| `solcast_tomorrow_entity` | `sensor.solcast_pv_forecast_prognose_morgen` | Erwartete PV für morgen (kWh) — Dashboard-Anzeige |
+| `pv_export_priority_enabled` | `false` | Hauptschalter für die Strategie |
+| `pv_charge_margin_factor` | `1.2` | Sicherheitsfaktor auf den Batteriebedarf beim Vergleich mit der Restprognose. `>1` lädt früher (Puffer gegen eine zu optimistische Solcast-Prognose). Automatisch auf 0,5–3,0 begrenzt. |
+| `pv_charge_hysteresis_frac` | `0.10` | Totband um den Umschaltpunkt (0,10 = ±10 %), damit der Modus nicht flattert. Automatisch auf 0,0–0,5 begrenzt. |
+| `pv_export_min_soc_pct` | `30` | Unterhalb dieses SoC wird der Export-Halt **nie** angewendet — die Batterie lädt immer. Muss über `battery_min_soc` liegen; sonst wird er automatisch auf `battery_min_soc + 10` angehoben. |
+| `pv_charge_backstop_hour` | `14` | Lokale Stunde (0–23), ab der die Batterie unabhängig von der Prognose immer lädt — verhindert, dass ein zu optimistischer Nachmittag die Batterie leer lässt. |
+| `export_hold_charge_current_a` | `0` | Ladestrom (A) während der Export-Haltephase. `0` blockiert das Laden vollständig. Automatisch auf 0–350 A begrenzt. |
+| `mode_dwell_sec` | `300` | Ein neuer Modus muss diese Zeit lang durchgehend angefordert werden, bevor er wirklich angewendet wird (Anti-Flattern). Dringende Wechsel (SoC-Schutz, Sensorausfall) umgehen dieses Delay. Automatisch auf 0–3600 s begrenzt. |
+| `battery_soc_hysteresis_pct` | `2` | `Battery Protection` wird erst verlassen, wenn der SoC über `battery_min_soc + battery_soc_hysteresis_pct` gestiegen ist — verhindert Flattern genau am Grenzwert. |
+| `grid_charge_min_free_kwh` | `1.0` | Mindest-freie Batteriekapazität (kWh), unterhalb derer sich Netzladen nicht mehr lohnt. |
+| `grid_charge_dark_start_hour` / `grid_charge_dark_end_hour` | `21` / `6` | Zeitfenster (lokale Stunden), in dem Netzladen bei fehlender Solcast-Prognose trotzdem erlaubt ist ("es kann heute keine Sonne mehr kommen"). Beide automatisch auf 0–23 begrenzt. |
+| `sensor_max_age_sec` | `300` | Nach dieser Zeit ohne Aktualisierung gelten Leistungs-/SoC-Sensoren als veraltet — 5 Minuten Stillstand bei einem Live-Wert bedeutet defekte Anbindung. |
+| `forecast_max_age_sec` | `10800` | Veraltungsgrenze für die Solcast-Prognose (aktualisiert typischerweise alle 30 min bei Tageslicht). |
+| `price_max_age_sec` | `10800` | Veraltungsgrenze für den dynamischen Tarifpreis (kann je nach Anbieter eine Stunde lang denselben Wert halten). |
 
-!!! tip "Warum der Solcast-Restwert wichtig ist"
-    Die Netzladeentscheidung vergleicht `battery_kwh_freetochange` mit `solcast_remaining_today_kwh`.
-    Wenn die Batterie mehr Platz hat, als die Sonne heute liefern kann, lädt miniEMS aus dem Netz.
-    Falls Solcast nicht verfügbar ist, wird die interne temperaturbasierte Vorhersage als Fallback verwendet.
+!!! tip "Wie die Entscheidung funktioniert"
+    - Die Haltephase (`Export Surplus`) startet nur, wenn **alle** Bedingungen erfüllt sind: Strategie aktiv, vor der Backstop-Stunde, SoC über `pv_export_min_soc_pct`, freie Kapazität vorhanden, und die Solcast-Restprognose (`solcast_remaining_today_entity`) über dem mit `pv_charge_margin_factor`/`pv_charge_hysteresis_frac` berechneten Schwellwert.
+    - **Jeder** fehlende oder veraltete Eingabewert (SoC, Prognose, Zeitfenster) lässt die Haltephase sofort abbrechen und die Batterie normal laden — die Logik schlägt also immer in Richtung „Batterie voll machen" fehl, nie in Richtung „Batterie leer lassen".
+    - Netzladen bei fehlender Prognose ist nur im Dunkelfenster (`grid_charge_dark_start_hour`–`grid_charge_dark_end_hour`) erlaubt, nicht mehr grundsätzlich bei jeder unsicheren Vorhersage.
 
 ---
 
-## Prognose & Vorhersage
+## Vorhersage & Prognose
 
 | Einstellung | Standard | Beschreibung |
 |---|---|---|
@@ -124,20 +178,56 @@ Das Vorhersagemodell verwendet historische Verbrauchsdaten von Tagen mit ähnlic
 
 ---
 
-## EMS-Parameter
+## Solcast PV-Prognose
+
+[Solcast](https://solcast.com/) liefert hochgenaue Dachanlagen-PV-Prognosen. Installiere die Solcast HA-Integration und konfiguriere die Entitäten hier.
 
 | Einstellung | Standard | Beschreibung |
 |---|---|---|
-| `pv_surplus_threshold_w` | `200` | Mindest-PV-Überschuss (W) zum Auslösen des PV-Lademodus |
-| `update_interval_sec` | `30` | Wie oft die EMS-Schleife läuft (Sekunden) |
-| `event_log_retention_days` | `30` | Wie viele Tage Ereignislog-Einträge in der Datenbank aufbewahrt werden |
+| `solcast_remaining_today_entity` | `sensor.solcast_pv_forecast_prognose_verbleibende_leistung_heute` | Erwartete verbleibende PV für heute (kWh) — wird für Netzlade- und Export-Entscheidung verwendet |
+| `solcast_today_entity` | `sensor.solcast_pv_forecast_prognose_heute` | Gesamte erwartete PV für heute (kWh) — Dashboard-Anzeige |
+| `solcast_tomorrow_entity` | `sensor.solcast_pv_forecast_prognose_morgen` | Erwartete PV für morgen (kWh) — Dashboard-Anzeige |
+
+!!! tip "Warum der Solcast-Restwert wichtig ist"
+    Sowohl die Netzladeentscheidung als auch die netzfreundliche PV-Strategie vergleichen die freie Batteriekapazität mit `solcast_remaining_today_kwh`.
+    Ist Solcast nicht konfiguriert oder länger als `forecast_max_age_sec` veraltet, gilt die Prognose als „nicht verfügbar" — miniEMS fällt dann auf die konservativeren Fallback-Regeln zurück (siehe oben).
 
 ---
 
-## Authentifizierung
+## Erweiterte Sensoren für bilanzbasierte Kostenberechnung
+
+Diese Felder sind **optional** und in der Einstellungsseite noch nicht als Formularfelder verfügbar. Setze sie über den Tab **config.json** (siehe Abschnitt „Rohdaten-Editoren" ganz unten). Sind sie gesetzt, verwendet miniEMS die tatsächlichen Wechselrichter-Tageswerte statt der aus Momentanleistungen hochgerechneten Werte — Details zur Berechnung siehe [Sensoren](sensors.md).
 
 | Einstellung | Standard | Beschreibung |
 |---|---|---|
-| `long_lived_token` | *(leer)* | Langlebiger HA-Token — wird als Fallback verwendet, wenn der Supervisor-Token mit 401 abgelehnt wird. Normalerweise nicht erforderlich. |
+| `battery_charge_entity` | `sensor.deye8k_today_battery_charge` | Tägliche Batterieladung (kWh) laut Wechselrichter |
+| `battery_discharge_entity` | `sensor.deye8k_today_battery_discharge` | Tägliche Batterieentladung (kWh) laut Wechselrichter |
+| `battery_capacity_entity` | `sensor.deye8k_battery_capacity` | Batteriekapazität direkt vom Wechselrichter — ersetzt `battery_capacity_kwh`, wenn gesetzt |
+| `battery_state_entity` | `sensor.deye8k_battery_state` | Batteriezustand als Enum (charging / discharging / idle) |
+| `today_production_entity` | `sensor.deye8k_today_production` | Tägliche PV-Bruttoproduktion (kWh) — für die Wechselrichter-Wirkungsgrad-Berechnung |
+| `today_losses_entity` | `sensor.deye8k_today_losses` | Tägliche Wechselrichterverluste (kWh) |
+| `power_losses_entity` | `sensor.deye8k_power_losses` | Momentane Verlustleistung (W) — für die Live-Wirkungsgrad-Anzeige |
 
-Zum Erstellen: **HA → Profil → Langlebige Zugriffstoken → Token erstellen**.
+---
+
+## Erweiterte Kostenparameter
+
+Ebenfalls nur über **config.json** editierbar:
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `daily_base_price_eur` | `0.0` | Fixer Grundpreis (€/Tag), der zusätzlich zu den Energiekosten aufgeschlagen wird — z. B. der monatliche Grundpreis deines Stromvertrags, umgelegt auf den Tag |
+| `avg_discharge_tariff_eur_kwh` | `0.0` | Durchschnittlicher Bezugstarif für die ROI-Berechnung der Batterieentladung (€/kWh). `0` = automatisch aus den drei Preis-Tarifstufen abgeleitet |
+
+---
+
+## Rohdaten-Editoren (config.json / options.json)
+
+Über die Tabs **config.json** und **options.json** im Dashboard lässt sich die komplette Konfiguration direkt als JSON bearbeiten und speichern — nützlich für Felder, die (noch) kein eigenes Formularfeld in den **Einstellungen** haben (siehe die beiden Abschnitte oben).
+
+| Tab | Datei | Zweck |
+|---|---|---|
+| **config.json** | `/data/config.json` | Von miniEMS selbst geschriebene, persistente Werte. Hat Vorrang vor `options.json`, wenn ein Wert vom eingebauten Standard abweicht. Für dauerhafte Änderungen empfohlen. |
+| **options.json** | `/data/options.json` | Vom HA-Supervisor verwaltet. Kann bei einer Add-on-Neukonfiguration oder einem Schema-Update überschrieben werden — hier gemachte Änderungen sind also nicht dauerhaft sicher. |
+
+Beide Editoren validieren das JSON vor dem Speichern (Button „Reformat JSON" zum Prüfen/Formatieren) und starten das Add-on nach dem Speichern automatisch neu, damit die neue Konfiguration geladen wird.
