@@ -1,5 +1,57 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.2
+
+### Bug Fixes
+
+- **Write confirmation falsely fired in simulation mode.** The confirm/retry
+  logic introduced in v2.0.1 compared the (never-written) target against the
+  *real* HA state even with `battery_control_simulation` on, so it could
+  never match – every write sat permanently "unconfirmed" and was re-logged
+  every tick. Simulated writes are now confirmed immediately after logging,
+  matching pre-v2.0.1 behaviour (log once per target change, nothing to
+  confirm).
+- **SoC "unavailable" fallback used the wrong staleness signal.** The core
+  safety check ("no usable SoC → hand control back to the inverter") tested
+  `battery_soc_entity`'s own last-updated timestamp against
+  `sensor_max_age_sec` (5 min) — but SoC is a coarse percentage that can
+  legitimately hold the exact same value for hours, or for days in winter
+  with grid charging off, so no fixed timeout on "time since it last changed"
+  can ever be correct. The check now uses `battery_power_entity`'s freshness
+  instead: it comes from the same BMS/inverter connection and fluctuates
+  continuously whenever that connection is alive, so it actually distinguishes
+  a dead link from a battery that is simply, legitimately, not changing.
+
+## 2.0.1
+
+### Bug Fixes
+
+- **Grid charging ignored tomorrow's PV forecast.** When today's Solcast
+  remaining-forecast was missing, stale, or simply spent (evening — no more
+  sun coming), `_should_grid_charge` fell straight back to a blind
+  time-of-day check, even when tomorrow's forecast (`solcast_tomorrow_entity`)
+  was already known and more than large enough to refill the battery for
+  free. The decision now checks `solcast_tomorrow_kwh` first and skips grid
+  charging if it alone covers the battery's need; the dark-window fallback
+  only applies when neither day has a usable value. Purely restrictive — can
+  only prevent a charge, never trigger one, and leaves every existing safety
+  gate (SoC floor, `PROTECT_BATTERY`) untouched.
+- **Solcast/price staleness thresholds were tighter than reality.**
+  `forecast_max_age_sec` (3 h → 8 h) and `price_max_age_sec` (3 h → 6 h) were
+  short enough that a Solcast forecast or tariff price that simply hadn't
+  needed to change yet (e.g. overnight, when Solcast may not poll again for
+  several hours) was misread as "stale" and fell back to less accurate
+  decision paths, or produced false dashboard warnings.
+- **Inverter writes were assumed applied on HTTP 200.** A service call HA
+  accepts is not proof the inverter (or the Deye/Solarman bridge in between)
+  actually applied it — confirmed writes lagging by up to ~25 minutes, and
+  in one case a grid-charge switch toggle that never landed at all despite
+  being logged as sent. `InverterController` now re-checks the real HA state
+  against the target on every tick and keeps resending until it matches,
+  independently for charge current, discharge current and the grid-charge
+  switch. A new `write_unconfirmed` counter (0–3, live) surfaces this as a
+  dashboard warning, separate from `write_errors` (outright HTTP failures).
+
 ## 2.0.0
 
 ### Breaking

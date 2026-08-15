@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-14
+revision_date: 2026-08-15
 ---
 
 # Konfiguration
@@ -84,7 +84,7 @@ Zum Erstellen: **HA → Profil → Langlebige Zugriffstoken → Token erstellen*
     | **Mittel** | `cheap_rate_threshold_eur ≤ price < medium_rate_threshold_eur` |
     | **Hoch** | `price ≥ medium_rate_threshold_eur` |
 
-    Der aktuelle Tarif wird neben dem Preis im Dashboard angezeigt (grün / gelb / rot). Ist der Preis länger als `price_max_age_sec` (Standard 10 800 s = 3 h) nicht aktualisiert worden, gilt er als veraltet und löst **kein** Netzladen aus.
+    Der aktuelle Tarif wird neben dem Preis im Dashboard angezeigt (grün / gelb / rot). Ist der Preis länger als `price_max_age_sec` (Standard 21 600 s = 6 h) nicht aktualisiert worden, gilt er als veraltet und löst **kein** Netzladen aus.
 
 ---
 
@@ -128,7 +128,10 @@ Jeder EMS-Modus setzt **alle drei** Wechselrichter-Größen explizit, damit der 
 | Battery Protection | `switch.turn_off` | `battery_max_charge_current_a` | `0` A |
 | Idle | `switch.turn_off` | `battery_max_charge_current_a` | `battery_max_discharge_current_a` |
 
-Befehle sind idempotent — miniEMS sendet einen Service-Call nur, wenn sich der Wert tatsächlich ändert. `Export Surplus` erscheint nur, wenn `pv_export_priority_enabled` aktiv ist (siehe unten).
+Befehle sind idempotent — miniEMS sendet einen Service-Call nur, wenn sich der Zielwert ändert. `Export Surplus` erscheint nur, wenn `pv_export_priority_enabled` aktiv ist (siehe unten).
+
+!!! info "Schreibbestätigung (seit v2.0.1)"
+    Ein von Home Assistant angenommener Service-Call (HTTP 200) ist noch kein Beweis, dass der Wechselrichter den Wert übernommen hat — manche Deye/Solarman-Anbindungen bestätigen einen geschriebenen Wert erst bei ihrem nächsten Poll, was mehrere Minuten dauern kann. miniEMS gleicht deshalb bei **jedem** Tick den echten HA-Zustand mit dem Zielwert ab und sendet den Befehl automatisch erneut, solange beides nicht übereinstimmt — unabhängig für Ladestrom, Entladestrom und Netzlade-Schalter. Bleibt ein Wert dauerhaft unbestätigt, erscheint eine Warnung im Dashboard-Banner ("Inverter control: N unconfirmed write(s)").
 
 ---
 
@@ -150,15 +153,15 @@ Optionale Strategie, die PV-Überschuss so lange **ins Netz exportiert**, statt 
 | `mode_dwell_sec` | `300` | Ein neuer Modus muss diese Zeit lang durchgehend angefordert werden, bevor er wirklich angewendet wird (Anti-Flattern). Dringende Wechsel (SoC-Schutz, Sensorausfall) umgehen dieses Delay. Automatisch auf 0–3600 s begrenzt. |
 | `battery_soc_hysteresis_pct` | `2` | `Battery Protection` wird erst verlassen, wenn der SoC über `battery_min_soc + battery_soc_hysteresis_pct` gestiegen ist — verhindert Flattern genau am Grenzwert. |
 | `grid_charge_min_free_kwh` | `1.0` | Mindest-freie Batteriekapazität (kWh), unterhalb derer sich Netzladen nicht mehr lohnt. |
-| `grid_charge_dark_start_hour` / `grid_charge_dark_end_hour` | `21` / `6` | Zeitfenster (lokale Stunden), in dem Netzladen bei fehlender Solcast-Prognose trotzdem erlaubt ist ("es kann heute keine Sonne mehr kommen"). Beide automatisch auf 0–23 begrenzt. |
+| `grid_charge_dark_start_hour` / `grid_charge_dark_end_hour` | `21` / `6` | Zeitfenster (lokale Stunden), in dem Netzladen erlaubt ist, wenn weder die heutige noch die morgige Solcast-Prognose eine Entscheidung tragen ("es kann heute keine Sonne mehr kommen, und über morgen ist nichts Verlässliches bekannt"). Beide automatisch auf 0–23 begrenzt. |
 | `sensor_max_age_sec` | `300` | Nach dieser Zeit ohne Aktualisierung gelten Leistungs-/SoC-Sensoren als veraltet — 5 Minuten Stillstand bei einem Live-Wert bedeutet defekte Anbindung. |
-| `forecast_max_age_sec` | `10800` | Veraltungsgrenze für die Solcast-Prognose (aktualisiert typischerweise alle 30 min bei Tageslicht). |
-| `price_max_age_sec` | `10800` | Veraltungsgrenze für den dynamischen Tarifpreis (kann je nach Anbieter eine Stunde lang denselben Wert halten). |
+| `forecast_max_age_sec` | `28800` | Veraltungsgrenze für die Solcast-Prognose (aktualisiert typischerweise alle 30 min bei Tageslicht, kann nachts aber je nach Solcast-Plan 6 h und mehr ohne neuen Wert bleiben — 8 h Marge verhindert Fehlalarme). |
+| `price_max_age_sec` | `21600` | Veraltungsgrenze für den dynamischen Tarifpreis (manche Anbieter halten denselben Wert mehrere Stunden). |
 
 !!! tip "Wie die Entscheidung funktioniert"
     - Die Haltephase (`Export Surplus`) startet nur, wenn **alle** Bedingungen erfüllt sind: Strategie aktiv, vor der Backstop-Stunde, SoC über `pv_export_min_soc_pct`, freie Kapazität vorhanden, und die Solcast-Restprognose (`solcast_remaining_today_entity`) über dem mit `pv_charge_margin_factor`/`pv_charge_hysteresis_frac` berechneten Schwellwert.
     - **Jeder** fehlende oder veraltete Eingabewert (SoC, Prognose, Zeitfenster) lässt die Haltephase sofort abbrechen und die Batterie normal laden — die Logik schlägt also immer in Richtung „Batterie voll machen" fehl, nie in Richtung „Batterie leer lassen".
-    - Netzladen bei fehlender Prognose ist nur im Dunkelfenster (`grid_charge_dark_start_hour`–`grid_charge_dark_end_hour`) erlaubt, nicht mehr grundsätzlich bei jeder unsicheren Vorhersage.
+    - Netzladen bei fehlender oder erschöpfter Tagesprognose (z. B. abends, wenn für heute keine Sonne mehr kommt) prüft seit v2.0.1 zuerst die **morgige** Solcast-Prognose (`solcast_tomorrow_entity`): Reicht sie rechnerisch aus, um die Batterie zu füllen, wird **nicht** aus dem Netz geladen. Erst wenn auch dafür kein verlässlicher Wert vorliegt, greift wie bisher das reine Dunkelfenster (`grid_charge_dark_start_hour`–`grid_charge_dark_end_hour`).
 
 ---
 
@@ -186,11 +189,11 @@ Das Vorhersagemodell verwendet historische Verbrauchsdaten von Tagen mit ähnlic
 |---|---|---|
 | `solcast_remaining_today_entity` | `sensor.solcast_pv_forecast_prognose_verbleibende_leistung_heute` | Erwartete verbleibende PV für heute (kWh) — wird für Netzlade- und Export-Entscheidung verwendet |
 | `solcast_today_entity` | `sensor.solcast_pv_forecast_prognose_heute` | Gesamte erwartete PV für heute (kWh) — Dashboard-Anzeige |
-| `solcast_tomorrow_entity` | `sensor.solcast_pv_forecast_prognose_morgen` | Erwartete PV für morgen (kWh) — Dashboard-Anzeige |
+| `solcast_tomorrow_entity` | `sensor.solcast_pv_forecast_prognose_morgen` | Erwartete PV für morgen (kWh) — Dashboard-Anzeige **und** seit v2.0.1 Fallback für die Netzlade-Entscheidung (siehe unten) |
 
 !!! tip "Warum der Solcast-Restwert wichtig ist"
     Sowohl die Netzladeentscheidung als auch die netzfreundliche PV-Strategie vergleichen die freie Batteriekapazität mit `solcast_remaining_today_kwh`.
-    Ist Solcast nicht konfiguriert oder länger als `forecast_max_age_sec` veraltet, gilt die Prognose als „nicht verfügbar" — miniEMS fällt dann auf die konservativeren Fallback-Regeln zurück (siehe oben).
+    Ist Solcast nicht konfiguriert, länger als `forecast_max_age_sec` veraltet, oder ist die heutige Sonne schlicht schon vorbei (Wert legitim ~0, z. B. abends), gilt die Tagesprognose als „nicht verfügbar". Für die Netzlade-Entscheidung prüft miniEMS in diesem Fall zusätzlich `solcast_tomorrow_kwh`, bevor es auf die konservativeren Dunkelfenster-Regeln zurückfällt (siehe oben) — die netzfreundliche PV-Strategie (Export-Halt) nutzt weiterhin ausschließlich die Tagesprognose.
 
 ---
 

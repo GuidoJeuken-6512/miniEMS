@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-14
+revision_date: 2026-08-15
 ---
 
 # Configuration
@@ -84,7 +84,7 @@ To create one: **HA → Profile → Long-Lived Access Tokens → Create Token**.
     | **Medium** | `cheap_rate_threshold_eur ≤ price < medium_rate_threshold_eur` |
     | **High** | `price ≥ medium_rate_threshold_eur` |
 
-    The current tier is also shown next to the price on the dashboard (green / amber / red). If the price hasn't updated for longer than `price_max_age_sec` (default 10,800 s = 3 h), it's treated as stale and **cannot** trigger grid charging.
+    The current tier is also shown next to the price on the dashboard (green / amber / red). If the price hasn't updated for longer than `price_max_age_sec` (default 21,600 s = 6 h), it's treated as stale and **cannot** trigger grid charging.
 
 ---
 
@@ -128,7 +128,10 @@ Every EMS mode sets **all three** inverter values explicitly, so the resulting s
 | Battery Protection | `switch.turn_off` | `battery_max_charge_current_a` | `0` A |
 | Idle | `switch.turn_off` | `battery_max_charge_current_a` | `battery_max_discharge_current_a` |
 
-Commands are idempotent — miniEMS only sends a service call when the value actually changes. `Export Surplus` only appears when `pv_export_priority_enabled` is on (see below).
+Commands are idempotent — miniEMS only sends a service call when the target value changes. `Export Surplus` only appears when `pv_export_priority_enabled` is on (see below).
+
+!!! info "Write confirmation (since v2.0.1)"
+    A service call Home Assistant accepts (HTTP 200) is not proof the inverter applied it — some Deye/Solarman bridges only confirm a written value on their next poll, which can lag several minutes. miniEMS therefore compares the real HA state against the target on **every** tick and automatically resends the command as long as they don't match — independently for charge current, discharge current, and the grid-charge switch. If a value stays unconfirmed, a warning appears in the dashboard banner ("Inverter control: N unconfirmed write(s)").
 
 ---
 
@@ -150,15 +153,15 @@ Optional strategy that **exports** PV surplus to the grid instead of storing it,
 | `mode_dwell_sec` | `300` | A new mode must be requested continuously for this long before it actually applies (anti-flapping). Urgent transitions (SoC protection, sensor failure) bypass this delay. Automatically clamped to 0–3600 s. |
 | `battery_soc_hysteresis_pct` | `2` | `Battery Protection` is only left once the SoC has risen above `battery_min_soc + battery_soc_hysteresis_pct` — prevents flapping right at the boundary. |
 | `grid_charge_min_free_kwh` | `1.0` | Minimum free battery capacity (kWh) below which grid charging is no longer considered worthwhile. |
-| `grid_charge_dark_start_hour` / `grid_charge_dark_end_hour` | `21` / `6` | Time window (local hours) in which grid charging is still allowed when no Solcast forecast is available ("no more sun can arrive today"). Both automatically clamped to 0–23. |
+| `grid_charge_dark_start_hour` / `grid_charge_dark_end_hour` | `21` / `6` | Time window (local hours) in which grid charging is allowed when neither today's nor tomorrow's Solcast forecast can decide it ("no more sun today, and nothing reliable known about tomorrow either"). Both automatically clamped to 0–23. |
 | `sensor_max_age_sec` | `300` | Power/SoC sensors are considered stale after this long without an update — 5 minutes frozen on a live value means a broken connection. |
-| `forecast_max_age_sec` | `10800` | Staleness limit for the Solcast forecast (typically updates every ~30 min in daylight). |
-| `price_max_age_sec` | `10800` | Staleness limit for the dynamic tariff price (some providers hold the same value for up to an hour). |
+| `forecast_max_age_sec` | `28800` | Staleness limit for the Solcast forecast (typically updates every ~30 min in daylight, but can legitimately go quiet for 6+ hours overnight depending on your Solcast plan — 8 h of margin avoids false alarms). |
+| `price_max_age_sec` | `21600` | Staleness limit for the dynamic tariff price (some providers hold the same value for several hours). |
 
 !!! tip "How the decision works"
     - The hold (`Export Surplus`) only starts when **all** conditions are met: strategy enabled, before the backstop hour, SoC above `pv_export_min_soc_pct`, free capacity available, and the Solcast remaining-today forecast (`solcast_remaining_today_entity`) above the threshold computed from `pv_charge_margin_factor`/`pv_charge_hysteresis_frac`.
     - **Any** missing or stale input (SoC, forecast, time window) immediately releases the hold and lets the battery charge normally — the logic always fails toward "fill the battery," never toward "leave it empty."
-    - Grid charging with no forecast is only allowed inside the dark window (`grid_charge_dark_start_hour`–`grid_charge_dark_end_hour`), not unconditionally on every uncertain forecast.
+    - When today's forecast is missing, stale, or simply spent (e.g. in the evening, once no more sun is coming), grid charging now checks **tomorrow's** Solcast forecast (`solcast_tomorrow_entity`) first, added in v2.0.1: if it's enough to refill the battery on its own, miniEMS will **not** buy grid energy. Only when tomorrow's forecast is also missing/insufficient/stale does it fall back to the plain dark window (`grid_charge_dark_start_hour`–`grid_charge_dark_end_hour`), same as before.
 
 ---
 
@@ -186,11 +189,11 @@ The prediction model uses historical consumption data from similar-temperature d
 |---|---|---|
 | `solcast_remaining_today_entity` | `sensor.solcast_pv_forecast_prognose_verbleibende_leistung_heute` | Expected PV remaining for today (kWh) — used in both the grid-charge and export-hold decisions |
 | `solcast_today_entity` | `sensor.solcast_pv_forecast_prognose_heute` | Total expected PV for today (kWh) — dashboard display |
-| `solcast_tomorrow_entity` | `sensor.solcast_pv_forecast_prognose_morgen` | Expected PV for tomorrow (kWh) — dashboard display |
+| `solcast_tomorrow_entity` | `sensor.solcast_pv_forecast_prognose_morgen` | Expected PV for tomorrow (kWh) — dashboard display **and**, since v2.0.1, a fallback for the grid-charge decision (see below) |
 
 !!! tip "Why Solcast remaining matters"
     Both the grid-charge decision and the grid-friendly PV strategy compare the battery's free capacity against `solcast_remaining_today_kwh`.
-    If Solcast is not configured, or stale for longer than `forecast_max_age_sec`, the forecast is treated as "unavailable" and miniEMS falls back to the more conservative fallback rules above.
+    If Solcast is not configured, stale for longer than `forecast_max_age_sec`, or today's sun is simply spent (legitimately ~0, e.g. in the evening), the day's forecast is treated as "unavailable". For the grid-charge decision, miniEMS then also checks `solcast_tomorrow_kwh` before falling back to the more conservative dark-window rules above — the grid-friendly PV strategy (export hold) still relies on the today forecast only.
 
 ---
 

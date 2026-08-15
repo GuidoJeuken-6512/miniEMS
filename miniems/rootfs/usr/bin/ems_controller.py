@@ -299,6 +299,7 @@ class EMSController:
             result["charge_current_target_a"] = self._inverter.charge_current_target_a
             result["discharge_current_target_a"] = self._inverter.discharge_current_target_a
             result["inverter_write_errors"] = self._inverter.write_errors
+            result["inverter_write_unconfirmed"] = self._inverter.write_unconfirmed
         if self._prediction:
             result["predicted_load_kwh"] = self._prediction.predicted_load_kwh
             result["predicted_pv_kwh"] = self._prediction.predicted_pv_kwh
@@ -339,7 +340,16 @@ class EMSController:
         cfg = self._cfg
 
         # 1. No usable SoC → hand control back to the inverter's own self-use logic.
-        if bat_soc is None or self._is_stale(cfg.battery_soc_entity, cfg.sensor_max_age_sec):
+        #
+        # Staleness is checked against battery_power_entity, NOT battery_soc_entity
+        # itself: SoC is a coarse percentage that can legitimately sit on the exact
+        # same value for hours or, in winter with grid charging off, for days – a
+        # timeout on "time since battery_soc_entity last changed" would eventually
+        # be wrong for every possible value. battery_power_entity is read from the
+        # same BMS/inverter connection and fluctuates continuously whenever that
+        # connection is actually alive, so its freshness is what proves the SoC
+        # reading is current rather than stuck on a dead link.
+        if bat_soc is None or self._is_stale(cfg.battery_power_entity, cfg.sensor_max_age_sec):
             return ModeDecision(EMSMode.IDLE, "soc unavailable", urgent=True)
 
         # 2. Battery protection, with hysteresis on the way out so the mode
@@ -435,10 +445,22 @@ class EMSController:
             return False
 
         remaining = self._forecast_remaining_kwh()
-        if remaining is None:
-            # No forecast: only charge in the dark window, where "PV may still
-            # arrive today" cannot be true. Replaces the old fail-OPEN branch
-            # that charged whenever the prediction was missing or unconfident.
+        if remaining is None or remaining <= cfg.grid_charge_min_free_kwh:
+            # Today's PV is spent (evening, legitimately ~0) or its sensor is
+            # stale. Before falling back to a blind time-of-day charge, check
+            # tomorrow: if tomorrow's forecast alone can refill the battery,
+            # there is no need to buy grid energy tonight.
+            tomorrow = self._solcast.tomorrow_kwh if self._solcast else None
+            tomorrow_stale = self._is_stale(cfg.solcast_tomorrow_entity, cfg.forecast_max_age_sec)
+            if tomorrow is not None and tomorrow >= 0 and not tomorrow_stale:
+                if bat_kwh_free <= tomorrow * cfg.pv_charge_margin_factor + cfg.grid_charge_min_free_kwh:
+                    return False   # tomorrow's PV will refill it – skip grid charging
+
+            # No usable forecast at all (today spent/stale AND tomorrow
+            # missing/insufficient/stale): only charge in the dark window,
+            # where "PV may still arrive today" cannot be true. Replaces the
+            # old fail-OPEN branch that charged whenever the prediction was
+            # missing or unconfident.
             if cfg.grid_charge_dark_start_hour <= cfg.grid_charge_dark_end_hour:
                 return cfg.grid_charge_dark_start_hour <= now.hour < cfg.grid_charge_dark_end_hour
             return (now.hour >= cfg.grid_charge_dark_start_hour
@@ -508,10 +530,21 @@ class EMSController:
         cfg = self._cfg
         warnings = []
 
+        # Battery SoC is checked for presence only, not staleness: it's a coarse
+        # percentage that can legitimately sit on the same value for hours or
+        # (winter, grid charging off) for days, so "time since last change" is
+        # never a meaningful timeout for it. Battery power – checked below –
+        # comes from the same BMS connection and fluctuates continuously
+        # whenever that connection is alive, so its own staleness warning
+        # already covers "the SoC reading might be stuck on a dead link".
+        if not cfg.battery_soc_entity:
+            warnings.append("Config missing: Battery SoC entity not set")
+        elif ws.get_state_value(cfg.battery_soc_entity) is None:
+            warnings.append(f"Sensor unavailable: Battery SoC ({cfg.battery_soc_entity})")
+
         # (entity, label, max age in seconds before the value counts as stale)
         required = [
             (cfg.pv_power_entity, "PV power", SENSOR_MAX_AGE_SEC),
-            (cfg.battery_soc_entity, "Battery SoC", SENSOR_MAX_AGE_SEC),
             (cfg.battery_power_entity, "Battery power", SENSOR_MAX_AGE_SEC),
             (cfg.grid_power_entity, "Grid power", SENSOR_MAX_AGE_SEC),
             (cfg.load_power_entity, "Load power", SENSOR_MAX_AGE_SEC),
@@ -536,11 +569,18 @@ class EMSController:
                         f"Sensor stale: {label} – last update {age / 3600:.1f} h ago ({entity})"
                     )
 
-        # Inverter writes that Home Assistant never confirmed
+        # Inverter service calls that Home Assistant rejected outright
         if self._inverter is not None and self._inverter.write_errors > 0:
             warnings.append(
                 f"Inverter control: {self._inverter.write_errors} failed write(s) – "
                 "the inverter may not be in the requested state"
+            )
+        # Inverter service calls HA accepted, but the entity never reflected
+        # the new value (retried every tick until it does)
+        if self._inverter is not None and self._inverter.write_unconfirmed > 0:
+            warnings.append(
+                f"Inverter control: {self._inverter.write_unconfirmed} unconfirmed write(s) – "
+                "HA accepted the command but the inverter has not reported the new value yet"
             )
 
         return warnings

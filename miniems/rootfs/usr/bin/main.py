@@ -88,7 +88,7 @@ async def main() -> None:
 
     ws_client = HAWebSocketClient(cfg.monitored_entities, long_lived_token=cfg.long_lived_token)
 
-    inverter = InverterController(cfg, supervisor_token, cfg.long_lived_token)
+    inverter = InverterController(cfg, supervisor_token, cfg.long_lived_token, ws_client)
     if cfg.battery_control_enabled:
         sim_txt = " (SIMULATION)" if cfg.battery_control_simulation else ""
         _LOGGER.info("Battery control enabled%s", sim_txt)

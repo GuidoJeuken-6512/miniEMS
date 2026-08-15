@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-14
+revision_date: 2026-08-15
 ---
 
 # Calculations
@@ -9,7 +9,7 @@ revision_date: 2026-08-14
 The controller evaluates five mutually-exclusive modes, in this priority order, on every tick:
 
 ```
-1. IDLE               — battery_soc_entity missing or stale (sensor_max_age_sec)
+1. IDLE               — battery_soc_entity missing OR battery_power_entity stale (sensor_max_age_sec)
 2. PROTECT_BATTERY     — soc < battery_min_soc
                          OR (previously PROTECT_BATTERY AND soc < battery_min_soc + battery_soc_hysteresis_pct)
 3. IDLE                — soc ≥ battery_max_soc ("battery full")
@@ -22,7 +22,9 @@ The controller evaluates five mutually-exclusive modes, in this priority order, 
 Every condition is evaluated **fail closed**: if a required sensor value is missing or stale, the controller takes the safe path (no grid charging, no withholding of PV charging) instead of guessing.
 
 !!! note "SoC sensor unavailable"
-    If `battery_soc_entity` returns no value, or hasn't updated for longer than `sensor_max_age_sec` (default 300 s), the controller immediately and without delay (`urgent`) switches to **IDLE** and hands control back to the inverter's own self-use logic. This is the central safety measure against uncontrolled charging when the battery state of charge is unknown.
+    If `battery_soc_entity` returns no value, the controller immediately and without delay (`urgent`) switches to **IDLE** and hands control back to the inverter's own self-use logic. This is the central safety measure against uncontrolled charging when the battery state of charge is unknown.
+
+    The staleness check here does **not** run on `battery_soc_entity` itself — it runs on `battery_power_entity` (default `sensor_max_age_sec` = 300 s). Reason: SoC is a coarse percentage that can legitimately stay on the exact same value for hours, or — in winter with grid charging off — for days; a timeout on "time since the SoC last changed" would eventually be wrong for every possible value. `battery_power_entity` comes from the same BMS/inverter connection and fluctuates continuously as long as that connection is alive, so its freshness proves the SoC reading is current, not merely that it happened to change recently.
 
 ### PV Surplus
 
@@ -62,18 +64,45 @@ While the export hold is active, `InverterController.apply_mode()` sets the char
 2. price_eur_kwh < cheap_rate_threshold_eur
 3. bat_kwh_free > grid_charge_min_free_kwh          (default 1.0 kWh — otherwise not worth it)
 
-If solcast_remaining_today_kwh is available (not stale):
+If solcast_remaining_today_kwh is available (not stale) AND > grid_charge_min_free_kwh:
     should_grid_charge = bat_kwh_free > solcast_remaining_today_kwh × pv_charge_margin_factor
                                           + grid_charge_min_free_kwh
 
-Otherwise (no forecast available):
-    # "No more sun can arrive today" — only charge inside the configured dark window
+Otherwise (today's forecast missing, stale, or simply spent — e.g. in the evening):
+    # Since v2.0.1: check tomorrow's forecast before falling back to a
+    # blind time-of-day decision — if it alone covers the battery's need,
+    # buying grid energy tonight isn't worth it.
+    If solcast_tomorrow_kwh is available (not stale):
+        If bat_kwh_free ≤ solcast_tomorrow_kwh × pv_charge_margin_factor + grid_charge_min_free_kwh:
+            should_grid_charge = False   # tomorrow's sun will refill it
+
+    # Neither today nor tomorrow has a usable value:
+    # "No more sun can arrive today, and nothing reliable is known about
+    # tomorrow either" — only charge inside the configured dark window
     should_grid_charge = grid_charge_dark_start_hour ≤ now.hour < grid_charge_dark_end_hour
                           (default 21:00–06:00; allowed to wrap past midnight)
 ```
 
+!!! note "Why this fallback was needed"
+    `solcast_remaining_today_kwh` falls back to `None`/0 for two different reasons: **legitimately** in the evening, once no more sun is expected for the rest of the day, and **incorrectly** when Solcast (depending on your plan) goes several hours without a new value and `forecast_max_age_sec` (default 8 h since v2.0.1, previously 3 h) is exceeded — even though the last known value is usually still correct after the midnight rollover. Both cases used to fall straight into the dark window, even when `solcast_tomorrow_entity` already showed a forecast more than large enough for the next day. The check only ever narrows the decision (it can prevent grid charging, never trigger it in addition) and leaves every existing safety gate (SoC floor, `PROTECT_BATTERY`) untouched.
+
 !!! warning "No longer tied to the internal consumption model"
-    Earlier miniEMS versions used the internal consumption forecast (`ConsumptionModel`, section below) as a fallback for the grid-charge decision whenever Solcast was unavailable. That is no longer the case since the grid-friendly PV strategy (Phase 7): with no Solcast forecast, the decision relies **exclusively** on the dark window. `ConsumptionModel.predicted_pv_kwh` and `.predicted_load_kwh` currently feed into **no** control decision at all — they are dashboard-display values only (see "Consumption & PV Prediction" further down this page).
+    Earlier miniEMS versions used the internal consumption forecast (`ConsumptionModel`, section below) as a fallback for the grid-charge decision whenever Solcast was unavailable. That is no longer the case since the grid-friendly PV strategy (Phase 7): with no usable Solcast forecast (today *or* tomorrow), the decision relies **exclusively** on the dark window. `ConsumptionModel.predicted_pv_kwh` and `.predicted_load_kwh` currently feed into **no** control decision at all — they are dashboard-display values only (see "Consumption & PV Prediction" further down this page).
+
+### Inverter Write Confirmation (`InverterController`, since v2.0.1)
+
+A service call Home Assistant accepts (HTTP 200) is not proof the inverter applied it — some Deye/Solarman bridges only confirm a written value (charge current, discharge current, grid-charge switch) on their next poll, observed to lag by up to ~25 minutes.
+
+```
+per channel (charge current, discharge current, grid-charge switch), independently:
+  when the target changes:  mark the channel "unconfirmed"
+  while unconfirmed:
+      if the real HA state == target:  mark the channel "confirmed"
+      else, if ≥ INVERTER_WRITE_CONFIRM_TIMEOUT_SEC (30 s) since the last send:
+          resend the service call
+```
+
+`write_unconfirmed` (0–3) is a live count of how many of the three channels are currently unconfirmed, and drops back to 0 once the real state catches up — separate from `write_errors`, which only counts outright HTTP/connection failures. Both surface as warnings in the dashboard banner.
 
 ### Battery Protection Hysteresis
 

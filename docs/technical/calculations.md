@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-14
+revision_date: 2026-08-15
 ---
 
 # Berechnungen
@@ -9,7 +9,7 @@ revision_date: 2026-08-14
 Der Controller bewertet fünf sich gegenseitig ausschließende Modi, in dieser Prioritätsreihenfolge, bei jedem Tick neu:
 
 ```
-1. IDLE               — battery_soc_entity fehlt oder veraltet (sensor_max_age_sec)
+1. IDLE               — battery_soc_entity fehlt ODER battery_power_entity veraltet (sensor_max_age_sec)
 2. PROTECT_BATTERY     — soc < battery_min_soc
                          ODER (zuvor PROTECT_BATTERY UND soc < battery_min_soc + battery_soc_hysteresis_pct)
 3. IDLE                — soc ≥ battery_max_soc ("battery full")
@@ -22,7 +22,9 @@ Der Controller bewertet fünf sich gegenseitig ausschließende Modi, in dieser P
 Jede Bedingung wird **fail closed** ausgewertet: Fehlt oder veraltet ein benötigter Sensorwert, wählt der Controller den sicheren Weg (kein Laden vom Netz, kein Zurückhalten von PV-Ladung) statt zu raten.
 
 !!! note "SoC-Sensor nicht verfügbar"
-    Liefert `battery_soc_entity` keinen Wert oder ist länger als `sensor_max_age_sec` (Standard 300 s) nicht aktualisiert worden, springt der Controller sofort und ohne Verzögerung (`urgent`) in **IDLE** und überlässt die Steuerung der eigenen Selbstverbrauchslogik des Wechselrichters. Das ist die zentrale Sicherheitsmaßnahme gegen unkontrolliertes Laden bei unbekanntem Akkustand.
+    Liefert `battery_soc_entity` keinen Wert, springt der Controller sofort und ohne Verzögerung (`urgent`) in **IDLE** und überlässt die Steuerung der eigenen Selbstverbrauchslogik des Wechselrichters. Das ist die zentrale Sicherheitsmaßnahme gegen unkontrolliertes Laden bei unbekanntem Akkustand.
+
+    Die Veraltungsprüfung läuft hier **nicht** auf `battery_soc_entity` selbst, sondern auf `battery_power_entity` (Standard `sensor_max_age_sec` = 300 s). Grund: SoC ist eine grobe Prozentzahl, die legitim stundenlang — im Winter bei ausgeschaltetem Netzladen sogar tagelang — exakt gleich bleiben kann; ein Timeout auf „Zeit seit letzter SoC-Änderung" wäre irgendwann für jeden denkbaren Wert falsch. `battery_power_entity` stammt von derselben BMS-/Wechselrichter-Anbindung und schwankt kontinuierlich, solange diese Verbindung lebt — ihre Frische beweist, dass der SoC-Wert aktuell ist, nicht dass er sich zufällig gerade geändert hat.
 
 ### PV-Überschuss
 
@@ -62,18 +64,45 @@ Ist der Export-Halt aktiv, setzt `InverterController.apply_mode()` den Ladestrom
 2. price_eur_kwh < cheap_rate_threshold_eur
 3. bat_kwh_free > grid_charge_min_free_kwh          (Standard 1,0 kWh — sonst lohnt sich Laden nicht)
 
-Wenn solcast_remaining_today_kwh verfügbar (nicht veraltet):
+Wenn solcast_remaining_today_kwh verfügbar (nicht veraltet) UND > grid_charge_min_free_kwh:
     should_grid_charge = bat_kwh_free > solcast_remaining_today_kwh × pv_charge_margin_factor
                                           + grid_charge_min_free_kwh
 
-Sonst (keine Prognose verfügbar):
-    # "Es kann heute keine Sonne mehr kommen" — nur im konfigurierten Dunkelfenster laden
+Sonst (heutige Prognose fehlt, veraltet, oder schlicht ausgeschöpft — z. B. abends):
+    # Seit v2.0.1: bevor blind nach Uhrzeit entschieden wird, erst die
+    # morgige Prognose prüfen — reicht sie allein für die Batterie, lohnt
+    # sich das Netzladen heute Nacht nicht.
+    Wenn solcast_tomorrow_kwh verfügbar (nicht veraltet):
+        Wenn bat_kwh_free ≤ solcast_tomorrow_kwh × pv_charge_margin_factor + grid_charge_min_free_kwh:
+            should_grid_charge = False   # morgen reicht die Sonne zum Auffüllen
+
+    # Weder heute noch morgen ein verlässlicher Wert:
+    # "Es kann heute keine Sonne mehr kommen, und über morgen ist nichts
+    # Verlässliches bekannt" — nur im konfigurierten Dunkelfenster laden
     should_grid_charge = grid_charge_dark_start_hour ≤ now.hour < grid_charge_dark_end_hour
                           (Standard 21–6 Uhr; über Mitternacht hinweg zulässig)
 ```
 
+!!! note "Warum dieser Fallback nötig wurde"
+    `solcast_remaining_today_kwh` fällt aus zwei unterschiedlichen Gründen auf `None`/0 zurück: **legitim** abends, sobald für den Rest des Tages keine Sonne mehr zu erwarten ist, und **fälschlich**, wenn Solcast (planabhängig) mehrere Stunden lang keinen neuen Wert liefert und `forecast_max_age_sec` (Standard 8 h seit v2.0.1, zuvor 3 h) überschritten wird — obwohl der zuletzt bekannte Wert nach dem Mitternachts-Rollover meist weiterhin korrekt ist. Beide Fälle liefen früher blind ins Dunkelfenster, selbst wenn der Solcast-Sensor `solcast_tomorrow_entity` längst eine reichlich ausreichende Prognose für den nächsten Tag zeigte. Die Prüfung greift ausschließlich zusätzlich **einschränkend** (kann Netzladen nur verhindern, nie zusätzlich auslösen) und lässt alle bestehenden Sicherheits-Gates (SoC-Untergrenze, `PROTECT_BATTERY`) unverändert.
+
 !!! warning "Nicht mehr an das interne Verbrauchsmodell gekoppelt"
-    Frühere miniEMS-Versionen nutzten bei fehlender Solcast-Prognose die interne Verbrauchsvorhersage (`ConsumptionModel`, Abschnitt unten) als Fallback für die Netzlade-Entscheidung. Das ist seit der netzfreundlichen PV-Strategie (Phase 7) nicht mehr der Fall: Ohne Solcast-Prognose wird **ausschließlich** anhand des Dunkelfensters entschieden. `ConsumptionModel.predicted_pv_kwh` und `.predicted_load_kwh` fließen aktuell in **keine** Steuerungsentscheidung mehr ein — sie sind reine Dashboard-Anzeigewerte (siehe Abschnitt „Verbrauchs- & PV-Vorhersage" weiter unten auf dieser Seite).
+    Frühere miniEMS-Versionen nutzten bei fehlender Solcast-Prognose die interne Verbrauchsvorhersage (`ConsumptionModel`, Abschnitt unten) als Fallback für die Netzlade-Entscheidung. Das ist seit der netzfreundlichen PV-Strategie (Phase 7) nicht mehr der Fall: Ohne verwertbare Solcast-Prognose (heute *und* morgen) wird **ausschließlich** anhand des Dunkelfensters entschieden. `ConsumptionModel.predicted_pv_kwh` und `.predicted_load_kwh` fließen aktuell in **keine** Steuerungsentscheidung mehr ein — sie sind reine Dashboard-Anzeigewerte (siehe Abschnitt „Verbrauchs- & PV-Vorhersage" weiter unten auf dieser Seite).
+
+### Wechselrichter-Schreibbestätigung (`InverterController`, seit v2.0.1)
+
+Ein von Home Assistant angenommener Service-Call (HTTP 200) belegt nicht, dass der Wechselrichter den Wert übernommen hat — manche Deye/Solarman-Anbindungen bestätigen einen geschriebenen Wert (Ladestrom, Entladestrom, Netzlade-Schalter) erst bei ihrem nächsten Poll, was beobachtet bis zu ~25 Minuten dauern kann.
+
+```
+pro Kanal (Ladestrom, Entladestrom, Netzlade-Schalter) unabhängig:
+  wenn Zielwert sich ändert:  Kanal auf "unbestätigt" setzen
+  wenn unbestätigt:
+      wenn realer HA-Zustand == Zielwert:  Kanal auf "bestätigt" setzen
+      sonst, wenn seit letztem Sendeversuch ≥ INVERTER_WRITE_CONFIRM_TIMEOUT_SEC (30 s):
+          Service-Call erneut senden
+```
+
+`write_unconfirmed` (0–3) zählt live, wie viele der drei Kanäle gerade unbestätigt sind, und fällt auf 0 sobald der reale Zustand aufholt — getrennt von `write_errors`, das nur echte HTTP-/Verbindungsfehler zählt. Beide erscheinen als Warnung im Dashboard-Banner.
 
 ### Batterieschutz-Hysterese
 

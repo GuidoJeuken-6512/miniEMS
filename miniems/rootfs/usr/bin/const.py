@@ -8,7 +8,7 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "2.0.0"
+VERSION = "2.0.2"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
 CONFIG_SCHEMA_VERSION = 12
@@ -38,8 +38,17 @@ HA_RETRY_INTERVAL_SEC = 10   # retry delay after a failed poll / 401
 # HA only advances last_updated when a value actually changes, so these must be
 # generous enough that a legitimately constant reading is not flagged.
 SENSOR_MAX_AGE_SEC   = 300     # power/SoC: move constantly, 5 min frozen = broken
-FORECAST_MAX_AGE_SEC = 10800   # Solcast: updates ~every 30 min in daylight
-PRICE_MAX_AGE_SEC    = 10800   # dynamic tariff: may hold one value for an hour
+FORECAST_MAX_AGE_SEC = 28800   # Solcast: updates ~every 30 min in daylight, but can
+                                # go quiet for ~6h overnight (observed) – 8h gives margin
+PRICE_MAX_AGE_SEC    = 21600   # dynamic tariff: may hold one value for several hours
+
+# ── Inverter write confirmation (seconds) ──────────────────────────────────────
+# A service call accepted by HA (HTTP 200) is not proof the inverter applied it –
+# some Deye/Solarman bridges only confirm a written number/switch on their next
+# poll, which can lag by many minutes. Re-check every tick and keep resending
+# until the real state matches; this equals the EMS tick interval, i.e. retry
+# on every cycle rather than waiting out a long grace period.
+INVERTER_WRITE_CONFIRM_TIMEOUT_SEC = 30
 
 # ── Custom integration installer ──────────────────────────────────────────────
 from pathlib import Path
