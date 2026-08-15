@@ -50,6 +50,7 @@ nav = [
     { "Installation" = "user/installation.md" },
     { "Konfiguration" = "user/configuration.md" },
     { "Dashboard & Oberfläche" = "user/dashboard.md" },
+    { "Kosten & Einsparungen" = "user/costs.md" },
     { "Ereignisprotokoll" = "user/log.md" },
     { "Datenbank" = "user/database.md" },
     { "HA-Sensoren" = "user/sensors.md" },
@@ -63,11 +64,18 @@ nav = [
     { "HA-Sensor-Referenz" = "technical/sensors.md" },
     { "Devcontainer-Supervisor-Patches" = "technical/devcontainer-supervisor-patches.md" },
   ]},
+  { "Roadmap" = [
+    { "v3.0 – Geräteprofile" = "roadmap/v3.0-geraeteprofile.md" },
+    { "Netzdienliches Laden" = "roadmap/netzdienliches-laden.md" },
+    { "Tageswechsel & Energiezählung" = "roadmap/tageswechsel-energiezaehlung.md" },
+    { "Sensor-Staleness" = "roadmap/sensor-staleness.md" },
+  ]},
   { "User Guide (EN)" = [
     { "Getting Started" = "en/user/index.md" },
     { "Installation" = "en/user/installation.md" },
     { "Configuration" = "en/user/configuration.md" },
     { "Dashboard & UI" = "en/user/dashboard.md" },
+    { "Costs & Savings" = "en/user/costs.md" },
     { "Event Log" = "en/user/log.md" },
     { "Database Viewer" = "en/user/database.md" },
     { "HA Sensors" = "en/user/sensors.md" },
@@ -79,6 +87,9 @@ nav = [
     { "Data Storage" = "en/technical/data-storage.md" },
     { "API Reference" = "en/technical/api.md" },
     { "HA Sensor Reference" = "en/technical/sensors.md" },
+  ]},
+  { "Roadmap (EN)" = [
+    { "Sensor Staleness" = "en/roadmap/sensor-staleness.md" },
   ]},
 ]
 

@@ -75,6 +75,9 @@ Akkumuliert ab Mitternacht; tägliches Rücksetzen. `state_class: total_increasi
 
 ## Heutige Kosten & Einsparungen
 
+> Ausführliche Erklärung jedes Sensors inkl. Rechenbeispiel:
+> [Kosten & Einsparungen](costs.md).
+
 | Entität | Einheit | Beschreibung |
 |---|---|---|
 | `sensor.miniems_today_grid_cost_eur` | € | Tatsächliche Kosten des Netzbezugs heute |

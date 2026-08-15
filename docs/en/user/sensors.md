@@ -75,6 +75,9 @@ Accumulate from midnight; reset daily. `state_class: total_increasing`.
 
 ## Today's Cost & Savings
 
+> For a full explanation of every sensor, including a worked example: [Costs &
+> Savings](costs.md).
+
 | Entity | Unit | Description |
 |---|---|---|
 | `sensor.miniems_today_grid_cost_eur` | € | Actual cost of grid import today |

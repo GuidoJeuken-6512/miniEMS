@@ -234,20 +234,47 @@ less savings than peak-rate PV.
 
 ---
 
-### Total Load Cost (`today_load_cost_eur`)
+### Total Load Cost (`today_load_total_kwh`, `today_load_cost_eur`)
 
 Hypothetical cost if the **entire** house load had been purchased from the
 grid at the current spot price, regardless of actual source (PV, battery,
-grid):
+grid).
+
+#### kWh – Source A (preferred, since v2.0.3)
+
+If `load_consumption_entity` is configured (default:
+`sensor.deye8k_today_load_consumption`), the inverter's own daily counter is
+used directly. The value is **set** on every tick:
 
 ```
-load_kwh       = (load_power_w / 1000) × hours
-load_total_kwh += load_kwh
-load_cost_eur  += load_kwh × price_eur_kwh
+load_total_kwh = load_consumption_entity   ← read straight from HA every tick
+```
+
+#### kWh – Source B (calculated fallback)
+
+If `load_consumption_entity` is empty or unavailable:
+
+```
+kwh_load        = (load_power_w / 1000) × hours
+load_total_kwh += kwh_load                 ← accumulated per tick
+```
+
+#### Cost – always accumulated per tick
+
+```
+load_kwh      = (load_power_w / 1000) × hours
+load_cost_eur += load_kwh × price_eur_kwh
 ```
 
 Always ≥ `today_grid_cost_eur` because PV and battery reduce actual grid
 purchases.
+
+!!! note "Why Source A only exists here since v2.0.3"
+    Before v2.0.3, `today_load_total_kwh` — unlike grid import and feed-in — had no
+    hardware counter to fall back on and was purely tick-based. Every add-on restart left
+    a gap that was never made up. Measured live: after a single restart, the value was
+    already ~1.1 kWh (≈23%) below the inverter's own daily total
+    (`sensor.deye8k_today_load_consumption`).
 
 ---
 

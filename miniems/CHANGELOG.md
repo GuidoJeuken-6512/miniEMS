@@ -1,5 +1,79 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.3
+
+### New Features
+
+- **`load_consumption_entity`** – optional inverter daily-total sensor
+  (default `sensor.deye8k_today_load_consumption`) as a "Source A" for
+  `today_load_total_kwh`, matching the existing pattern for grid import and
+  feed-in. Migration v13 enables it by default for upgrading installs.
+
+### Bug Fixes
+
+- **`today_load_total_kwh` had no hardware-counter anchor.** Unlike grid
+  import and feed-in, it was purely tick-accumulated and therefore
+  permanently under-counted across every add-on restart – measured live:
+  ~1.1 kWh (≈23%) low after a single restart. Fixed by the new
+  `load_consumption_entity` above; `today_load_cost_eur` still accumulates
+  per tick as before, since it needs the price at each interval.
+- **Migration v11→v12 baked in stale staleness defaults.** It hardcoded
+  `forecast_max_age_sec`/`price_max_age_sec` at the pre-v2.0.1 values
+  (10800s/3h each), so any config that passed through it before v2.0.1
+  raised those defaults kept the old, too-tight numbers permanently in
+  `config.json`, immune to the later default change. Migration v13 corrects
+  both if they still exactly match the old hardcoded default; an explicitly
+  customized value is left alone.
+- **The custom integration's reload call has never worked.** `GET
+  .../config/config_entries` is not a real Home Assistant REST endpoint
+  (config-entry listing/reload is WebSocket-only) – it always returned 404,
+  so the integration was silently never reloaded after an add-on update.
+  This is also why a renamed sensor `key` (e.g. a past typo fix) could
+  leave a permanently orphaned, "unavailable" entity behind that later
+  collided with the freshly-registered one and forced a "_2" suffix onto
+  it, instead of the clean name. Fixed by calling the
+  `homeassistant.reload_config_entry` *service* instead (a real REST
+  endpoint), targeted at a miniEMS entity resolved via a Jinja template
+  rather than a hardcoded name – even a seemingly stable `key` has turned
+  out to have older, pre-repository renames of its own on a real
+  installation.
+- **Orphaned same-config-entry entities were never cleaned up.** The
+  existing registry cleanup only removed entities left behind by a fully
+  deleted-and-re-added config entry; it did nothing for a renamed sensor
+  `key` within the *same* config entry, which is the actual cause of the
+  observed "_2" sensors. `async_setup_entry` now also removes any
+  registered miniEMS entity whose `unique_id` is no longer produced by the
+  current sensor descriptions.
+
+### Documentation
+
+- Corrected `battery_power_entity`'s sign convention in the configuration
+  reference (was documented backwards: **negative** = charging, **positive**
+  = discharging, verified live against the inverter).
+- New page **Sensor Staleness** (`roadmap/sensor-staleness.md`): every
+  `is_stale()` call site in the project, its real-world update cadence, and
+  a verdict, with a "solution available" column. Root cause proven in the
+  Solcast integration's source: `_handle_coordinator_update` returns early
+  for `DEFAULT`-policy sensors, so the daily forecast totals are never
+  rewritten and *no* HA timestamp – `last_updated`, `last_changed` or
+  `last_reported` – can advance. Live-reproduced: `solcast_today_entity`
+  was 9h43min old against an 8h threshold. Also documents why
+  `unavailable` cannot substitute for the check (Solarman reports it on
+  connection loss, Solcast never does – it serves its disk cache instead).
+  Five proposals, none implemented; the recommended one is a date check
+  ("is the timestamp from today?") rather than any age threshold.
+- New page **Tageswechsel & Energiezählung**
+  (`roadmap/tageswechsel-energiezaehlung.md`): the inverter resets its
+  daily counters 4min54s *after* local midnight (measured across all four
+  counters simultaneously), so for those minutes the Source-A override
+  writes yesterday's total into today's bucket. Proposes switching to the
+  lifetime `total_*` counters with a self-computed daily delta – verified
+  to carry the same 0.1 kWh resolution and to be continuous across
+  midnight. Not implemented.
+- New page **Costs & Savings** (`user/costs.md`): every cost/savings value
+  explained with a worked example, including the two-loss-sensor pitfall
+  (`today_losses_entity` vs. the differently-named `loss_daily` helper).
+
 ## 2.0.2
 
 ### Bug Fixes

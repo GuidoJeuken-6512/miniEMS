@@ -127,6 +127,7 @@ class CostOptimizer:
         outdoor_temp_c: float | None = None,
         feed_in_kwh_ha: float | None = None,
         grid_import_kwh_ha: float | None = None,
+        load_total_kwh_ha: float | None = None,
         bat_charge_kwh_ha: float | None = None,
         bat_discharge_kwh_ha: float | None = None,
         today_production_kwh_ha: float | None = None,
@@ -169,11 +170,18 @@ class CostOptimizer:
         self._pv_used_kwh[now] += kwh_pv_used
         self._pv_saved_eur[now] += kwh_pv_used * price_eur_kwh
 
-        # Total load cost (what you'd pay if buying all from grid at current price)
+        # Total load cost (what you'd pay if buying all from grid at current price).
+        # kWh: prefer the inverter's daily-total sensor when configured – it is immune to
+        # addon restarts, unlike the tick-accumulated fallback (see grid import above for the
+        # same pattern). Cost is always accumulated per tick regardless: it needs the spot
+        # price at each interval, which a daily total sensor cannot provide.
         load_kwh = (load_w / 1000) * hours
-        self._load_total_kwh[now] += load_kwh
-        self._load_cost_eur[now]  += load_kwh * price_eur_kwh
-        # Keep running load total for bilanz formula (power-based accumulation)
+        if load_total_kwh_ha is None:
+            self._load_total_kwh[now] += load_kwh
+        self._load_cost_eur[now] += load_kwh * price_eur_kwh
+        if load_total_kwh_ha is not None:
+            self._load_total_kwh[now] = load_total_kwh_ha
+        # Keep running load total for the bilanz formula (prefers the HA sensor value too)
         self._load_kwh_ha[now] = self._load_total_kwh[now]
 
         # Peak PV power (for yield prediction model)

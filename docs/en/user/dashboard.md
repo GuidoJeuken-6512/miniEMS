@@ -48,6 +48,9 @@ Six cards showing real-time values: PV Power, Load Power, Grid Power, Battery So
 
 ### Cost & Savings
 
+> For a full explanation of every value, including a worked example: [Costs &
+> Savings](costs.md).
+
 Today's and this week's accumulated values:
 
 - **Saved Today (PV)** — money saved by using solar instead of buying from grid

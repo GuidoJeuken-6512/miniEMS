@@ -234,18 +234,45 @@ weniger zur Einsparung bei als PV bei Spitzentarif.
 
 ---
 
-### Gesamtlastkosten (`today_load_cost_eur`)
+### Gesamtlastkosten (`today_load_total_kwh`, `today_load_cost_eur`)
 
 Hypothetische Kosten, wenn der **gesamte** Hausverbrauch zum aktuellen Spotpreis
-aus dem Netz bezogen worden wäre, unabhängig von der tatsächlichen Quelle (PV, Akku, Netz):
+aus dem Netz bezogen worden wäre, unabhängig von der tatsächlichen Quelle (PV, Akku, Netz).
+
+#### kWh — Quelle A (bevorzugt, seit v2.0.3)
+
+Wenn `load_consumption_entity` konfiguriert ist (Standard:
+`sensor.deye8k_today_load_consumption`), wird der eigene Tageszähler des Wechselrichters
+direkt verwendet. Der Wert wird pro Tick **gesetzt**:
 
 ```
-load_kwh       = (load_power_w / 1000) × hours
-load_total_kwh += load_kwh
-load_cost_eur  += load_kwh × price_eur_kwh
+load_total_kwh = load_consumption_entity   ← pro Tick direkt aus HA gelesen
+```
+
+#### kWh — Quelle B (berechneter Fallback)
+
+Wenn `load_consumption_entity` leer oder nicht verfügbar ist:
+
+```
+kwh_load        = (load_power_w / 1000) × hours
+load_total_kwh += kwh_load                 ← pro Tick akkumuliert
+```
+
+#### Kosten — immer pro Tick akkumuliert
+
+```
+load_kwh      = (load_power_w / 1000) × hours
+load_cost_eur += load_kwh × price_eur_kwh
 ```
 
 Immer ≥ `today_grid_cost_eur`, weil PV und Akku den tatsächlichen Netzbezug reduzieren.
+
+!!! note "Warum Quelle A hier erst seit v2.0.3 existiert"
+    Vor v2.0.3 hatte `today_load_total_kwh` — anders als Netzbezug und Einspeisung — keinen
+    Hardware-Zähler als Rückfallanker und war rein tick-basiert. Jeder Add-on-Neustart riss
+    dadurch eine nie nachgeholte Lücke. Live gemessen: nach einem einzigen Neustart lag der
+    Wert bereits ~1,1 kWh (≈23 %) unter dem Wechselrichter-eigenen Tageswert
+    (`sensor.deye8k_today_load_consumption`).
 
 ---
 

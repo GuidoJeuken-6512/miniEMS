@@ -48,6 +48,8 @@ Sechs Karten mit Echtzeitwerten: PV-Leistung, Lastleistung, Netzleistung, Batter
 
 ### Kosten & Einsparungen
 
+> Ausführliche Erklärung jedes Werts inkl. Rechenbeispiel: [Kosten & Einsparungen](costs.md).
+
 Tages- und Wochenkumulierte Werte:
 
 - **Heute gespart (PV)** — eingesparter Betrag durch Nutzung von Solarstrom statt Netzkauf

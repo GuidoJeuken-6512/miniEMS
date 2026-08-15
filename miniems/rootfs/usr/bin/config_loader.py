@@ -78,6 +78,11 @@ class Config:
     feed_in_energy_entity: str = "sensor.deye8k_today_energy_export"
     # Grid import energy sensor – daily total from inverter (optional; falls back to calculated)
     grid_import_energy_entity: str = "sensor.deye8k_today_energy_import"
+    # Load consumption energy sensor – daily total from inverter (optional; falls back to
+    # calculated). Unlike grid import/feed-in, today_load_total_kwh had no such anchor before
+    # v2.0.3 – it was purely tick-accumulated and therefore permanently under-counted across
+    # every addon restart (the inverter's own counter is unaffected by that).
+    load_consumption_entity: str = "sensor.deye8k_today_load_consumption"
     # --- Scenario 2: Grid-charge cost / efficiency / ROI (optional; enables bilanz-based calculation) ---
     # Daily battery charge/discharge totals from inverter
     battery_charge_entity: str = "sensor.deye8k_today_battery_charge"
@@ -142,7 +147,14 @@ class Config:
             ]
             if e
         ]
-        optional = [e for e in [self.feed_in_energy_entity, self.grid_import_energy_entity] if e]
+        optional = [
+            e for e in [
+                self.feed_in_energy_entity,
+                self.grid_import_energy_entity,
+                self.load_consumption_entity,
+            ]
+            if e
+        ]
         scenario2 = [
             e for e in [
                 self.battery_charge_entity,

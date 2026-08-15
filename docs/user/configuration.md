@@ -32,11 +32,12 @@ Diese findest du unter **HA → Entwicklerwerkzeuge → Zustände** — filtere 
 |---|---|---|
 | `pv_power_entity` | `sensor.deye_pv_total_power` | Gesamte PV-Leistung (W) |
 | `battery_soc_entity` | `sensor.deye_battery_soc` | Batterie-Ladezustand (%) |
-| `battery_power_entity` | `sensor.deye_battery_power` | Batterieleistung (W) — positiv = Laden beim Deye 8K |
+| `battery_power_entity` | `sensor.deye_battery_power` | Batterieleistung (W) — **negativ** = Laden, **positiv** = Entladen beim Deye 8K (live verifiziert; eine frühere Version dieser Zeile hatte das Vorzeichen vertauscht) |
 | `grid_power_entity` | `sensor.deye_grid_power` | Netzleistung (W) — positiv = Bezug, negativ = Einspeisung |
 | `load_power_entity` | `sensor.deye_load_power` | Hauslast (W) |
 | `grid_import_energy_entity` | `sensor.deye8k_today_energy_import` | Tages-Netzbezug direkt vom Wechselrichter (kWh, setzt um Mitternacht zurück). Wenn gesetzt, ersetzt sie den aus `grid_power_entity` berechneten Wert; die Netzkosten werden weiterhin pro Tick akkumuliert. Leer lassen, um auf die Berechnung zurückzufallen. |
 | `feed_in_energy_entity` | `sensor.deye8k_today_energy_export` | Tages-Einspeisung direkt vom Wechselrichter (kWh, setzt um Mitternacht zurück). Wenn gesetzt, ersetzt sie den berechneten Einspeisewert. Leer lassen für die Berechnung aus `grid_power_entity`. |
+| `load_consumption_entity` | `sensor.deye8k_today_load_consumption` | Tages-Hausverbrauch direkt vom Wechselrichter (kWh, setzt um Mitternacht zurück). Wenn gesetzt, ersetzt sie den aus `load_power_entity` hochgerechneten Wert — dadurch unempfindlich gegenüber Add-on-Neustarts. Die Lastkosten (€) werden weiterhin pro Tick akkumuliert, da dafür der Preis zu jedem Zeitpunkt gebraucht wird. Leer lassen, um auf die Berechnung zurückzufallen. Seit v2.0.3. |
 
 Alle fünf oberen Pflicht-Entitäten werden auf **Veraltung** geprüft (`sensor_max_age_sec`, Standard 300 s): Liefert eine Entität länger keinen neuen Wert, behandelt miniEMS sie als „nicht verfügbar" und fällt in den sicheren Zustand zurück (siehe Abschnitt „Netzfreundliche PV-Strategie" weiter unten).
 

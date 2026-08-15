@@ -5,7 +5,7 @@ Add a new function and increment CURRENT_VERSION whenever the config schema chan
 """
 import logging
 
-from const import CONFIG_SCHEMA_VERSION
+from const import CONFIG_SCHEMA_VERSION, FORECAST_MAX_AGE_SEC, PRICE_MAX_AGE_SEC
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,6 +70,9 @@ def migrate(data: dict) -> dict:
 
     if version < 12:
         data = _v11_to_v12(data)
+
+    if version < 13:
+        data = _v12_to_v13(data)
 
     data["_version"] = CURRENT_VERSION
     return data
@@ -254,6 +257,43 @@ def _v11_to_v12(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v11→v12: set %s = %r", key, default)
+    return data
+
+
+def _v12_to_v13(data: dict) -> dict:
+    """v12 → v13: load-consumption energy sensor (Quelle A for today_load_total_kwh).
+
+    Before this, today_load_total_kwh (and everything derived from it,
+    e.g. today_load_cost_eur) was purely tick-accumulated with no hardware
+    counter to fall back on – unlike grid import/feed-in, it permanently
+    under-counted across every addon restart. Measured on a live instance:
+    ~1.1 kWh (≈23%) low after a single restart earlier that day.
+
+    Also corrects forecast_max_age_sec/price_max_age_sec for configs
+    migrated through v11→v12 before v2.0.1 raised those defaults from
+    10800s/3h to the current, more realistic values (see const.py) – a
+    config already at v12 had the old number baked in permanently and
+    never picked up the new default. Only touched if the value still
+    exactly matches that old hardcoded default; an explicitly customized
+    value is left alone.
+    """
+    if "load_consumption_entity" not in data:
+        data["load_consumption_entity"] = "sensor.deye8k_today_load_consumption"
+        _LOGGER.info("Migration v12→v13: set load_consumption_entity = %r",
+                     data["load_consumption_entity"])
+
+    if data.get("forecast_max_age_sec") == 10800:
+        data["forecast_max_age_sec"] = FORECAST_MAX_AGE_SEC
+        _LOGGER.info(
+            "Migration v12→v13: forecast_max_age_sec was still the old default "
+            "(10800s/3h) – raised to %ds", FORECAST_MAX_AGE_SEC,
+        )
+    if data.get("price_max_age_sec") == 10800:
+        data["price_max_age_sec"] = PRICE_MAX_AGE_SEC
+        _LOGGER.info(
+            "Migration v12→v13: price_max_age_sec was still the old default "
+            "(10800s/3h) – raised to %ds", PRICE_MAX_AGE_SEC,
+        )
     return data
 
 

@@ -32,11 +32,12 @@ Find these in **HA → Developer Tools → States** — filter by `deye` to loca
 |---|---|---|
 | `pv_power_entity` | `sensor.deye_pv_total_power` | Total PV output (W) |
 | `battery_soc_entity` | `sensor.deye_battery_soc` | Battery state of charge (%) |
-| `battery_power_entity` | `sensor.deye_battery_power` | Battery power (W) — positive = charging on the Deye 8K |
+| `battery_power_entity` | `sensor.deye_battery_power` | Battery power (W) — **negative** = charging, **positive** = discharging on the Deye 8K (verified live; an earlier version of this line had the sign backwards) |
 | `grid_power_entity` | `sensor.deye_grid_power` | Grid power (W) — positive = import, negative = export |
 | `load_power_entity` | `sensor.deye_load_power` | House load (W) |
 | `grid_import_energy_entity` | `sensor.deye8k_today_energy_import` | HA entity providing the inverter's daily grid import total (kWh, resets at midnight). When set, replaces the calculated import kWh; grid cost is still accumulated per tick. Leave empty to fall back to calculation from `grid_power_entity`. |
 | `feed_in_energy_entity` | `sensor.deye8k_today_energy_export` | HA entity providing the inverter's daily feed-in total (kWh, resets at midnight). When set, replaces the calculated feed-in value. Leave empty to fall back to calculation from `grid_power_entity`. |
+| `load_consumption_entity` | `sensor.deye8k_today_load_consumption` | HA entity providing the inverter's daily household consumption total (kWh, resets at midnight). When set, replaces the value extrapolated from `load_power_entity` — making it immune to add-on restarts. Load cost (€) is still accumulated per tick, since that needs the price at each point in time. Leave empty to fall back to calculation. Since v2.0.3. |
 
 All five required entities above are checked for **staleness** (`sensor_max_age_sec`, default 300 s): if an entity stops updating for that long, miniEMS treats it as "unavailable" and falls back to the safe state (see the "Grid-Friendly PV Strategy" section further down).
 

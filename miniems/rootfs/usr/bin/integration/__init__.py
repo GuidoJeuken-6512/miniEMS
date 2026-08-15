@@ -1,6 +1,7 @@
 """miniEMS custom integration – polls the addon /api/status endpoint."""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntry
@@ -10,6 +11,8 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 
 from .coordinator import MiniEMSCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "miniems"
 PLATFORMS = ["sensor"]
@@ -44,6 +47,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ]
     for stale_entry in stale:
         registry.async_remove(stale_entry.entity_id)
+
+    # Remove orphaned entities *within this same config entry* whose unique_id
+    # is no longer produced by SENSOR_DESCRIPTIONS – typically because a
+    # sensor's `key` was renamed (e.g. a typo fix) across a release. The check
+    # above only catches entities left behind by a fully deleted-and-re-added
+    # config entry; it does nothing for this case, since config_entry_id is
+    # unchanged. Left alone, such an orphan keeps its entity_id slug forever
+    # (permanently "unavailable"), and the entity re-registered under the new
+    # unique_id collides with that slug and gets a "_2" suffix instead of the
+    # clean name. Deferred import: sensor.py imports DOMAIN from this module,
+    # so importing it back at module load time would be circular.
+    from .sensor import SENSOR_DESCRIPTIONS
+    current_unique_ids = {d.key for d in SENSOR_DESCRIPTIONS}
+    orphaned = [
+        e for e in registry.entities.values()
+        if e.platform == DOMAIN
+        and e.config_entry_id == entry.entry_id
+        and e.unique_id not in current_unique_ids
+    ]
+    for orphan in orphaned:
+        _LOGGER.info(
+            "Removing orphaned miniEMS entity %s (unique_id=%r no longer produced)",
+            orphan.entity_id, orphan.unique_id,
+        )
+        registry.async_remove(orphan.entity_id)
 
     # Clear original_name for all miniEMS entities so HA uses translation_key
     # instead of cached hardcoded English names from before v1.6.0.

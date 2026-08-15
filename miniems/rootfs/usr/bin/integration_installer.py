@@ -107,40 +107,62 @@ def _write_restart_marker(version: str | None) -> None:
 
 
 async def _reload_integration() -> None:
-    """Ask HA Core to reload the miniems integration via the Supervisor proxy."""
+    """Ask HA Core to reload the miniems config entry.
+
+    Home Assistant's REST API has no endpoint to list or reload config
+    entries directly – that's WebSocket-only (config_entries/list,
+    config_entries/reload). A previous version of this function called
+    GET .../config/config_entries, which is not a real REST endpoint and
+    always returned 404: the integration was silently never reloaded after
+    an update. That in turn is why a renamed sensor `key` (e.g. a typo fix)
+    could leave a permanently orphaned entity behind, which later collided
+    with the freshly-registered one and forced a "_2" suffix onto it –
+    async_setup_entry's registry cleanup (see integration/__init__.py)
+    never got a chance to run promptly; it only ran on the next unrelated
+    full HA Core restart.
+
+    Fix: call the homeassistant.reload_config_entry *service* instead
+    (POST /api/services/..., a real REST endpoint, same pattern
+    InverterController already uses). It accepts an entity_id and resolves
+    the owning config entry itself, so no entry_id lookup is needed. The
+    entity_id is resolved via a Jinja template (POST /api/template,
+    integration_entities()) rather than hardcoded – even a "stable-looking"
+    key like "miniems_mode" has turned out to have older, pre-repository
+    renames of its own on at least one real installation, so any single
+    hardcoded name risks pointing at a past orphan instead of a live entity.
+    """
     token = os.environ.get("SUPERVISOR_TOKEN", "")
     if not token:
         _LOGGER.warning("No SUPERVISOR_TOKEN – cannot reload integration")
         return
-    url = f"{const.HA_API_BASE}/config/config_entries/entry/reload"
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     try:
         async with aiohttp.ClientSession() as session:
-            # Fetch the config entry id for the miniems domain
-            async with session.get(
-                f"{const.HA_API_BASE}/config/config_entries",
+            async with session.post(
+                f"{const.HA_API_BASE}/template",
+                json={"template": "{{ integration_entities('miniems') | first | default('') }}"},
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
                 if resp.status != 200:
-                    _LOGGER.warning("Could not fetch config entries (HTTP %s)", resp.status)
+                    _LOGGER.warning(
+                        "Could not resolve a miniems entity for reload (HTTP %s)", resp.status
+                    )
                     return
-                entries = await resp.json()
+                anchor_entity = (await resp.text()).strip()
 
-            entry_id = next(
-                (e["entry_id"] for e in entries if e.get("domain") == "miniems"), None
-            )
-            if not entry_id:
-                _LOGGER.warning("miniems config entry not found – skipping reload")
+            if not anchor_entity:
+                _LOGGER.warning("No miniems entity found – integration not set up yet, skipping reload")
                 return
 
             async with session.post(
-                f"{const.HA_API_BASE}/config/config_entries/{entry_id}/reload",
+                f"{const.HA_SERVICES_URL}/homeassistant/reload_config_entry",
+                json={"entity_id": anchor_entity},
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as resp:
-                if resp.status in (200, 204):
-                    _LOGGER.info("Integration reloaded successfully (entry %s)", entry_id)
+                if resp.status in (200, 201):
+                    _LOGGER.info("Integration reload requested successfully (via %s)", anchor_entity)
                 else:
                     _LOGGER.warning("Integration reload returned HTTP %s", resp.status)
     except Exception as exc:

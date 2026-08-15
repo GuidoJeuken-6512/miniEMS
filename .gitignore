@@ -29,6 +29,10 @@ Thumbs.db
 # `zensical build` and deployed straight to GitHub Pages. Not needed in git.
 site/
 
+# Local draw.io working files – not committed, use the Mermaid diagrams in
+# docs/ as the source of truth instead.
+*.drawio
+
 
 
 
@@ -40,3 +44,5 @@ site/
 
 
 .claude/settings.json
+docs/gedanken zu kosten_sensoren.odt
+docs/.~lock.gedanken zu kosten_sensoren.odt#
