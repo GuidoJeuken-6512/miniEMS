@@ -77,8 +77,37 @@
   oscillate. It now uses the same `pv_charge_hysteresis_frac` band: harder to
   start charging than to keep it running.
 
+- **Grid charging was never checked for whether it pays.** `is_cheap_rate()`
+  compares the price against a configured threshold, which says nothing about
+  whether the spread covers the round trip. With this installation's numbers
+  the margin is thin: buying at NIEDRIG 27.44 ct to displace STANDARD
+  34.44 ct yields 0.916 × 34.44 − 27.44 = **+4.1 ct/kWh** at the measured
+  91.6% efficiency — and **−2.2 ct/kWh** at 85%. A badly set threshold could
+  therefore buy at a loss indefinitely with nothing objecting.
+
+  `_should_grid_charge` now requires `η × discharge_tariff − price >
+  grid_charge_min_margin_eur_kwh` (2 ct). The check is *skipped*, not failed
+  closed, while efficiency or discharge tariff are unknown: both come from
+  accumulated history, so failing closed would leave a fresh installation
+  unable to grid charge until a week of data existed. This gate is an economic
+  refinement, not a safety interlock.
+
 ### Improvements
 
+- **`avg_discharge_tariff_eur_kwh` is derived from history instead of
+  configured.** It defaulted to `0.0` and was never set on the live system, so
+  the one figure describing what a stored kWh is worth did not exist. It is now
+  the tick-weighted average of `avg_price_eur_kwh` over the last 7 days, cached
+  per day; an explicitly configured value still wins.
+
+  A first attempt used `load_cost_eur / load_total_kwh`, which is the more
+  precise question but no longer answerable: since the lifetime-counter change
+  above, `load_total_kwh` covers add-on downtime while `load_cost_eur` is still
+  tick-accumulated and covers only uptime. Measured on the devcontainer the
+  quotient came out at 0.1370 €/kWh — below the cheapest tariff of 0.2744 and
+  therefore impossible. A plausibility floor now discards any derived value
+  below the cheap-rate threshold rather than letting it make the gate too
+  strict.
 - **Entity attributes are now readable.** `HAWebSocketClient` cached the full
   state dict, but the only way in was `get_state_value()` → `float(state)`, so
   `grep -rn '\["attributes"\]' *.py` found exactly zero hits. Everything HA

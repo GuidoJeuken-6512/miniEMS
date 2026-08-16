@@ -63,6 +63,9 @@ class EMSController:
         # Debounce state for _commit(): (proposed mode, first proposed at)
         self._pending: tuple[EMSMode, datetime] | None = None
         self._mode_reason: str = "startup"
+        # History-derived value of a stored kWh; refreshed once per tick from the
+        # optimizer (which memoises it per day). None until history exists.
+        self._discharge_tariff: float | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -112,6 +115,11 @@ class EMSController:
 
         # Use today's temperature from weather forecast (provided by WeatherClient via ConsumptionModel)
         outdoor_temp = self._prediction.temp_today_c if self._prediction else None
+
+        # Refresh before deciding: _grid_charge_pays() needs it, and _decide()
+        # is synchronous. Memoised per day inside the optimizer, so this is a DB
+        # query once a day rather than once a tick.
+        self._discharge_tariff = await self._optimizer.avg_discharge_tariff_eur_kwh()
 
         prev_mode = self._mode
         self._mode = self._determine_mode(pv_w, load_w, bat_soc, price, bat_kwh_free)
@@ -473,6 +481,8 @@ class EMSController:
             return False                                   # no price → no charge
         if not self._optimizer.is_cheap_rate(price):
             return False
+        if not self._grid_charge_pays(price):
+            return False
         if bat_kwh_free is None or bat_kwh_free <= cfg.grid_charge_min_free_kwh:
             return False
 
@@ -533,6 +543,41 @@ class EMSController:
         if not entity_id:
             return True
         return self._ws.is_stale(entity_id, max_age_sec)
+
+    def _grid_charge_pays(self, price: float) -> bool:
+        """Does buying this kWh for the battery actually earn anything?
+
+        A stored kWh is only worth buying when discharging it later displaces a
+        more expensive purchase than the round trip cost:
+
+            η × discharge_tariff − price > margin
+
+        Until now nothing checked this. `is_cheap_rate()` compares against a
+        configured threshold, which says nothing about whether the spread covers
+        the losses – with this installation's numbers the margin is thin (+4.1
+        ct/kWh at 91.6% efficiency, −2.2 ct at 85%), so a badly set threshold
+        could buy at a loss indefinitely.
+
+        Skips the check – rather than failing closed – when efficiency or
+        discharge tariff are not yet known. Both come from accumulated history,
+        so failing closed would leave a fresh installation unable to grid charge
+        at all until a week of data existed. That would be a regression, and
+        this gate is an economic refinement, not a safety interlock.
+        """
+        tariff = self._discharge_tariff
+        eff = self._optimizer.today_efficiency()
+        if tariff is None or eff is None or eff <= 0:
+            return True
+
+        margin = eff * tariff - price
+        if margin > self._cfg.grid_charge_min_margin_eur_kwh:
+            return True
+        _LOGGER.debug(
+            "Grid charge skipped – does not pay: %.1f%% × %.4f − %.4f = %+.4f €/kWh "
+            "(needs > %.4f)", eff * 100, tariff, price, margin,
+            self._cfg.grid_charge_min_margin_eur_kwh,
+        )
+        return False
 
     def _is_stale_daily(self, entity_id: str) -> bool:
         """Staleness for a once-per-day value – asks for the date, not the age."""

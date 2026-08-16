@@ -4,8 +4,20 @@ revision_date: 2026-08-15
 
 # Netzdienliches Laden verbessern — Lehren aus dem evcc-Optimizer
 
-!!! info "Status: Bewertung"
-    Dieses Dokument bewertet, was miniEMS von einem fremden Optimierer lernen kann. Es ist **nicht umgesetzt**. Der aktuell ausgelieferte Stand ist v2.0.2.
+!!! info "Status: teilweise umgesetzt (v2.0.4)"
+    Dieses Dokument bewertet, was miniEMS von einem fremden Optimierer lernen kann.
+
+    | Stufe | Stand |
+    |---|---|
+    | Schritt 1 — Attribut-Zugriff | ✅ umgesetzt in v2.0.4 |
+    | V1 — Ladeleistung strecken | offen; braucht die Frist aus V2 |
+    | V2 — PriceCurve | Modul gebaut und getestet; Fensterwahl bewusst nicht verdrahtet |
+    | V3 — halbstündliche PV-Kurve | offen |
+    | V4 — Wirtschaftlichkeits-Gate | ✅ umgesetzt in v2.0.4 |
+    | V5 — Zweistufigkeit als Prinzip | offen |
+
+    Nicht Teil der V-Stufen, aber hier entstanden: fehlende Hysterese im
+    Netzlade-Pfad (behoben) und der aus der Historie hergeleitete Entladetarif.
 
 ## Context
 
@@ -135,6 +147,27 @@ Konzeptionell ist das unser Gegenstück zu evccs `attenuate_feedin_peaks` — di
 
 `is_cheap_rate()` prüft nur `price < threshold`. Ob sich Laden *rechnet*, prüft niemand. Mit bekanntem Kalender ist der Spread bekannt: NIEDRIG 27,44 → HOCH 39,44 = 12 ct, bei ~90 % Round-Trip bleiben ~8,5 ct/kWh. Ein falsch gesetzter Schwellwert kann heute unwirtschaftlich laden.
 
+!!! success "Umgesetzt in v2.0.4"
+    `_should_grid_charge` verlangt jetzt `η × Entladetarif − Preis > 2 ct`.
+    Übersprungen — **nicht** fail-closed — solange Wirkungsgrad oder Entladetarif
+    unbekannt sind: Beide stammen aus akkumulierter Historie, fail-closed würde eine
+    frische Installation eine Woche lang am Netzladen hindern. Das Gate ist eine
+    wirtschaftliche Verfeinerung, keine Sicherheitsverriegelung.
+
+    **`avg_discharge_tariff_eur_kwh` wird hergeleitet statt konfiguriert.** Der Wert
+    stand auf `0.0` und war nie gesetzt — die eine Zahl, die beziffert, was eine
+    gespeicherte kWh wert ist, existierte schlicht nicht. Jetzt: tick-gewichteter
+    Mittelwert von `avg_price_eur_kwh` über 7 Tage, tagesweise gecacht; ein
+    konfigurierter Wert schlägt die Herleitung weiterhin.
+
+    Ein erster Versuch nutzte `load_cost_eur / load_total_kwh` — die genauere Frage,
+    aber seit dem Umbau auf Lebenszeit-Zähler nicht mehr beantwortbar:
+    `load_total_kwh` deckt seither auch Ausfallzeiten ab, `load_cost_eur` weiterhin
+    nur Laufzeit. Am Devcontainer gemessen kam **0,1370 €/kWh** heraus — unterhalb
+    des billigsten Tarifs von 0,2744 und damit unmöglich. Eine
+    Plausibilitätsuntergrenze verwirft jetzt jeden hergeleiteten Wert unterhalb der
+    Billigschwelle, statt das Gate damit zu verschärfen.
+
 Beide Zutaten sind schon da und werden nur nicht für Entscheidungen genutzt:
 
 - `avg_discharge_tariff_eur_kwh` (Config, heute nur ROI-Anzeige in `cost_optimizer.py:332-340`)
@@ -160,7 +193,7 @@ Heute vermischt `pv_charge_margin_factor` Wirtschaftlichkeit und Netzdienlichkei
 | 1 | ✅ **Attribut-Zugriff** in `ha_ws_client` (`get_state_attribute()`) — **umgesetzt in v2.0.4** | klein | Freischalter |
 | 2 | **V1 Peak-Strecken** — kostenneutral, unmittelbar netzdienlich | mittel | hoch |
 | 3 | **V2 PriceCurve** — Modul gebaut und getestet in v2.0.4; die Fensterwahl in `_should_grid_charge` ist bewusst noch **nicht** verdrahtet, siehe Kasten unten | mittel | hoch |
-| 4 | **V4 Wirtschaftlichkeits-Gate** (nutzt vorhandene Felder) | klein | mittel |
+| 4 | ✅ **V4 Wirtschaftlichkeits-Gate** — **umgesetzt in v2.0.4**, inkl. aus der Historie hergeleitetem Entladetarif | klein | mittel |
 | 5 | **V3 PV-Kurve** ersetzt `pv_charge_backstop_hour` | mittel | mittel |
 
 Die Schritte 2–5 sind einzeln nutzbar und je für sich abschaltbar zu halten (wie `pv_export_priority_enabled`), damit ein Rückfall auf das heutige Verhalten jederzeit möglich bleibt.

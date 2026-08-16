@@ -119,6 +119,14 @@ class Config:
     pv_export_min_soc_pct: int = 30
     # Local hour from which the battery always charges, whatever the forecast says
     pv_charge_backstop_hour: int = 14
+    # Minimum economic margin before buying grid energy for the battery (€/kWh).
+    # Storing grid energy only pays when the later discharge displaces a more
+    # expensive purchase than the round trip cost. With this installation's
+    # numbers that margin is thin: NIEDRIG 27.44 ct stored at 91.6% efficiency
+    # to displace STANDARD 34.44 ct yields 0.916 × 34.44 − 27.44 = +4.1 ct/kWh,
+    # and at 85% efficiency it turns into a loss of −2.2 ct/kWh. 2 ct of margin
+    # keeps a marginal case from being decided by measurement noise.
+    grid_charge_min_margin_eur_kwh: float = 0.02
     # Charge current while holding (0 A = block charging entirely)
     export_hold_charge_current_a: int = 0
     # A new mode must be requested continuously for this long before it applies

@@ -40,6 +40,8 @@ class CostOptimizer:
         # Lifetime-counter anchors: (key, day) → the counter reading at *our*
         # local midnight. See _delta_from_total() for why this exists.
         self._total_anchor: dict[tuple[str, date], float] = {}
+        # (day, value) memo for the history-derived discharge tariff
+        self._discharge_tariff_cache: tuple[date, float | None] | None = None
         self._load_kwh_ha: dict[date, float | None] = defaultdict(lambda: None)
         # Latest bat_discharge from inverter daily sensor
         self._bat_discharge_kwh_ha: dict[date, float | None] = defaultdict(lambda: None)
@@ -440,6 +442,68 @@ class CostOptimizer:
 
     def today_efficiency(self) -> float | None:
         return self._efficiency.get(date.today())
+
+    async def avg_discharge_tariff_eur_kwh(self, days: int = 7) -> float | None:
+        """What a stored kWh is worth when it is later discharged.
+
+        Derived from history instead of configured: the tick-weighted average of
+        `avg_price_eur_kwh` over the last `days` days. A discharged kWh displaces
+        a purchase at roughly that price.
+
+        Note on what this deliberately does *not* use: `load_cost_eur /
+        load_total_kwh` looks like the more precise answer, but the two are no
+        longer commensurable. Since v2.0.4 `load_total_kwh` comes from the
+        inverter's lifetime counter and therefore also covers add-on downtime,
+        while `load_cost_eur` is still accumulated per tick and only covers
+        uptime. On an installation that restarts often the quotient collapses –
+        measured on the devcontainer: 0.1370 €/kWh, below the cheapest tariff of
+        0.2744 and therefore impossible. avg_price_eur_kwh is tick-based
+        throughout and stays inside the real tariff range.
+
+        Deliberately conservative. The battery does not serve load evenly – it
+        covers disproportionately much of the expensive evening – so the true
+        displacement value is higher than this average. Under-stating it makes
+        the economic gate stricter, which errs towards not buying grid energy.
+        That is the safe direction: a missed charge costs an opportunity, a
+        wrong one costs money.
+
+        An explicitly configured avg_discharge_tariff_eur_kwh wins, so the
+        derivation can always be overridden. None when there is no history yet.
+        """
+        configured = self._cfg.avg_discharge_tariff_eur_kwh
+        if configured and configured > 0:
+            return configured
+
+        # A 7-day average moves slowly; recomputing it on every 15s tick would
+        # be a pointless DB round trip. One query per day is plenty.
+        today = date.today()
+        if self._discharge_tariff_cache is not None and self._discharge_tariff_cache[0] == today:
+            return self._discharge_tariff_cache[1]
+
+        rows = await self._store.query_recent_days(days)
+        weighted = sum((r.get("avg_price_eur_kwh") or 0.0) * (r.get("ticks") or 0) for r in rows)
+        ticks = sum(r.get("ticks") or 0 for r in rows)
+        value = weighted / ticks if ticks > 0 and weighted > 0 else None
+
+        # Plausibility floor: a discharge tariff below the cheap-rate threshold
+        # cannot be right – the battery would be displacing purchases cheaper
+        # than the cheapest tariff. Treat it as "no usable history" rather than
+        # letting a broken number make the economic gate too strict.
+        if value is not None and value < self._cfg.cheap_rate_threshold_eur:
+            _LOGGER.warning(
+                "Derived discharge tariff %.4f €/kWh is below the cheap-rate threshold "
+                "%.4f – too little history to be meaningful, economic gate stays off",
+                value, self._cfg.cheap_rate_threshold_eur,
+            )
+            value = None
+
+        self._discharge_tariff_cache = (today, value)
+        if value is not None:
+            _LOGGER.info(
+                "Discharge tariff derived from %d day(s) of history: %.4f €/kWh (%d ticks)",
+                len(rows), value, ticks,
+            )
+        return value
 
     def today_grid_charge_roi_eur(self) -> float | None:
         """ROI of today's grid-charging strategy.
