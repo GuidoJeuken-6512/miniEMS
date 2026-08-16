@@ -11,7 +11,7 @@ from enum import Enum
 VERSION = "2.0.4"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
-CONFIG_SCHEMA_VERSION = 13
+CONFIG_SCHEMA_VERSION = 14
 
 # ── Battery current limits ────────────────────────────────────────────────────
 # The Deye inverter exposes battery limits as CURRENT in amperes
@@ -40,7 +40,14 @@ HA_RETRY_INTERVAL_SEC = 10   # retry delay after a failed poll / 401
 SENSOR_MAX_AGE_SEC   = 300     # power/SoC: move constantly, 5 min frozen = broken
 FORECAST_MAX_AGE_SEC = 28800   # Solcast: updates ~every 30 min in daylight, but can
                                 # go quiet for ~6h overnight (observed) – 8h gives margin
-PRICE_MAX_AGE_SEC    = 21600   # dynamic tariff: may hold one value for several hours
+PRICE_MAX_AGE_SEC    = 21720   # 6 h + 2 min. A time-of-use tariff is written only at
+                                # tier boundaries, and the schedule is deterministic:
+                                # the longest window measured on this installation is
+                                # exactly 6 h (06:00–12:00). At 21600 the threshold
+                                # equalled the longest legitimate gap, so a false alarm
+                                # was one scheduling jitter away. The 2 min are clearance,
+                                # not guesswork – a larger value would only slow detection
+                                # without covering any real case.
 
 # ── Inverter write confirmation (seconds) ──────────────────────────────────────
 # A service call accepted by HA (HTTP 200) is not proof the inverter applied it –

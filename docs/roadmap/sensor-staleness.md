@@ -4,12 +4,19 @@ revision_date: 2026-08-15
 
 # Sensor-Staleness — Ist-Zustand und Verbesserungsvorschläge
 
-!!! info "Status: Bestandsaufnahme + Vorschlag"
+!!! info "Status: Bestandsaufnahme + Vorschläge, teilweise umgesetzt"
     Diese Seite beschreibt den Ist-Zustand der Staleness-Erkennung und fünf Vorschläge.
-    **Keiner davon ist umgesetzt.** Der Stand im Repository ist v2.0.3, ausgeliefert auf
-    der Produktivanlage ist v2.0.2. Alle Messwerte stammen vom 13.–15.08.2026 aus der
-    Produktivanlage. Verwandt: [Tageswechsel & Energiezählung](tageswechsel-energiezaehlung.md)
-    — siehe [Bezug](#bezug-zur-tageswechsel-roadmap) am Ende dieser Seite.
+    Alle Messwerte stammen vom 13.–16.08.2026 aus der Produktivanlage. Verwandt:
+    [Tageswechsel & Energiezählung](tageswechsel-energiezaehlung.md) — siehe
+    [Bezug](#bezug-zur-tageswechsel-roadmap) am Ende dieser Seite.
+
+    | Vorschlag | Stand |
+    |---|---|
+    | 1 — Datums-Prüfung für Tagesprognosen | offen |
+    | 2 — `unavailable` für Hardware | bereits vorhanden, nichts zu tun |
+    | 3 — Preis-Marge 6 h + 2 min | **umgesetzt in v2.0.4** |
+    | 4 — Datenfrische von Solcast | offen |
+    | 5 — Plausibilitätsprüfung des Kurvenverlaufs | offen |
 
 !!! info "Anlass"
     Live beobachteter Fehlalarm: Das Dashboard meldet `solcast_pv_forecast_prognose_heute`
@@ -148,7 +155,7 @@ Es sind **zwei orthogonale Fehlerfälle**, die die heutige Altersprüfung zusamm
 |---|---|---|---|---|---|---|
 | 1 | `ems_controller.py:358` (`_decide`, SoC-Lebenszeichen) | `battery_power_entity` | `sensor_max_age_sec` (300 s) | kontinuierlich, ~15-s-Takt | ✅ passend (v2.0.2-Fix — Referenzfall) | ✅ |
 | 2 | `ems_controller.py:376-377` (`_decide`, PV-Überschuss-Vorbedingung) | `pv_power_entity`, `load_power_entity` | `sensor_max_age_sec` (300 s) | kontinuierlich, ~15-s-Takt | ✅ passend | ✅ |
-| 3 | `ems_controller.py:446` + Warnbanner | `electricity_price_entity` | `price_max_age_sec` (21 600 s / 6 h) | zeitgesteuerter Fahrplan, ändert sich nur an Tarifstufengrenzen; längstes Fenster **exakt 6 h** (06–12 Uhr, `activation_rules`) | ⚠️ Punktlandung — Schwelle == längstes Fenster, keine Marge | ✅ Vorschlag 3 (6 h + 2 min) — vollständig |
+| 3 | `ems_controller.py:446` + Warnbanner | `electricity_price_entity` | `price_max_age_sec` (**21 720 s / 6 h + 2 min, seit v2.0.4**) | zeitgesteuerter Fahrplan, ändert sich nur an Tarifstufengrenzen; längstes Fenster **exakt 6 h** (06–12 Uhr, `activation_rules`) | ✅ behoben — vorher Punktlandung (Schwelle == längstes Fenster) | ✅ umgesetzt |
 | 4 | `ems_controller.py:482` (`_forecast_remaining_kwh`) | `solcast_remaining_today_entity` | `forecast_max_age_sec` (28 800 s / 8 h) | Policy `EVERY_TIME_INTERVAL` (5-min-Schreibtakt), aber **Wertänderung** nur, solange die Kurve läuft: nachts legitim **5 h 50 min** still (zwei Nächte in Folge gemessen) | ❌ blind für den realen Fehlerfall: Der Wert wird aus Cache + Uhrzeit fortgeschrieben und bleibt auch bei tagelang toter API vollständig plausibel | ⚠️ Vorschlag 5 erkennt den Integrationsausfall in Minuten statt Stunden — Datenfrische bleibt offen |
 | 5 | `ems_controller.py:460` (`_should_grid_charge`, Tomorrow-Fallback) | `solcast_tomorrow_entity` | `forecast_max_age_sec` (28 800 s / 8 h) | **nur bei Prognose-Abruf oder Datumswechsel** — Policy `DEFAULT` | ❌ zu knapp — hebelt den Netzlade-Fix aus v2.0.1 aus, **sofern der Zweig erreicht wird** (siehe Kasten unten: im Sommer nie, im Winter nachts sehr wohl) | ⚠️ Vorschlag 1 löst nur den Integrationsausfall, nicht die Datenfrische |
 | 6 | `ems_controller.py:564` (Warnbanner) | `solcast_today_entity` | `forecast_max_age_sec` (28 800 s / 8 h) | **nur bei Prognose-Abruf oder Datumswechsel** — Policy `DEFAULT`; live als Ursache des Fehlalarms bestätigt (9 h 43 min) | ❌ zu knapp | ⚠️ dito — Fehlalarm behoben, Datenfrische offen |
@@ -290,7 +297,16 @@ Für #1, #2 und #7 liefert die Solarman-Integration bei Verbindungsverlust
 `get_state_value()` schon ausgewertet. Die 300-Sekunden-Prüfung dort ist kein Fehler,
 aber weitgehend redundant; sie kann als zweite Verteidigungslinie bleiben.
 
-### 3. Strompreis: kein semantisches Äquivalent — kleine Marge genügt
+### 3. Strompreis: kein semantisches Äquivalent — kleine Marge genügt ✅
+
+!!! success "Umgesetzt in v2.0.4"
+    `PRICE_MAX_AGE_SEC = 21720` in `const.py`, plus Migration `_v13_to_v14()`, die
+    Bestandskonfigurationen mit **exakt** dem alten Default 21600 anhebt. Ein
+    abweichender, also bewusst gesetzter Wert bleibt unangetastet. Auf dem
+    Devcontainer live verifiziert:
+    `Migration v13→v14: price_max_age_sec was exactly the longest tariff window
+    (21600s/6h) – raised to 21720s for clearance`.
+
 
 Für #3 gibt es weder einen Datumsbezug noch ein Lebenszeichen: Der Preissensor wird
 ausschließlich bei Stufenwechsel geschrieben (`last_changed` = `last_reported`, live

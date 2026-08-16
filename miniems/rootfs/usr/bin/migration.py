@@ -74,6 +74,9 @@ def migrate(data: dict) -> dict:
     if version < 13:
         data = _v12_to_v13(data)
 
+    if version < 14:
+        data = _v13_to_v14(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -257,6 +260,28 @@ def _v11_to_v12(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v11→v12: set %s = %r", key, default)
+    return data
+
+
+def _v13_to_v14(data: dict) -> dict:
+    """v13 → v14: give price_max_age_sec a safety margin over the longest window.
+
+    A time-of-use tariff entity is only written at tier boundaries, so "time
+    since last update" legitimately grows to the length of the longest tariff
+    window. On this installation that window is exactly 6 h (06:00–12:00), and
+    the threshold was exactly 21600s – threshold equal to the longest legitimate
+    gap, i.e. a false "Sensor stale: Electricity price" one scheduling jitter
+    away. Two minutes of clearance settle that.
+
+    Only corrected when the value still exactly matches the old default; an
+    explicitly customized value is left alone.
+    """
+    if data.get("price_max_age_sec") == 21600:
+        data["price_max_age_sec"] = PRICE_MAX_AGE_SEC
+        _LOGGER.info(
+            "Migration v13→v14: price_max_age_sec was exactly the longest tariff "
+            "window (21600s/6h) – raised to %ds for clearance", PRICE_MAX_AGE_SEC,
+        )
     return data
 
 

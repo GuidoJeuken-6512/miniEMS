@@ -4,12 +4,19 @@ revision_date: 2026-08-15
 
 # Sensor Staleness — Current State and Improvement Proposals
 
-!!! info "Status: assessment + proposal"
+!!! info "Status: assessment + proposals, partly implemented"
     This page describes the current state of staleness detection and five proposals.
-    **None of them are implemented.** The repository is at v2.0.3; the production system
-    runs v2.0.2. All measurements are from 13–15 Aug 2026 on the production system.
-    Related: [Tageswechsel & Energiezählung](../../roadmap/tageswechsel-energiezaehlung.md)
+    All measurements are from 13–16 Aug 2026 on the production system. Related:
+    [Tageswechsel & Energiezählung](../../roadmap/tageswechsel-energiezaehlung.md)
     (German) — see [relation](#relation-to-the-day-rollover-roadmap) at the end of this page.
+
+    | Proposal | State |
+    |---|---|
+    | 1 — date check for daily forecasts | open |
+    | 2 — `unavailable` for hardware | already in place, nothing to do |
+    | 3 — price margin 6 h + 2 min | **implemented in v2.0.4** |
+    | 4 — Solcast data freshness | open |
+    | 5 — plausibility check on the curve shape | open |
 
 !!! info "Trigger"
     Observed false alarm on the live system: the dashboard reports
@@ -145,7 +152,7 @@ These are **two orthogonal failure modes** that today's age check conflates:
 |---|---|---|---|---|---|---|
 | 1 | `ems_controller.py:358` (`_decide`, SoC liveness proxy) | `battery_power_entity` | `sensor_max_age_sec` (300 s) | continuous, ~15 s | ✅ appropriate (v2.0.2 fix — reference case) | ✅ |
 | 2 | `ems_controller.py:376-377` (`_decide`, PV surplus precondition) | `pv_power_entity`, `load_power_entity` | `sensor_max_age_sec` (300 s) | continuous, ~15 s | ✅ appropriate | ✅ |
-| 3 | `ems_controller.py:446` + warning banner | `electricity_price_entity` | `price_max_age_sec` (21,600 s / 6 h) | time-driven schedule, changes only at tariff-tier boundaries; longest window **exactly 6 h** (06:00–12:00, `activation_rules`) | ⚠️ exact tie — threshold == longest window, no margin | ✅ proposal 3 (6 h + 2 min) — complete |
+| 3 | `ems_controller.py:446` + warning banner | `electricity_price_entity` | `price_max_age_sec` (**21,720 s / 6 h + 2 min, since v2.0.4**) | time-driven schedule, changes only at tariff-tier boundaries; longest window **exactly 6 h** (06:00–12:00, `activation_rules`) | ✅ fixed — previously an exact tie (threshold == longest window) | ✅ implemented |
 | 4 | `ems_controller.py:482` (`_forecast_remaining_kwh`) | `solcast_remaining_today_entity` | `forecast_max_age_sec` (28,800 s / 8 h) | policy `EVERY_TIME_INTERVAL` (5-min write cadence), but the **value** only moves while the curve runs: legitimately flat for **5 h 50 min** overnight (measured on two consecutive nights) | ❌ blind to the real failure mode: the value is carried forward from cache + clock and stays entirely plausible even with a days-dead API | ⚠️ proposal 5 detects integration failure in minutes rather than hours — data freshness stays open |
 | 5 | `ems_controller.py:460` (`_should_grid_charge`, tomorrow fallback) | `solcast_tomorrow_entity` | `forecast_max_age_sec` (28,800 s / 8 h) | **only on forecast fetch or date rollover** — policy `DEFAULT` | ❌ too tight — defeats the v2.0.1 grid-charge fix, **provided the branch is reached at all** (see box below: never in summer, but certainly on winter nights) | ⚠️ proposal 1 covers integration failure only, not data freshness |
 | 6 | `ems_controller.py:564` (warning banner) | `solcast_today_entity` | `forecast_max_age_sec` (28,800 s / 8 h) | **only on forecast fetch or date rollover** — policy `DEFAULT`; confirmed live as the cause of the reported false alarm (9 h 43 min) | ❌ too tight | ⚠️ same — false alarm fixed, data freshness open |
@@ -284,7 +291,16 @@ faster and more reliable than any age check, and already evaluated in
 `get_state_value()`. The 300-second check there is not wrong, but largely redundant; it
 can remain as a second line of defence.
 
-### 3. Electricity price: no semantic equivalent — a small margin suffices
+### 3. Electricity price: no semantic equivalent — a small margin suffices ✅
+
+!!! success "Implemented in v2.0.4"
+    `PRICE_MAX_AGE_SEC = 21720` in `const.py`, plus a `_v13_to_v14()` migration that
+    raises existing configurations sitting on **exactly** the old default of 21600. A
+    differing value — i.e. one deliberately set — is left alone. Verified live on the
+    devcontainer:
+    `Migration v13→v14: price_max_age_sec was exactly the longest tariff window
+    (21600s/6h) – raised to 21720s for clearance`.
+
 
 For #3 there is neither a date reference nor a liveness proxy: the price sensor is
 written only on tier changes (`last_changed` = `last_reported`, confirmed live).
