@@ -69,8 +69,25 @@
   `DAILY_VALUE_GRACE_SEC` (15 min) covers the minutes after midnight before
   the source has rewritten.
 
+- **Grid charging had no hysteresis.** `_should_hold_pv_charge` uses an
+  asymmetric threshold so the PV-export hold cannot flap around its trigger,
+  but `_should_grid_charge` ended in a bare comparison, damped only by
+  `mode_dwell_sec`. Since `remaining` moves by up to 0.47 kWh per 5-minute
+  Solcast interval (measured), a battery sitting near the trigger could
+  oscillate. It now uses the same `pv_charge_hysteresis_frac` band: harder to
+  start charging than to keep it running.
+
 ### Improvements
 
+- **Entity attributes are now readable.** `HAWebSocketClient` cached the full
+  state dict, but the only way in was `get_state_value()` → `float(state)`, so
+  `grep -rn '\["attributes"\]' *.py` found exactly zero hits. Everything HA
+  carries beside the plain value was unreachable: the tariff calendar in the
+  price entity's `activation_rules`, Solcast's half-hourly `detailedForecast`,
+  and the real `min`/`max`/`step` of the inverter's number entities (currently
+  hardcoded as `BATTERY_MAX_CURRENT_A`). `get_state_attribute(entity, name)`
+  opens that up — the shared prerequisite for the grid-friendly charging
+  roadmap and for the v3.0 device profiles.
 - **The tick log now shows a pending mode change.** A debounced transition
   waits out `mode_dwell_sec` before it is applied, but `_mode_reason` keeps
   the *old* reason while it waits – so a correct, merely-debounced transition

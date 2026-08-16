@@ -71,6 +71,21 @@ class HAWebSocketClient:
         except (ValueError, TypeError):
             return None
 
+    def get_state_attribute(self, entity_id: str, attribute: str) -> Any:
+        """One attribute of a cached entity, or None when absent.
+
+        The cache already holds the full state dict, but until now the only way
+        in was get_state_value() → float(state), so everything HA carries beside
+        the plain value was unreachable: the tariff calendar in the price
+        entity's `activation_rules`, Solcast's half-hourly `detailedForecast`,
+        and the real min/max/step of the inverter's number entities (which are
+        currently hardcoded as BATTERY_MAX_CURRENT_A).
+
+        Deliberately untyped: attributes are integration-defined and range from
+        scalars to nested lists. Callers validate what they asked for.
+        """
+        return self._state_cache.get(entity_id, {}).get("attributes", {}).get(attribute)
+
     def get_state_age_sec(self, entity_id: str) -> float | None:
         """Seconds since HA last updated this entity; None if never received."""
         ts = self._state_ts.get(entity_id)

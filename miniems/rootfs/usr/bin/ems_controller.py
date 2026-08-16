@@ -504,7 +504,18 @@ class EMSController:
             return (now.hour >= cfg.grid_charge_dark_start_hour
                     or now.hour < cfg.grid_charge_dark_end_hour)
 
-        return bat_kwh_free > remaining * cfg.pv_charge_margin_factor + cfg.grid_charge_min_free_kwh
+        # Asymmetric hysteresis, mirroring _should_hold_pv_charge: harder to
+        # start grid charging than to keep it running. Without it this was a bare
+        # threshold, and `remaining` moves by up to 0.47 kWh per 5-minute Solcast
+        # interval (measured) – a battery sitting near the trigger point would
+        # oscillate, with only mode_dwell_sec damping it.
+        threshold = remaining * cfg.pv_charge_margin_factor + cfg.grid_charge_min_free_kwh
+        hyst = max(0.0, min(0.5, cfg.pv_charge_hysteresis_frac))
+        if self._mode is EMSMode.GRID_CHARGING:
+            threshold *= 1.0 - hyst
+        else:
+            threshold *= 1.0 + hyst
+        return bat_kwh_free > threshold
 
     def _forecast_remaining_kwh(self) -> float | None:
         """Remaining PV forecast for today – None when missing, stale or absurd."""

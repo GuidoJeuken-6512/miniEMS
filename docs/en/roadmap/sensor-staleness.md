@@ -205,7 +205,7 @@ demonstration enough that "age" cannot be the load-bearing measure here.
     In the 12:00–16:00 cheap window the dark-window test correctly prevents charging,
     regardless of forecast state.
 
-!!! tip "Related finding outside the staleness logic"
+!!! success "Related finding outside the staleness logic — fixed in v2.0.4"
     `_should_grid_charge` has **no hysteresis** — the return in `ems_controller.py:475` is
     a bare threshold comparison (`bat_kwh_free > remaining × 1.2 + 1.0`). Its only damping
     is the `mode_dwell_sec` dwell time (300 s) in `_commit()`. The PV path, by contrast,

@@ -210,7 +210,7 @@ Messgröße sein kann.
     Im Billigfenster 12–16 Uhr greift der Dunkelfenster-Test korrekt und verhindert das
     Laden, unabhängig vom Prognosezustand.
 
-!!! tip "Verwandter Befund außerhalb der Staleness-Logik"
+!!! success "Verwandter Befund außerhalb der Staleness-Logik — behoben in v2.0.4"
     `_should_grid_charge` besitzt **keine Hysterese** — die Rückgabe in
     `ems_controller.py:475` ist ein nackter Schwellwertvergleich
     (`bat_kwh_free > remaining × 1,2 + 1,0`). Einziger Dämpfer ist die Verweildauer

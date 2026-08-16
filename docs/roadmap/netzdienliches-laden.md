@@ -15,6 +15,19 @@ Ergebnis vorweg: Die wertvollsten Verbesserungen brauchen **keinen Solver**. Sie
 
 ### Der zentrale Befund
 
+!!! success "Schritt 1 umgesetzt in v2.0.4"
+    `HAWebSocketClient.get_state_attribute(entity_id, attribute)` existiert seit v2.0.4.
+    Der Befund unten beschreibt den Zustand **davor** und bleibt als Begründung stehen.
+    Genutzt wird der Zugriff bisher von keiner Entscheidung — das ist Sache von V2/V3.
+
+    Ebenfalls in v2.0.4 behoben, wenn auch nicht Teil der V-Stufen: Das Netzladen
+    hatte **keine Hysterese**. `_should_hold_pv_charge` hat mit
+    `pv_charge_hysteresis_frac` eine asymmetrische Schwelle, `_should_grid_charge`
+    endete dagegen in einem nackten Vergleich, gedämpft nur durch `mode_dwell_sec`.
+    Da sich `remaining` um bis zu 0,47 kWh je 5-Minuten-Intervall bewegt (gemessen),
+    konnte ein Akku nahe dem Auslösepunkt pendeln. Jetzt gilt dasselbe Band in
+    beiden Pfaden.
+
 **miniEMS liest nirgends Entity-Attribute.** `grep -rn '\["attributes"\]' *.py` findet **null** Treffer. `HAWebSocketClient` cacht in `_state_cache[eid]` das vollständige State-Dict, aber der einzige Zugriffspfad ist `get_state_value()` → `float(state)`. Damit bleibt ungenutzt:
 
 | Daten in HA (live geprüft) | liegt in | heute genutzt |
@@ -110,7 +123,7 @@ Heute vermischt `pv_charge_margin_factor` Wirtschaftlichkeit und Netzdienlichkei
 
 | Schritt | Inhalt | Aufwand | Nutzen |
 |---|---|---|---|
-| 1 | **Attribut-Zugriff** in `ha_ws_client` (`get_state_attribute()`) — Grundlage für alles Weitere | klein | Freischalter |
+| 1 | ✅ **Attribut-Zugriff** in `ha_ws_client` (`get_state_attribute()`) — **umgesetzt in v2.0.4** | klein | Freischalter |
 | 2 | **V1 Peak-Strecken** — kostenneutral, unmittelbar netzdienlich | mittel | hoch |
 | 3 | **V2 PriceCurve** + Fensterwahl in `_should_grid_charge` | mittel | hoch |
 | 4 | **V4 Wirtschaftlichkeits-Gate** (nutzt vorhandene Felder) | klein | mittel |
