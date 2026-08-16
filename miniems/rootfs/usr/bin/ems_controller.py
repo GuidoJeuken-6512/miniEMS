@@ -10,6 +10,7 @@ from const import (
     FORECAST_MAX_AGE_SEC,
     PRICE_MAX_AGE_SEC,
     SENSOR_MAX_AGE_SEC,
+    SOLCAST_DATA_MAX_AGE_SEC,
     EMSMode,
 )
 from event_log import EventLog, LogEntry
@@ -534,6 +535,10 @@ class EMSController:
             return None
         if self._is_stale(cfg.solcast_remaining_today_entity, cfg.forecast_max_age_sec):
             return None
+        if self._solcast_data_stale():
+            # The sensor is being written every 5 minutes, but out of a cache the
+            # API stopped refreshing days ago. Its age check can never see that.
+            return None
         value = self._solcast.remaining_today_kwh
         if value is None or value < 0:
             return None
@@ -578,6 +583,31 @@ class EMSController:
             self._cfg.grid_charge_min_margin_eur_kwh,
         )
         return False
+
+    def _solcast_data_age_sec(self) -> float | None:
+        """Age of the forecast *data*, from the last-fetch entity's value.
+
+        None when no such entity is configured or it carries no usable
+        timestamp – the check then simply does not apply.
+        """
+        entity = self._cfg.solcast_last_fetch_entity
+        if not entity:
+            return None
+        fetched = self._ws.get_state_datetime(entity)
+        if fetched is None:
+            return None
+        return (datetime.now(timezone.utc) - fetched.astimezone(timezone.utc)).total_seconds()
+
+    def _solcast_data_stale(self) -> bool:
+        """True when the forecast data is too old to base decisions on.
+
+        This is the one failure mode neither `unavailable` nor any timestamp
+        catches: the Solcast API is unreachable (quota exhausted, no internet)
+        while the integration keeps serving its disk cache. Everything looks
+        healthy and the numbers are days old.
+        """
+        age = self._solcast_data_age_sec()
+        return age is not None and age > SOLCAST_DATA_MAX_AGE_SEC
 
     def _is_stale_daily(self, entity_id: str) -> bool:
         """Staleness for a once-per-day value – asks for the date, not the age."""
@@ -688,6 +718,14 @@ class EMSController:
                 warnings.append(
                     f"Sensor stale: {label} – no update today ({entity})"
                 )
+
+        # Forecast *data* age – independent of how often HA rewrites the sensors.
+        if self._solcast_data_stale():
+            age_h = (self._solcast_data_age_sec() or 0) / 3600
+            warnings.append(
+                f"Solcast data stale: last successful API fetch {age_h:.1f} h ago – "
+                "the forecast is being served from cache and may be days old"
+            )
 
         # Inverter service calls that Home Assistant rejected outright
         if self._inverter is not None and self._inverter.write_errors > 0:

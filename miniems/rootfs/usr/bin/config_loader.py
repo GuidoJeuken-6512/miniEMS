@@ -65,6 +65,12 @@ class Config:
     solcast_today_entity: str = "sensor.solcast_pv_forecast_prognose_heute"
     solcast_tomorrow_entity: str = "sensor.solcast_pv_forecast_prognose_morgen"
     solcast_remaining_today_entity: str = "sensor.solcast_pv_forecast_prognose_verbleibende_leistung_heute"
+    # Timestamp of the last *successful* Solcast API fetch. Its value – not its
+    # own last_updated – is the age of the forecast data. Needed because Solcast
+    # keeps serving its disk cache when the API is unreachable: the sensors stay
+    # `available`, their timestamps keep advancing, and nothing else reveals that
+    # the numbers are days old. Leave empty to skip the freshness check.
+    solcast_last_fetch_entity: str = "sensor.solcast_pv_forecast_zeitpunkt_letzter_api_abruf"
     # Grid charge control via switch + discharge power entity (Phase 6)
     grid_charge_switch_entity: str = "switch.deye8k_battery_grid_charging"
     battery_discharging_current_entity: str = "number.deye8k_battery_max_discharging_current"
@@ -162,6 +168,7 @@ class Config:
                 self.solcast_today_entity,
                 self.solcast_tomorrow_entity,
                 self.solcast_remaining_today_entity,
+                self.solcast_last_fetch_entity,
             ]
             if e
         ]

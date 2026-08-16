@@ -80,6 +80,9 @@ def migrate(data: dict) -> dict:
     if version < 15:
         data = _v14_to_v15(data)
 
+    if version < 16:
+        data = _v15_to_v16(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -263,6 +266,21 @@ def _v11_to_v12(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v11→v12: set %s = %r", key, default)
+    return data
+
+
+def _v15_to_v16(data: dict) -> dict:
+    """v15 → v16: entity carrying the timestamp of the last Solcast API fetch.
+
+    Its *value* is the age of the forecast data. Needed because Solcast keeps
+    serving its persisted cache when the API is unreachable: the sensors stay
+    `available`, HA's timestamps keep advancing, and nothing else reveals that
+    the numbers are days old.
+    """
+    if "solcast_last_fetch_entity" not in data:
+        data["solcast_last_fetch_entity"] = "sensor.solcast_pv_forecast_zeitpunkt_letzter_api_abruf"
+        _LOGGER.info("Migration v15→v16: set solcast_last_fetch_entity = %r",
+                     data["solcast_last_fetch_entity"])
     return data
 
 

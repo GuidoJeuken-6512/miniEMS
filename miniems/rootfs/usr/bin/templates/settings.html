@@ -42,6 +42,7 @@
       'feed_in_tariff_eur_kwh', 'fix_price',
       'daily_base_price_eur', 'avg_discharge_tariff_eur_kwh',
       'pv_charge_margin_factor', 'pv_charge_hysteresis_frac', 'grid_charge_min_free_kwh',
+      'grid_charge_min_margin_eur_kwh',
     ]);
 
     const SECTIONS = [
@@ -116,6 +117,7 @@
           { key: 'export_hold_charge_current_a', label: 'Charge current while holding (A, 0 = block)' },
           { key: 'mode_dwell_sec',              label: 'Mode dwell time (s, anti-flapping)' },
           { key: 'grid_charge_min_free_kwh',    label: 'Min free capacity for grid charge (kWh)' },
+          { key: 'grid_charge_min_margin_eur_kwh', label: 'Min economic margin for grid charge (€/kWh)' },
           { key: 'grid_charge_dark_start_hour', label: 'Dark window start (hour, no-forecast fallback)' },
           { key: 'grid_charge_dark_end_hour',   label: 'Dark window end (hour)' },
           { key: 'forecast_max_age_sec',        label: 'Max forecast age (s)' },
@@ -135,6 +137,7 @@
           { key: 'solcast_today_entity',           label: 'Solcast Today Entity' },
           { key: 'solcast_tomorrow_entity',        label: 'Solcast Tomorrow Entity' },
           { key: 'solcast_remaining_today_entity', label: 'Solcast Remaining Today Entity' },
+          { key: 'solcast_last_fetch_entity',      label: 'Last API Fetch Entity (its value = age of the forecast data)' },
         ]
       },
     ];

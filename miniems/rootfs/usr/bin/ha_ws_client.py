@@ -71,6 +71,28 @@ class HAWebSocketClient:
         except (ValueError, TypeError):
             return None
 
+    def get_state_datetime(self, entity_id: str) -> datetime | None:
+        """The state of a timestamp entity, parsed. None when unusable.
+
+        Some entities carry a datetime rather than a number –
+        `solcast_pv_forecast_zeitpunkt_letzter_api_abruf` reports the last
+        *successful* forecast fetch. get_state_value() cannot read those: it ends
+        in float(raw) and returns None for an ISO string.
+
+        The distinction matters more than it looks. That entity's own timestamp
+        is worthless as a freshness signal (it is exactly as old as the forecast
+        sensors it is supposed to vouch for), while its *content* is precisely
+        the age of the underlying data.
+        """
+        raw = self._state_cache.get(entity_id, {}).get("state")
+        if not isinstance(raw, str) or raw in ("unavailable", "unknown", ""):
+            return None
+        try:
+            ts = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+
     def get_state_attribute(self, entity_id: str, attribute: str) -> Any:
         """One attribute of a cached entity, or None when absent.
 

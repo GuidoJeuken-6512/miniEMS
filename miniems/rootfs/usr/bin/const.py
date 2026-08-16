@@ -11,7 +11,7 @@ from enum import Enum
 VERSION = "2.0.4"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
-CONFIG_SCHEMA_VERSION = 15
+CONFIG_SCHEMA_VERSION = 16
 
 # ── Battery current limits ────────────────────────────────────────────────────
 # The Deye inverter exposes battery limits as CURRENT in amperes
@@ -56,6 +56,19 @@ PRICE_MAX_AGE_SEC    = 21720   # 6 h + 2 min. A time-of-use tariff is written on
 # asks "was it written today?" instead of "how old is it?" – see
 # docs/roadmap/sensor-staleness.md for why no age threshold can be right here.
 DAILY_VALUE_GRACE_SEC = 900
+
+# How old the Solcast *data* may be – measured on the value of the last-fetch
+# entity, not on any HA timestamp. Solcast keeps serving its persisted cache when
+# the API is unreachable, so the sensors stay `available` and their timestamps
+# keep advancing while the numbers quietly age.
+#
+# Measured on the production system: 4-6 successful fetches per day on five
+# consecutive days, with the longest legitimate overnight gap at 15.5 h (last
+# fetch 12:44 UTC, first the next day 04:11 UTC). Shorter winter days push that
+# towards an estimated ~19 h. 30 h leaves margin over that while still catching a
+# stalled API within about a day; the cache holds roughly seven days of forecast
+# before the sensors finally go `unavailable` on their own.
+SOLCAST_DATA_MAX_AGE_SEC = 108000
 
 # ── Inverter write confirmation (seconds) ──────────────────────────────────────
 # A service call accepted by HA (HTTP 200) is not proof the inverter applied it –
