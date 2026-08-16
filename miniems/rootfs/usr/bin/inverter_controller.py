@@ -24,13 +24,19 @@ Two fields are exposed per direction:
   *_current_target_a  – what the controller last wanted to set
   *_current_limit_a   – what HA's live state confirms (None until confirmed)
 """
+import asyncio
 import logging
 import time
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
-from const import EMSMode, HA_SERVICES_URL, INVERTER_WRITE_CONFIRM_TIMEOUT_SEC
+from const import (
+    EMSMode,
+    HA_SERVICES_URL,
+    INVERTER_SERVICE_CALL_TIMEOUT_SEC,
+    INVERTER_WRITE_CONFIRM_TIMEOUT_SEC,
+)
 
 if TYPE_CHECKING:
     from config_loader import Config
@@ -249,21 +255,41 @@ class InverterController:
 
         ok = await self._call_service(domain, service, data)
         ch.sent_at = now
-        if not ok:
+        if ok is False:
+            # HA actively rejected the call (non-2xx) – that is a real failure.
             self.write_errors += 1
             _LOGGER.error("%s write FAILED (target=%s) – retrying next tick", label, target)
+        elif ok is None:
+            # No verdict: the request timed out. HA very likely applied it
+            # anyway (the Modbus round-trip just outlasts our HTTP timeout),
+            # so counting this as an error would raise a false alarm on every
+            # single write. The entity-state check next tick decides.
+            _LOGGER.info(
+                "%s write timed out after %ds (target=%s) – HA may well have applied it; "
+                "confirming against the entity state next tick",
+                label, INVERTER_SERVICE_CALL_TIMEOUT_SEC, target,
+            )
         else:
             _LOGGER.debug("%s write sent (target=%s), awaiting confirmation", label, target)
 
-    async def _call_service(self, domain: str, service: str, data: dict[str, Any], *, _retry: bool = False) -> bool:
-        """Call an HA service. Returns True only when HA accepted the call."""
+    async def _call_service(
+        self, domain: str, service: str, data: dict[str, Any], *, _retry: bool = False
+    ) -> bool | None:
+        """Call an HA service.
+
+        Returns True when HA accepted the call, False when it actively rejected
+        it, and None when the outcome is unknown (timeout / transport error).
+        None is deliberately distinct from False: a write whose response never
+        arrived has very likely still been applied, and the caller confirms it
+        against the real entity state rather than guessing from the HTTP result.
+        """
         url = f"{HA_SERVICES_URL}/{domain}/{service}"
         headers = {"Authorization": f"Bearer {self._active_token}", "Content-Type": "application/json"}
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     url, json=data, headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=10),
+                    timeout=aiohttp.ClientTimeout(total=INVERTER_SERVICE_CALL_TIMEOUT_SEC),
                 ) as resp:
                     if resp.status == 401 and not _retry and self._active_token == self._sup_token and self._llt:
                         self._active_token = self._llt
@@ -273,6 +299,12 @@ class InverterController:
                         return False
                     _LOGGER.debug("Service %s.%s OK for %s", domain, service, data.get("entity_id"))
                     return True
+        except (asyncio.TimeoutError, aiohttp.ServerTimeoutError):
+            # str() on a TimeoutError is empty, which used to produce a log line
+            # ending in a bare colon and gave no hint what had gone wrong.
+            return None
         except Exception as exc:
-            _LOGGER.error("Service call error %s.%s: %s", domain, service, exc)
-        return False
+            _LOGGER.error(
+                "Service call error %s.%s [%s]: %s", domain, service, type(exc).__name__, exc
+            )
+            return None

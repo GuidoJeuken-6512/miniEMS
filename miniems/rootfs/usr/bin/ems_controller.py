@@ -227,8 +227,12 @@ class EMSController:
         def _fmt(value: float | None, digits: int = 0) -> str:
             return f"{value:.{digits}f}" if value is not None else "?"
 
+        # A mode change waits out cfg.mode_dwell_sec before it is applied. While
+        # it waits, _mode_reason still holds the *old* reason, so without this
+        # the tick line reads like nothing is happening – which is exactly how a
+        # correct, merely-debounced transition gets mistaken for a stuck EMS.
         _LOGGER.info(
-            "EMS [%s%s] PV=%sW Load=%sW Grid=%sW SoC=%s%% Price=%s€/kWh (%s)",
+            "EMS [%s%s] PV=%sW Load=%sW Grid=%sW SoC=%s%% Price=%s€/kWh (%s)%s",
             self._mode.value,
             sim_label,
             _fmt(pv_w),
@@ -237,6 +241,7 @@ class EMSController:
             _fmt(bat_soc),
             _fmt(price, 4),
             self._mode_reason,
+            self._pending_suffix(),
         )
 
         summary = await self._optimizer.summary_with_db()
@@ -492,6 +497,14 @@ class EMSController:
         return self._ws.is_stale(entity_id, max_age_sec)
 
     # ------------------------------------------------------------------
+
+    def _pending_suffix(self) -> str:
+        """" → Mode pending 120/300s" while a debounced change waits, else ""."""
+        if self._pending is None:
+            return ""
+        mode, since = self._pending
+        waited = (datetime.now().astimezone() - since).total_seconds()
+        return f" → {mode.value} pending {waited:.0f}/{self._cfg.mode_dwell_sec}s"
 
     def _commit(self, decision: ModeDecision, now: datetime) -> EMSMode:
         """Debounce: a new mode must be requested continuously for

@@ -8,7 +8,7 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "2.0.3"
+VERSION = "2.0.4"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
 CONFIG_SCHEMA_VERSION = 13
@@ -49,6 +49,17 @@ PRICE_MAX_AGE_SEC    = 21600   # dynamic tariff: may hold one value for several 
 # until the real state matches; this equals the EMS tick interval, i.e. retry
 # on every cycle rather than waiting out a long grace period.
 INVERTER_WRITE_CONFIRM_TIMEOUT_SEC = 30
+
+# HTTP timeout for a single HA service call to the inverter.
+# HA's REST /api/services/... blocks until the service has *finished*, and a
+# Solarman/Modbus write goes all the way to the inverter and waits for its
+# acknowledgement – measured on the production system, that regularly exceeds
+# 10s. A timeout here is therefore NOT evidence that the write failed: HA has
+# usually applied it already and only the response is late. The write is
+# confirmed against the real entity state one tick later either way, so this
+# value only needs to be generous enough to catch the common case without
+# stalling the EMS loop – it is deliberately below the tick interval budget.
+INVERTER_SERVICE_CALL_TIMEOUT_SEC = 15
 
 # ── Custom integration installer ──────────────────────────────────────────────
 from pathlib import Path

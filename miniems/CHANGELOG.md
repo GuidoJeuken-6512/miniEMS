@@ -1,5 +1,39 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.4
+
+### Bug Fixes
+
+- **Every inverter write was reported as failed.** `_call_service` used a 10s
+  HTTP timeout, but HA's REST `/api/services/…` blocks until the service has
+  *finished* – and a Solarman/Modbus write travels to the inverter and waits
+  for its acknowledgement, which regularly takes longer. The resulting
+  `asyncio.TimeoutError` was caught as a generic failure, so `write_errors`
+  climbed on writes that HA had in fact applied. Measured live on the
+  production system: six "write FAILED" entries in six minutes, while the
+  entity states matched the written targets exactly. The errors fired 25.2s
+  to 25.7s after each preceding tick, i.e. 10.2s to 10.7s into the call – an
+  exact fingerprint of the timeout.
+
+  A timeout is now distinguished from a rejection: `_call_service` returns
+  `None` for "outcome unknown" instead of `False`, and only an actual non-2xx
+  response counts as a write error. The existing state-based confirm/retry
+  logic decides the outcome one tick later, which it was already designed to
+  do. The timeout itself was raised from 10s to
+  `INVERTER_SERVICE_CALL_TIMEOUT_SEC` (15s).
+- **`Service call error …:` logged an empty reason.** `str()` on a
+  `TimeoutError` is the empty string, so the line ended in a bare colon.
+  Exceptions now log `type(exc).__name__` as well, matching the pattern
+  already used in `ha_ws_client.py`.
+
+### Improvements
+
+- **The tick log now shows a pending mode change.** A debounced transition
+  waits out `mode_dwell_sec` before it is applied, but `_mode_reason` keeps
+  the *old* reason while it waits – so a correct, merely-debounced transition
+  was indistinguishable from a stuck EMS. The tick line gains a
+  `→ Export Surplus pending 120/300s` suffix while a change is in flight.
+
 ## 2.0.3
 
 ### New Features
