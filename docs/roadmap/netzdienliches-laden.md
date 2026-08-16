@@ -38,7 +38,25 @@ Ergebnis vorweg: Die wertvollsten Verbesserungen brauchen **keinen Solver**. Sie
 
 ### Der Tarif ist vollständig bekannt — keine Prognose nötig
 
-Aus `activation_rules` der Preis-Entity:
+!!! warning "Korrektur der Datenquelle (16.08.2026)"
+    Diese Seite schrieb ursprünglich, der Kalender liege in `activation_rules` der
+    **Preis-Entity**. Beim Bau von V2 stellte sich beides als ungenau heraus:
+
+    - Die konfigurierte `electricity_price_entity` ist auf dieser Anlage
+      `sensor.deye8k_current_electricity_price` — ein Template-Sensor, der **nur**
+      `unit_of_measurement` und `friendly_name` trägt. Dort ist kein Kalender.
+    - Der Kalender liegt auf der Entity der Octopus-Germany-Integration
+      (`sensor.octopus_a_10fc0646_electricity_price`), und dort **nicht** auf
+      oberster Ebene, sondern verschachtelt: `timeslots[].activation_rules[]`.
+
+    Die Entity trägt außerdem `active_timeslot_from` / `active_timeslot_to` — das
+    Ende des laufenden Fensters also fertig, ohne Parsing. Genau der Wert, den V1
+    braucht.
+
+    `rates[]` und `unit_rate_forecast[]` existieren, sind aber leer
+    (`rates_count = 0`) — wie für einen ToU-Vertrag erwartet.
+
+Aus `timeslots[].activation_rules[]` der Octopus-Entity:
 
 | Stufe | Preis | Fenster |
 |---|---|---|
@@ -88,6 +106,22 @@ Eine `PriceCurve`-Abstraktion, die aus der Preis-Entity die Vorschau zieht, in d
 
 Damit wird aus „Preis unter Schwelle" die Frage „ist dies das günstigste Fenster, bevor die Energie gebraucht wird?". Das schließt das 12–16-Uhr-Fenster von selbst aus, weil bis dahin PV liefert.
 
+!!! note "Warum die Fensterwahl noch nicht verdrahtet ist"
+    `PriceCurve` beantwortet „ist jetzt so günstig wie irgendetwas vor der Frist?"
+    (`is_cheapest_now`). Für das eigentliche Ziel — **nicht** im Fenster 12–16 Uhr
+    laden, weil dann die PV liefert — reicht das nicht: 02–06 und 12–16 haben
+    **denselben** Satz (27,4414 ct). „Am günstigsten" trifft auf beide zu.
+
+    Nötig wäre „ist dies das **letzte** günstigste Fenster vor der Frist?", also ein
+    bewusstes Aufschieben auf das spätere gleich teure Fenster. Aufschieben ist aber
+    nur zulässig, wenn der Akku im späteren Fenster noch vollständig gefüllt werden
+    kann — sonst spart man einen Cent und verliert eine Ladung. Diese
+    Zulässigkeitsprüfung ist der offene Teil.
+
+    Das Modul ist deshalb fertig, getestet und ungenutzt. Eine halb durchdachte
+    Regel in den Steuerpfad einer echten Batterie zu hängen, wäre der falsche
+    Kompromiss.
+
 ### V3 — Halbstündliche PV-Kurve statt Skalar
 
 `detailedForecast` (48 × `period_start` + `pv_estimate`) liegt an der Solcast-Entity. Damit ersetzbar:
@@ -125,7 +159,7 @@ Heute vermischt `pv_charge_margin_factor` Wirtschaftlichkeit und Netzdienlichkei
 |---|---|---|---|
 | 1 | ✅ **Attribut-Zugriff** in `ha_ws_client` (`get_state_attribute()`) — **umgesetzt in v2.0.4** | klein | Freischalter |
 | 2 | **V1 Peak-Strecken** — kostenneutral, unmittelbar netzdienlich | mittel | hoch |
-| 3 | **V2 PriceCurve** + Fensterwahl in `_should_grid_charge` | mittel | hoch |
+| 3 | **V2 PriceCurve** — Modul gebaut und getestet in v2.0.4; die Fensterwahl in `_should_grid_charge` ist bewusst noch **nicht** verdrahtet, siehe Kasten unten | mittel | hoch |
 | 4 | **V4 Wirtschaftlichkeits-Gate** (nutzt vorhandene Felder) | klein | mittel |
 | 5 | **V3 PV-Kurve** ersetzt `pv_charge_backstop_hour` | mittel | mittel |
 
