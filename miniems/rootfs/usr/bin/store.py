@@ -66,6 +66,11 @@ class EnergyStore:
             "kwh_low_rate REAL DEFAULT 0",
             "grid_charge_kwh_bilanz REAL DEFAULT 0",
             "efficiency_pct REAL DEFAULT 0",
+            # Lifetime-counter readings at our own local midnight. NULL (not 0)
+            # when no lifetime counter is configured – 0 would be a valid anchor.
+            "anchor_grid_import_kwh REAL",
+            "anchor_feed_in_kwh REAL",
+            "anchor_load_total_kwh REAL",
         ):
             try:
                 await self._db.execute(f"ALTER TABLE daily_stats ADD COLUMN {col_def}")

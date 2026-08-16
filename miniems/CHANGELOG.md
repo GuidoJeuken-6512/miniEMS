@@ -26,6 +26,28 @@
   Exceptions now log `type(exc).__name__` as well, matching the pattern
   already used in `ha_ws_client.py`.
 
+- **The day was cut on the inverter's clock, not ours.** `grid_import_kwh`,
+  `feed_in_kwh` and `load_total_kwh` took their daily value straight from the
+  inverter's daily counters – but those reset on the *inverter's* clock.
+  Measured across all four counters simultaneously on the production system,
+  that is **4min54s after local midnight**, and during that window the daily
+  sensor still reports yesterday's closing total. The Source-A override wrote
+  it into the new day: 45.9 kWh of feed-in, including its revenue, for almost
+  five minutes. It self-corrected, but kWh and cost were accumulated over
+  windows offset by those minutes, and a clock skew in the *opposite*
+  direction would have written a 0 into yesterday and persisted it as that
+  day's closing total.
+
+  miniEMS now derives the daily figure from the inverter's monotonic lifetime
+  counters (`grid_import_total_entity`, `feed_in_total_entity`,
+  `load_consumption_total_entity`), anchored at its own local midnight and
+  persisted in `daily_stats`. Verified to carry the same 0.1 kWh resolution as
+  the daily counters and to run continuously across midnight. The daily
+  sensors stay in use as the anchor bootstrap after a mid-day restart, so no
+  energy is lost when the add-on starts up at noon. A lifetime counter that
+  runs backwards (firmware update, device swap, Modbus glitch) is re-anchored
+  and logged as a warning rather than producing a negative delta.
+
 ### Improvements
 
 - **The tick log now shows a pending mode change.** A debounced transition

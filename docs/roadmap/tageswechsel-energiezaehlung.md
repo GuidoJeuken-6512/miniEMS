@@ -4,10 +4,23 @@ revision_date: 2026-08-15
 
 # Tageswechsel & Energiezählung — von Tageszählern auf Total-Deltas
 
-!!! info "Status: Vorschlag"
-    Dieses Dokument beschreibt einen Umbau der Energiezählung. Er ist **nicht umgesetzt**.
-    Der Stand im Repository ist v2.0.3, ausgeliefert auf der Produktivanlage ist v2.0.2.
-    Alle Messwerte auf dieser Seite stammen vom 14./15.08.2026 aus der Produktivanlage.
+!!! success "Status: umgesetzt in v2.0.4"
+    Die Schritte 1–4 der Umsetzungsreihenfolge unten sind gebaut, getestet und
+    committet. Offen bleibt bewusst nur **Schritt 5** (Wirkungsgrad-Rechnung auf
+    `total_production`/`total_losses`) — dort ist der Quotient auch heute konsistent,
+    weil beide Zähler gleichzeitig zurücksetzen; der Umbau brächte dort nur
+    Einheitlichkeit, keine Fehlerbehebung.
+
+    Alle Messwerte auf dieser Seite stammen vom 14.–16.08.2026 aus der Produktivanlage.
+
+    Live im Devcontainer nach dem Umbau bestätigt — die Anker werden exakt aus den
+    Tageszählern gebootstrappt:
+
+    ```
+    Grid import: anchored today at 5013.9 kWh (lifetime=5014.4, daily sensor=0.5)
+    Feed-in:     anchored today at 11516.1 kWh (lifetime=11516.9, daily sensor=0.8)
+    Load total:  anchored today at 9446.9 kWh (lifetime=9448.9, daily sensor=2.0)
+    ```
 
 ## Kontext
 

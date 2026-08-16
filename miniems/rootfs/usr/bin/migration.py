@@ -77,6 +77,9 @@ def migrate(data: dict) -> dict:
     if version < 14:
         data = _v13_to_v14(data)
 
+    if version < 15:
+        data = _v14_to_v15(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -260,6 +263,30 @@ def _v11_to_v12(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v11→v12: set %s = %r", key, default)
+    return data
+
+
+def _v14_to_v15(data: dict) -> dict:
+    """v14 → v15: lifetime energy counters, so the day is cut on our own clock.
+
+    The inverter resets its daily counters on its own clock. Measured on the
+    production system that is 4min54s after local midnight, and during that
+    window the daily sensor still reports yesterday's closing total – which the
+    Source-A override wrote straight into the new day (45.9 kWh of feed-in, in
+    the measured case). It self-corrected minutes later, but kWh and cost were
+    accumulated over windows offset by those minutes, and a clock skew in the
+    opposite direction would have written a 0 into *yesterday* and persisted it.
+
+    Deriving the daily figure from a monotonic lifetime counter removes both.
+    """
+    for field, entity in (
+        ("grid_import_total_entity", "sensor.deye8k_total_energy_import"),
+        ("feed_in_total_entity", "sensor.deye8k_total_energy_export"),
+        ("load_consumption_total_entity", "sensor.deye8k_total_load_consumption"),
+    ):
+        if field not in data:
+            data[field] = entity
+            _LOGGER.info("Migration v14→v15: set %s = %r", field, entity)
     return data
 
 

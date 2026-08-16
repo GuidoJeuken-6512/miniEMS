@@ -83,6 +83,16 @@ class Config:
     # v2.0.3 – it was purely tick-accumulated and therefore permanently under-counted across
     # every addon restart (the inverter's own counter is unaffected by that).
     load_consumption_entity: str = "sensor.deye8k_today_load_consumption"
+    # Lifetime (never-resetting) counterparts of the three daily sensors above.
+    # Preferred over them since v2.0.4: the inverter resets its daily counters on
+    # its own clock – measured 4min54s after local midnight – and in that window
+    # the daily sensor still reports yesterday's closing total. A monotonic
+    # lifetime counter lets miniEMS cut the day where it cuts everything else,
+    # so kWh and cost finally cover the same 24h. The daily sensors above stay in
+    # use as the anchor bootstrap after a mid-day restart.
+    grid_import_total_entity: str = "sensor.deye8k_total_energy_import"
+    feed_in_total_entity: str = "sensor.deye8k_total_energy_export"
+    load_consumption_total_entity: str = "sensor.deye8k_total_load_consumption"
     # --- Scenario 2: Grid-charge cost / efficiency / ROI (optional; enables bilanz-based calculation) ---
     # Daily battery charge/discharge totals from inverter
     battery_charge_entity: str = "sensor.deye8k_today_battery_charge"
@@ -152,6 +162,9 @@ class Config:
                 self.feed_in_energy_entity,
                 self.grid_import_energy_entity,
                 self.load_consumption_entity,
+                self.grid_import_total_entity,
+                self.feed_in_total_entity,
+                self.load_consumption_total_entity,
             ]
             if e
         ]

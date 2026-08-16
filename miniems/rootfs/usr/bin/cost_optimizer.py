@@ -37,6 +37,9 @@ class CostOptimizer:
         # Latest inverter efficiency η (today_production - today_losses) / today_production
         self._efficiency: dict[date, float | None] = defaultdict(lambda: None)
         # Latest load_total from inverter daily sensor (for bilanz formula)
+        # Lifetime-counter anchors: (key, day) → the counter reading at *our*
+        # local midnight. See _delta_from_total() for why this exists.
+        self._total_anchor: dict[tuple[str, date], float] = {}
         self._load_kwh_ha: dict[date, float | None] = defaultdict(lambda: None)
         # Latest bat_discharge from inverter daily sensor
         self._bat_discharge_kwh_ha: dict[date, float | None] = defaultdict(lambda: None)
@@ -82,6 +85,17 @@ class CostOptimizer:
         eff = row.get("efficiency_pct")
         self._efficiency[today] = eff / 100.0 if eff is not None else None
 
+        # Restore the lifetime-counter anchors, so a mid-day restart keeps
+        # counting from our own midnight instead of re-anchoring to "now".
+        for key, column in (
+            ("grid_import", "anchor_grid_import_kwh"),
+            ("feed_in", "anchor_feed_in_kwh"),
+            ("load_total", "anchor_load_total_kwh"),
+        ):
+            anchor = row.get(column)
+            if anchor is not None:
+                self._total_anchor[(key, today)] = anchor
+
         # Downtime gap detection
         last_ts_str = row.get("last_flush_ts")
         if last_ts_str:
@@ -116,6 +130,70 @@ class CostOptimizer:
     # Called by EMS controller on each update tick
     # ------------------------------------------------------------------
 
+    def _delta_from_total(
+        self,
+        key: str,
+        day: date,
+        total: float | None,
+        today_ha: float | None,
+        label: str,
+    ) -> float | None:
+        """Today's kWh derived from a lifetime counter, cut at *our* midnight.
+
+        The inverter's own daily counters reset on the inverter's clock, not
+        ours. Measured on the production system, that is 4min54s after local
+        midnight – and in that window the daily sensor still reports yesterday's
+        closing total, which the Source-A override would write into today. A
+        monotonic lifetime counter has no such boundary, so the day is cut where
+        miniEMS cuts it, identically to the tick-accumulated cost figures.
+
+        Returns None when no lifetime counter is available, so the caller can
+        fall back to the daily sensor (Source A) or tick accumulation (B).
+        """
+        if total is None:
+            return None
+
+        anchor = self._total_anchor.get((key, day))
+        if anchor is None:
+            if any(k == key and d < day for (k, d) in self._total_anchor):
+                # We were already running on an earlier day, so this call is the
+                # day rollover itself. Everything from here belongs to the new
+                # day: the anchor is simply the current reading. Deliberately NOT
+                # bootstrapped from the daily sensor – during the inverter's lag
+                # window (measured 4min54s) that sensor still carries yesterday's
+                # closing total, and using it would import yesterday's kWh into
+                # today. That is exactly the defect this whole mechanism removes.
+                anchor = total
+            else:
+                # Cold start: no prior day known, so miniEMS may be starting up
+                # mid-day. The inverter's daily counter says how much of the
+                # lifetime total already belongs to today, which makes the anchor
+                # exact instead of losing everything before startup.
+                anchor = total - (today_ha or 0.0)
+            self._total_anchor[(key, day)] = anchor
+            # Keep only today and yesterday – the rollover check needs one prior
+            # day, nothing older.
+            for stale in [k for k in self._total_anchor
+                          if k[0] == key and (day - k[1]).days > 1]:
+                del self._total_anchor[stale]
+            _LOGGER.info(
+                "%s: anchored today at %.1f kWh (lifetime=%.1f, daily sensor=%s)",
+                label, anchor, total,
+                f"{today_ha:.1f}" if today_ha is not None else "unavailable",
+            )
+        elif total < anchor - 0.001:
+            # A lifetime counter must never run backwards. If it does, this is a
+            # reportable event (firmware update, device swap, Modbus glitch),
+            # not a value to compute with.
+            _LOGGER.warning(
+                "%s: lifetime counter went backwards (%.1f < anchor %.1f) – re-anchoring",
+                label, total, anchor,
+            )
+            anchor = total - (today_ha or 0.0)
+            self._total_anchor[(key, day)] = anchor
+
+        return max(0.0, total - anchor)
+
     def record_tick(
         self,
         grid_power_w: float,
@@ -132,11 +210,35 @@ class CostOptimizer:
         bat_discharge_kwh_ha: float | None = None,
         today_production_kwh_ha: float | None = None,
         today_losses_kwh_ha: float | None = None,
+        grid_import_total_kwh_ha: float | None = None,
+        feed_in_total_kwh_ha: float | None = None,
+        load_total_lifetime_kwh_ha: float | None = None,
     ) -> None:
         """Accumulate energy for one interval."""
         cfg = self._cfg
         now = date.today()
         hours = interval_sec / 3600
+
+        # Prefer a lifetime counter cut at our own midnight over the inverter's
+        # daily counter, which resets on the inverter's clock (see
+        # _delta_from_total). Falls through to the daily sensor when no lifetime
+        # counter is configured, so existing setups keep working unchanged.
+        # Explicit None checks, not `or`: a delta of exactly 0.0 is a valid
+        # result (just after midnight) and must not fall through to Source B.
+        delta = self._delta_from_total(
+            "grid_import", now, grid_import_total_kwh_ha, grid_import_kwh_ha, "Grid import")
+        if delta is not None:
+            grid_import_kwh_ha = delta
+
+        delta = self._delta_from_total(
+            "feed_in", now, feed_in_total_kwh_ha, feed_in_kwh_ha, "Feed-in")
+        if delta is not None:
+            feed_in_kwh_ha = delta
+
+        delta = self._delta_from_total(
+            "load_total", now, load_total_lifetime_kwh_ha, load_total_kwh_ha, "Load total")
+        if delta is not None:
+            load_total_kwh_ha = delta
 
         # Spike validation – use last-accepted values; skip accumulation on spike
         pv_w   = self._validator.validate(cfg.pv_power_entity, pv_power_w)
@@ -279,6 +381,14 @@ class CostOptimizer:
         eff = self._efficiency.get(today)
         if eff is not None:
             fields["efficiency_pct"] = round(eff * 100, 2)
+        for key, column in (
+            ("grid_import", "anchor_grid_import_kwh"),
+            ("feed_in", "anchor_feed_in_kwh"),
+            ("load_total", "anchor_load_total_kwh"),
+        ):
+            anchor = self._total_anchor.get((key, today))
+            if anchor is not None:
+                fields[column] = round(anchor, 6)
         if avg_temp is not None:
             fields["avg_outdoor_temp_c"] = round(avg_temp, 2)
         await self._store.upsert_day(today, fields)

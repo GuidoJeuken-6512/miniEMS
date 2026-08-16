@@ -174,6 +174,23 @@ class EMSController:
             if cfg.load_consumption_entity
             else None
         )
+        # Lifetime counters – preferred over the daily sensors above, because the
+        # day is then cut on our clock rather than the inverter's.
+        grid_import_total_kwh_ha = (
+            ws.get_state_value(cfg.grid_import_total_entity)
+            if cfg.grid_import_total_entity
+            else None
+        )
+        feed_in_total_kwh_ha = (
+            ws.get_state_value(cfg.feed_in_total_entity)
+            if cfg.feed_in_total_entity
+            else None
+        )
+        load_total_lifetime_kwh_ha = (
+            ws.get_state_value(cfg.load_consumption_total_entity)
+            if cfg.load_consumption_total_entity
+            else None
+        )
         # Scenario 2 sensors (optional – None when entity not configured or unavailable)
         bat_charge_kwh_ha = (
             ws.get_state_value(cfg.battery_charge_entity)
@@ -217,6 +234,9 @@ class EMSController:
             bat_discharge_kwh_ha=bat_discharge_kwh_ha,
             today_production_kwh_ha=today_production_kwh_ha,
             today_losses_kwh_ha=today_losses_kwh_ha,
+            grid_import_total_kwh_ha=grid_import_total_kwh_ha,
+            feed_in_total_kwh_ha=feed_in_total_kwh_ha,
+            load_total_lifetime_kwh_ha=load_total_lifetime_kwh_ha,
         )
         await self._optimizer.flush_to_db()
 
