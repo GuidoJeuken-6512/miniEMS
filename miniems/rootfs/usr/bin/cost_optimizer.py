@@ -42,6 +42,9 @@ class CostOptimizer:
         self._total_anchor: dict[tuple[str, date], float] = {}
         # (day, value) memo for the history-derived discharge tariff
         self._discharge_tariff_cache: tuple[date, float | None] | None = None
+        # Discharge-weighted price accumulators: Σ(kWh) and Σ(kWh × price)
+        self._discharge_kwh_ticks: dict[date, float] = defaultdict(float)
+        self._discharge_value_eur: dict[date, float] = defaultdict(float)
         self._load_kwh_ha: dict[date, float | None] = defaultdict(lambda: None)
         # Latest bat_discharge from inverter daily sensor
         self._bat_discharge_kwh_ha: dict[date, float | None] = defaultdict(lambda: None)
@@ -82,6 +85,8 @@ class CostOptimizer:
         self._kwh_high_rate[today]       = row.get("kwh_high_rate", 0.0)
         self._kwh_medium_rate[today]     = row.get("kwh_medium_rate", 0.0)
         self._kwh_low_rate[today]        = row.get("kwh_low_rate", 0.0)
+        self._discharge_kwh_ticks[today] = row.get("discharge_kwh_ticks", 0.0) or 0.0
+        self._discharge_value_eur[today] = row.get("discharge_value_eur", 0.0) or 0.0
         bilanz = row.get("grid_charge_kwh_bilanz")
         self._grid_charge_kwh_bilanz[today] = bilanz  # None if never recorded
         eff = row.get("efficiency_pct")
@@ -310,6 +315,17 @@ class CostOptimizer:
             self._grid_charge_kwh[now]      += kwh_gc
             self._grid_charge_cost_eur[now] += kwh_gc * price_eur_kwh
 
+        # Discharge-weighted price: what a stored kWh actually displaces.
+        # Accumulated only while the battery discharges, so the average is
+        # weighted by when the energy is really used – disproportionately the
+        # expensive evening. A load- or time-weighted average would understate
+        # this badly enough to flip the economic gate (see
+        # avg_discharge_tariff_eur_kwh).
+        if bat_w > 0:
+            kwh_dis = (bat_w / 1000) * hours
+            self._discharge_kwh_ticks[now]  += kwh_dis
+            self._discharge_value_eur[now]  += kwh_dis * price_eur_kwh
+
         # Feed-in (grid export)
         # Prefer the HA daily-total sensor; fall back to accumulation from grid_w.
         if feed_in_kwh_ha is not None:
@@ -375,6 +391,8 @@ class CostOptimizer:
             "kwh_high_rate":        round(self._kwh_high_rate[today], 6),
             "kwh_medium_rate":      round(self._kwh_medium_rate[today], 6),
             "kwh_low_rate":         round(self._kwh_low_rate[today], 6),
+            "discharge_kwh_ticks":  round(self._discharge_kwh_ticks[today], 6),
+            "discharge_value_eur":  round(self._discharge_value_eur[today], 6),
             "last_flush_ts":        datetime.now(timezone.utc).isoformat(),
         }
         bilanz = self._grid_charge_kwh_bilanz.get(today)
@@ -446,29 +464,30 @@ class CostOptimizer:
     async def avg_discharge_tariff_eur_kwh(self, days: int = 7) -> float | None:
         """What a stored kWh is worth when it is later discharged.
 
-        Derived from history instead of configured: the tick-weighted average of
-        `avg_price_eur_kwh` over the last `days` days. A discharged kWh displaces
-        a purchase at roughly that price.
+        Derived from history: Σ(discharged kWh × price) / Σ(discharged kWh) over
+        the last `days` days – the price at the moments the battery actually
+        discharges.
 
-        Note on what this deliberately does *not* use: `load_cost_eur /
-        load_total_kwh` looks like the more precise answer, but the two are no
-        longer commensurable. Since v2.0.4 `load_total_kwh` comes from the
-        inverter's lifetime counter and therefore also covers add-on downtime,
-        while `load_cost_eur` is still accumulated per tick and only covers
-        uptime. On an installation that restarts often the quotient collapses –
-        measured on the devcontainer: 0.1370 €/kWh, below the cheapest tariff of
-        0.2744 and therefore impossible. avg_price_eur_kwh is tick-based
-        throughout and stays inside the real tariff range.
+        The weighting is the whole point, not a refinement. Two simpler averages
+        were tried and both are wrong *in kind*:
 
-        Deliberately conservative. The battery does not serve load evenly – it
-        covers disproportionately much of the expensive evening – so the true
-        displacement value is higher than this average. Under-stating it makes
-        the economic gate stricter, which errs towards not buying grid energy.
-        That is the safe direction: a missed charge costs an opportunity, a
-        wrong one costs money.
+        - `load_cost_eur / load_total_kwh` (load-weighted) gives 0.2942 €/kWh on
+          the production system.
+        - `avg_price_eur_kwh` (time-weighted) gives roughly 0.318 €/kWh there.
+
+        With 91.6% efficiency and a purchase price of 0.2744 those yield margins
+        of −0.5 ct and +1.7 ct, so both fall below the 2 ct gate and would switch
+        grid charging off entirely. But the battery does not displace average
+        consumption – it discharges disproportionately into the expensive evening
+        (HOCH, 0.3944), where the margin is +8.7 ct and charging is clearly
+        worthwhile. Averaging over load or time understates the value enough to
+        invert the decision; only weighting by discharge measures what a stored
+        kWh is really worth.
 
         An explicitly configured avg_discharge_tariff_eur_kwh wins, so the
-        derivation can always be overridden. None when there is no history yet.
+        derivation can always be overridden. None when there is no discharge
+        history yet, which leaves the economic gate switched off rather than
+        deciding on a guess.
         """
         configured = self._cfg.avg_discharge_tariff_eur_kwh
         if configured and configured > 0:
@@ -481,9 +500,9 @@ class CostOptimizer:
             return self._discharge_tariff_cache[1]
 
         rows = await self._store.query_recent_days(days)
-        weighted = sum((r.get("avg_price_eur_kwh") or 0.0) * (r.get("ticks") or 0) for r in rows)
-        ticks = sum(r.get("ticks") or 0 for r in rows)
-        value = weighted / ticks if ticks > 0 and weighted > 0 else None
+        value_eur = sum(r.get("discharge_value_eur") or 0.0 for r in rows)
+        kwh = sum(r.get("discharge_kwh_ticks") or 0.0 for r in rows)
+        value = value_eur / kwh if kwh > 0.0 and value_eur > 0.0 else None
 
         # Plausibility floor: a discharge tariff below the cheap-rate threshold
         # cannot be right – the battery would be displacing purchases cheaper
@@ -500,8 +519,9 @@ class CostOptimizer:
         self._discharge_tariff_cache = (today, value)
         if value is not None:
             _LOGGER.info(
-                "Discharge tariff derived from %d day(s) of history: %.4f €/kWh (%d ticks)",
-                len(rows), value, ticks,
+                "Discharge tariff derived from %d day(s) of history: %.4f €/kWh "
+                "(%.1f kWh discharged, weighted by when it happened)",
+                len(rows), value, kwh,
             )
         return value
 

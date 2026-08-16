@@ -71,6 +71,10 @@ class EnergyStore:
             "anchor_grid_import_kwh REAL",
             "anchor_feed_in_kwh REAL",
             "anchor_load_total_kwh REAL",
+            # Discharge-weighted price: Σ(kWh) and Σ(kWh × price) while the
+            # battery discharges. Their quotient is what a stored kWh displaces.
+            "discharge_kwh_ticks REAL DEFAULT 0",
+            "discharge_value_eur REAL DEFAULT 0",
         ):
             try:
                 await self._db.execute(f"ALTER TABLE daily_stats ADD COLUMN {col_def}")
