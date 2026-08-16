@@ -239,6 +239,36 @@ weniger zur Einsparung bei als PV bei Spitzentarif.
 Hypothetische Kosten, wenn der **gesamte** Hausverbrauch zum aktuellen Spotpreis
 aus dem Netz bezogen worden wäre, unabhängig von der tatsächlichen Quelle (PV, Akku, Netz).
 
+!!! info "Seit v2.0.4: dreistufige Kaskade statt zweier Quellen"
+    Für `grid_import_kwh`, `feed_in_kwh` und `load_total_kwh` gilt seit v2.0.4 diese
+    Reihenfolge — die unten beschriebene Quelle A ist damit zur **mittleren** Stufe
+    geworden:
+
+    | Stufe | Quelle | Tagesgrenze |
+    |---|---|---|
+    | **1** | Lebenszeit-Zähler minus Anker (`*_total_entity`) | **unsere** lokale Mitternacht |
+    | 2 | Tageszähler des Wechselrichters (`*_energy_entity`) | Uhr des Wechselrichters |
+    | 3 | Tick-Akkumulation aus der Leistung | unsere lokale Mitternacht |
+
+    Grund: Der Wechselrichter setzt seine Tageszähler **4 min 54 s nach** lokaler
+    Mitternacht zurück (an allen vier Zählern gleichzeitig gemessen). In diesem
+    Fenster meldete Stufe 2 noch den Vortagesstand, und der Override schrieb ihn in
+    den neuen Tag. Stufe 1 bildet das Tagesdelta selbst und schneidet den Tag dort,
+    wo auch die Kosten geschnitten werden. Der Tageszähler bleibt als Startwert für
+    den Anker nach einem Neustart mitten am Tag in Gebrauch. Details:
+    [Tageswechsel & Energiezählung](../roadmap/tageswechsel-energiezaehlung.md).
+
+!!! warning "Welche Größen vergleichbar sind"
+    Seit Stufe 1 sind **kWh-Summen und €-Summen nicht mehr deckungsgleich**: Die
+    kWh kommen aus einem Hardwarezähler und decken auch Add-on-Ausfallzeiten ab,
+    alle €-Werte werden weiterhin pro Tick akkumuliert und decken nur Laufzeit ab.
+
+    Auf einer durchlaufenden Instanz ist die Abweichung minutengroß und
+    vernachlässigbar. Auf einer Instanz mit vielen Neustarts ist sie es nicht: Ein
+    Quotient wie `today_load_cost_eur / today_load_total_kwh` ergab dort **0,1370
+    €/kWh** — unterhalb des billigsten Tarifs und damit unmöglich. Wer ein
+    Verhältnis aus beiden Welten bildet, muss das wissen.
+
 #### kWh — Quelle A (bevorzugt, seit v2.0.3)
 
 Wenn `load_consumption_entity` konfiguriert ist (Standard:

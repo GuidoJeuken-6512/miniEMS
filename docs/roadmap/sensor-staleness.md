@@ -15,8 +15,8 @@ revision_date: 2026-08-15
     | 1 — Datums-Prüfung für Tagesprognosen | **umgesetzt in v2.0.4** |
     | 2 — `unavailable` für Hardware | bereits vorhanden, nichts zu tun |
     | 3 — Preis-Marge 6 h + 2 min | **umgesetzt in v2.0.4** |
-    | 4 — Datenfrische von Solcast | offen |
-    | 5 — Plausibilitätsprüfung des Kurvenverlaufs | offen |
+    | 4 — Datenfrische von Solcast | **umgesetzt in v2.0.4** |
+    | 5 — Plausibilitätsprüfung des Kurvenverlaufs | **bewusst verworfen** (Begründung bei Vorschlag 5) |
 
 !!! info "Anlass"
     Live beobachteter Fehlalarm: Das Dashboard meldet `solcast_pv_forecast_prognose_heute`
@@ -345,7 +345,23 @@ hat; Berührungspunkt zur
 [Netzdienliches-Laden-Roadmap](netzdienliches-laden.md), die genau diesen
 Zugriff als ersten Schritt vorschlägt.
 
-### 4. Ungelöst: Datenfrische von Solcast (#4, #5, #6)
+### 4. Datenfrische von Solcast (#4, #5, #6) ✅
+
+!!! success "Umgesetzt in v2.0.4"
+    `get_state_datetime()` liest Entities, deren Zustand ein Zeitstempel ist —
+    `get_state_value()` endet in `float(raw)` und scheitert daran. Ausgewertet wird
+    der **Wert** von `solcast_last_fetch_entity`, nicht dessen Zeitstempel.
+
+    `SOLCAST_DATA_MAX_AGE_SEC = 30 h`, aus Messdaten hergeleitet statt geraten: auf
+    der Produktivanlage an fünf Tagen in Folge **6/6/6/5/4** erfolgreiche Abrufe pro
+    Tag, längste legitime Nachtlücke **15,5 h** (12:44 UTC → 04:11 UTC). Kürzere
+    Wintertage schätzungsweise ~19 h; 30 h lässt Marge und erkennt eine stehende API
+    dennoch binnen gut eines Tages.
+
+    Greift an zwei Stellen: `_forecast_remaining_kwh()` liefert `None`, damit keine
+    Regelentscheidung auf tagealten Daten beruht, und das Warnbanner meldet es. Ohne
+    konfigurierte Entity entfällt die Prüfung, statt Fehlalarm zu schlagen.
+
 
 Für die drei Solcast-Prüfungen ist bisher nur der Fehlerfall „Integration tot" gelöst.
 Es gibt einen **zweiten**, den kein einziges der bisherigen Signale erkennt:
@@ -397,7 +413,22 @@ Datums-Pfad im Client plus ein Config-Feld für die Entity, analog zu
 Abrufrhythmus zu bemessen, nicht geraten; dafür fehlt bisher eine Messung über mehrere
 Tage.
 
-### 5. Plausibilitätsprüfung des Kurvenverlaufs (#4)
+### 5. Plausibilitätsprüfung des Kurvenverlaufs (#4) — verworfen
+
+!!! failure "Bewusst nicht umgesetzt"
+    Nach Vorschlag 4 schließt diese Prüfung keine Lücke mehr. Ihr Gewinn wäre reine
+    **Erkennungsgeschwindigkeit** für einen eingefrorenen Sensor — Minuten statt
+    Stunden — bei einem seltenen Fehlerfall. Datenfrische deckt Vorschlag 4 ab,
+    Verbindungsverlust deckt `unavailable` ab.
+
+    Dem gegenüber stehen drei Präzisierungen, die alle korrekt implementiert und
+    gepflegt sein müssten (Mitternachts-Reset statt Morgen, Nachtplateau auf dem
+    Tagesmaximum, Toleranz für untertägige Prognoserevisionen). Jede davon ist eine
+    eigene Fehlalarmquelle. Das Verhältnis stimmt nicht.
+
+    Die Analyse unten bleibt als Beleg stehen — sie ist die Messgrundlage für das
+    Verständnis des Sensorverhaltens, auch ohne Umsetzung.
+
 
 Statt zu fragen, *wann* der Wert zuletzt kam, prüfen, ob er sich **so verhält, wie er
 sich verhalten muss**. `remaining_today` hat einen zwingenden Tagesverlauf: einmal

@@ -240,6 +240,35 @@ Hypothetical cost if the **entire** house load had been purchased from the
 grid at the current spot price, regardless of actual source (PV, battery,
 grid).
 
+!!! info "Since v2.0.4: a three-stage cascade, not two sources"
+    For `grid_import_kwh`, `feed_in_kwh` and `load_total_kwh` this order applies as
+    of v2.0.4 — the Source A described below has become the **middle** stage:
+
+    | Stage | Source | Day boundary |
+    |---|---|---|
+    | **1** | lifetime counter minus anchor (`*_total_entity`) | **our** local midnight |
+    | 2 | inverter's daily counter (`*_energy_entity`) | the inverter's clock |
+    | 3 | tick accumulation from power | our local midnight |
+
+    Reason: the inverter resets its daily counters **4min54s after** local midnight
+    (measured across all four counters simultaneously). During that window stage 2
+    still reported yesterday's closing total, and the override wrote it into the new
+    day. Stage 1 derives the daily delta itself and cuts the day where cost is cut.
+    The daily counter stays in use as the anchor bootstrap after a mid-day restart.
+    Details: [Tageswechsel & Energiezählung](../../roadmap/tageswechsel-energiezaehlung.md)
+    (German).
+
+!!! warning "Which figures are commensurable"
+    Since stage 1, **kWh totals and € totals no longer cover the same window**: the
+    kWh come from a hardware counter and therefore also cover add-on downtime, while
+    every € value is still accumulated per tick and covers uptime only.
+
+    On a continuously running instance the divergence is minutes and negligible. On
+    one that restarts often it is not: a quotient such as `today_load_cost_eur /
+    today_load_total_kwh` came out at **0.1370 €/kWh** there — below the cheapest
+    tariff and therefore impossible. Anyone forming a ratio across the two needs to
+    know this.
+
 #### kWh – Source A (preferred, since v2.0.3)
 
 If `load_consumption_entity` is configured (default:

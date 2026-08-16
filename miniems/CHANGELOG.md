@@ -97,17 +97,41 @@
 - **`avg_discharge_tariff_eur_kwh` is derived from history instead of
   configured.** It defaulted to `0.0` and was never set on the live system, so
   the one figure describing what a stored kWh is worth did not exist. It is now
-  the tick-weighted average of `avg_price_eur_kwh` over the last 7 days, cached
-  per day; an explicitly configured value still wins.
+  Σ(discharged kWh × price) / Σ(discharged kWh) over the last 7 days, cached per
+  day; an explicitly configured value still wins.
 
-  A first attempt used `load_cost_eur / load_total_kwh`, which is the more
-  precise question but no longer answerable: since the lifetime-counter change
-  above, `load_total_kwh` covers add-on downtime while `load_cost_eur` is still
-  tick-accumulated and covers only uptime. Measured on the devcontainer the
-  quotient came out at 0.1370 €/kWh — below the cheapest tariff of 0.2744 and
-  therefore impossible. A plausibility floor now discards any derived value
-  below the cheap-rate threshold rather than letting it make the gate too
-  strict.
+  The weighting is the substance, not a detail. Two simpler averages were tried
+  and both are wrong *in kind*: load-weighted (`load_cost_eur /
+  load_total_kwh`) gives 0.2942 €/kWh on the production system, time-weighted
+  (`avg_price_eur_kwh`) roughly 0.318. At 91.6% efficiency against a 0.2744
+  purchase price those are margins of −0.5 ct and +1.7 ct — both below the 2 ct
+  gate, so grid charging would have been switched off entirely. The battery does
+  not displace average consumption though; it discharges disproportionately into
+  the expensive evening (HOCH, 0.3944), where the margin is +8.7 ct. Only
+  weighting by discharge measures what is really displaced.
+
+  A plausibility floor discards any derived value below the cheap-rate
+  threshold, so a broken figure leaves the gate off instead of silently
+  disabling grid charging.
+- **Solcast data age is now checked, not just sensor age.** Solcast keeps
+  serving its persisted cache when the API is unreachable: the sensors stay
+  `available`, HA's timestamps keep advancing, and nothing reveals that the
+  numbers are days old. Neither `unavailable`, nor any timestamp, nor the date
+  check above detects it — all four signals report "healthy". This affected
+  `solcast_remaining_today_entity`, the one Solcast value feeding the
+  grid-charge decision directly.
+
+  `solcast_last_fetch_entity` is now evaluated by its **value** — the timestamp
+  of the last *successful* fetch — via the new
+  `HAWebSocketClient.get_state_datetime()`, since `get_state_value()` ends in
+  `float(raw)` and cannot read an ISO string. The entity's own timestamp is
+  useless as a freshness signal: it is exactly as old as the sensors it is
+  meant to vouch for.
+
+  `SOLCAST_DATA_MAX_AGE_SEC` is 30 h, derived from measurement rather than
+  guessed: 6/6/6/5/4 successful fetches per day on five consecutive days, with
+  the longest legitimate overnight gap at 15.5 h; shorter winter days push that
+  towards an estimated 19 h.
 - **Entity attributes are now readable.** `HAWebSocketClient` cached the full
   state dict, but the only way in was `get_state_value()` → `float(state)`, so
   `grep -rn '\["attributes"\]' *.py` found exactly zero hits. Everything HA

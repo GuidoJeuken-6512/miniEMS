@@ -156,16 +156,33 @@ Konzeptionell ist das unser Gegenstück zu evccs `attenuate_feedin_peaks` — di
 
     **`avg_discharge_tariff_eur_kwh` wird hergeleitet statt konfiguriert.** Der Wert
     stand auf `0.0` und war nie gesetzt — die eine Zahl, die beziffert, was eine
-    gespeicherte kWh wert ist, existierte schlicht nicht. Jetzt: tick-gewichteter
-    Mittelwert von `avg_price_eur_kwh` über 7 Tage, tagesweise gecacht; ein
+    gespeicherte kWh wert ist, existierte schlicht nicht. Jetzt:
+    Σ(entladene kWh × Preis) / Σ(entladene kWh) über 7 Tage, tagesweise gecacht; ein
     konfigurierter Wert schlägt die Herleitung weiterhin.
 
-    Ein erster Versuch nutzte `load_cost_eur / load_total_kwh` — die genauere Frage,
-    aber seit dem Umbau auf Lebenszeit-Zähler nicht mehr beantwortbar:
-    `load_total_kwh` deckt seither auch Ausfallzeiten ab, `load_cost_eur` weiterhin
-    nur Laufzeit. Am Devcontainer gemessen kam **0,1370 €/kWh** heraus — unterhalb
-    des billigsten Tarifs von 0,2744 und damit unmöglich. Eine
-    Plausibilitätsuntergrenze verwirft jetzt jeden hergeleiteten Wert unterhalb der
+!!! warning "Die Gewichtung ist der Kern — zwei Fehlversuche"
+    Zwei einfachere Mittelwerte wurden gebaut und sind beide **der Art nach** falsch:
+
+    | Variante | Wert auf `.59` | Marge `0,916 × Tarif − 0,2744` | Gate (2 ct) |
+    |---|---|---|---|
+    | lastgewichtet `load_cost/load_kwh` | 0,2942 | −0,5 ct | blockiert |
+    | zeitgewichtet `avg_price_eur_kwh` | ~0,318 | +1,7 ct | blockiert |
+    | **entladungsgewichtet** | ~0,38 | **+7,8 ct** | lädt |
+
+    Beide Mittelwerte hätten das Netzladen auf der Produktivanlage vollständig
+    abgeschaltet. Der Akku verdrängt aber keinen Durchschnittsverbrauch — er entlädt
+    überproportional in das teure Abendfenster (HOCH 0,3944). Eine Mittelung über
+    Last oder Zeit unterschätzt den Wert so stark, dass sie die Entscheidung
+    umdreht.
+
+    **Randbefund:** Die zunächst gemessenen 0,1370 €/kWh stammten aus der
+    Devcontainer-Datenbank, die während der Entwicklung im Minutentakt neu gebaut
+    wurde — dort deckt `load_total_kwh` (lebenszeitverankert) die Ausfallzeiten ab,
+    `load_cost_eur` (pro Tick) nicht. Auf der permanent laufenden `.59` liegt
+    dieselbe Kennzahl bei 0,2942 und damit im Tarifband. Die gemischte Buchungsbasis
+    ist real, auf einer durchlaufenden Instanz aber eine Abweichung von Minuten.
+
+    Eine Plausibilitätsuntergrenze verwirft jeden hergeleiteten Wert unterhalb der
     Billigschwelle, statt das Gate damit zu verschärfen.
 
 Beide Zutaten sind schon da und werden nur nicht für Entscheidungen genutzt:

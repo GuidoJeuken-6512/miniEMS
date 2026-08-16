@@ -15,8 +15,8 @@ revision_date: 2026-08-15
     | 1 — date check for daily forecasts | **implemented in v2.0.4** |
     | 2 — `unavailable` for hardware | already in place, nothing to do |
     | 3 — price margin 6 h + 2 min | **implemented in v2.0.4** |
-    | 4 — Solcast data freshness | open |
-    | 5 — plausibility check on the curve shape | open |
+    | 4 — Solcast data freshness | **implemented in v2.0.4** |
+    | 5 — plausibility check on the curve shape | **deliberately dropped** (see proposal 5) |
 
 !!! info "Trigger"
     Observed false alarm on the live system: the dashboard reports
@@ -335,7 +335,24 @@ this is a touchpoint with the
 [grid-friendly charging roadmap](../../roadmap/netzdienliches-laden.md), which proposes
 exactly that access as its first step.
 
-### 4. Unsolved: Solcast data freshness (#4, #5, #6)
+### 4. Solcast data freshness (#4, #5, #6) ✅
+
+!!! success "Implemented in v2.0.4"
+    `get_state_datetime()` reads entities whose state is a timestamp —
+    `get_state_value()` ends in `float(raw)` and cannot. What is evaluated is the
+    **value** of `solcast_last_fetch_entity`, not its timestamp.
+
+    `SOLCAST_DATA_MAX_AGE_SEC = 30 h`, derived from measurement rather than guessed:
+    **6/6/6/5/4** successful fetches per day on five consecutive days on the
+    production system, longest legitimate overnight gap **15.5 h** (12:44 UTC →
+    04:11 UTC). Shorter winter days push that towards an estimated 19 h; 30 h leaves
+    margin while still catching a stalled API within about a day.
+
+    Applied in two places: `_forecast_remaining_kwh()` returns `None` so no control
+    decision rests on days-old data, and the warning banner reports it. With no
+    entity configured the check simply does not apply, rather than raising a false
+    alarm.
+
 
 For the three Solcast checks, only the "integration dead" failure mode is addressed so
 far. There is a **second** one that none of the signals above detects:
@@ -386,7 +403,22 @@ datetime path in the client plus a config field for the entity, analogous to
 actual fetch rhythm rather than guessed; that measurement, across several days, is still
 missing.
 
-### 5. Plausibility check on the curve shape (#4)
+### 5. Plausibility check on the curve shape (#4) — dropped
+
+!!! failure "Deliberately not implemented"
+    After proposal 4 this check no longer closes a gap. Its benefit would be pure
+    **detection speed** for a frozen sensor — minutes instead of hours — on a rare
+    failure mode. Data freshness is covered by proposal 4, connection loss by
+    `unavailable`.
+
+    Against that stand three refinements that would all have to be implemented and
+    maintained correctly (midnight reset rather than morning, the night plateau at
+    the daily maximum, tolerance for intraday forecast revisions). Each is a false-
+    alarm source of its own. The ratio does not work out.
+
+    The analysis below stays as evidence — it is the measurement basis for
+    understanding the sensor's behaviour, implementation or not.
+
 
 Instead of asking *when* the value last arrived, check whether it **behaves the way it
 must**. `remaining_today` has a mandatory daily shape: reset once, then decay to zero.
