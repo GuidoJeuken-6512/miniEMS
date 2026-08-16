@@ -49,6 +49,14 @@ PRICE_MAX_AGE_SEC    = 21720   # 6 h + 2 min. A time-of-use tariff is written on
                                 # not guesswork – a larger value would only slow detection
                                 # without covering any real case.
 
+# Grace period for once-per-day values (Solcast daily forecast totals). The
+# source rewrites them within ~5 min of local midnight; until then a timestamp
+# from yesterday is legitimate. 15 min gives that margin without letting a truly
+# stopped integration hide. Used by HAWebSocketClient.is_stale_daily(), which
+# asks "was it written today?" instead of "how old is it?" – see
+# docs/roadmap/sensor-staleness.md for why no age threshold can be right here.
+DAILY_VALUE_GRACE_SEC = 900
+
 # ── Inverter write confirmation (seconds) ──────────────────────────────────────
 # A service call accepted by HA (HTTP 200) is not proof the inverter applied it –
 # some Deye/Solarman bridges only confirm a written number/switch on their next

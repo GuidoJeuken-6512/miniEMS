@@ -83,6 +83,33 @@ class HAWebSocketClient:
         age = self.get_state_age_sec(entity_id)
         return True if age is None else age > max_age_sec
 
+    def is_stale_daily(self, entity_id: str, grace_sec: float) -> bool:
+        """True when a once-per-day value was not written on the current day.
+
+        For a value the source rewrites at every date rollover, "was it written
+        today?" is answerable exactly, where "how old is it?" never is: the same
+        daily forecast total is fresh at 09:00 and still correct at 23:00, so any
+        age threshold is wrong for one of those two. Solcast writes its daily
+        totals within five minutes of *local* midnight, so a timestamp from
+        yesterday means the integration has stopped – regardless of the hour.
+
+        The comparison runs in local time on purpose: the source rolls the day
+        over in the installation's timezone, while _parse_ts stores UTC. Under
+        CEST that is a two-hour difference, i.e. a UTC comparison would be wrong
+        every night between 22:00 and 00:00 UTC.
+
+        `grace_sec` covers the few minutes right after midnight in which the
+        source legitimately has not rewritten the value yet.
+        """
+        ts = self._state_ts.get(entity_id)
+        if ts is None:
+            return True
+        now = datetime.now().astimezone()
+        if ts.astimezone(now.tzinfo).date() >= now.date():
+            return False
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return (now - midnight).total_seconds() > grace_sec
+
     async def run(self) -> None:
         """Poll HA states every HA_POLL_INTERVAL_SEC seconds with token fallback."""
         self._running = True

@@ -12,7 +12,7 @@ revision_date: 2026-08-15
 
     | Proposal | State |
     |---|---|
-    | 1 — date check for daily forecasts | open |
+    | 1 — date check for daily forecasts | **implemented in v2.0.4** |
     | 2 — `unavailable` for hardware | already in place, nothing to do |
     | 3 — price margin 6 h + 2 min | **implemented in v2.0.4** |
     | 4 — Solcast data freshness | open |
@@ -154,8 +154,8 @@ These are **two orthogonal failure modes** that today's age check conflates:
 | 2 | `ems_controller.py:376-377` (`_decide`, PV surplus precondition) | `pv_power_entity`, `load_power_entity` | `sensor_max_age_sec` (300 s) | continuous, ~15 s | ✅ appropriate | ✅ |
 | 3 | `ems_controller.py:446` + warning banner | `electricity_price_entity` | `price_max_age_sec` (**21,720 s / 6 h + 2 min, since v2.0.4**) | time-driven schedule, changes only at tariff-tier boundaries; longest window **exactly 6 h** (06:00–12:00, `activation_rules`) | ✅ fixed — previously an exact tie (threshold == longest window) | ✅ implemented |
 | 4 | `ems_controller.py:482` (`_forecast_remaining_kwh`) | `solcast_remaining_today_entity` | `forecast_max_age_sec` (28,800 s / 8 h) | policy `EVERY_TIME_INTERVAL` (5-min write cadence), but the **value** only moves while the curve runs: legitimately flat for **5 h 50 min** overnight (measured on two consecutive nights) | ❌ blind to the real failure mode: the value is carried forward from cache + clock and stays entirely plausible even with a days-dead API | ⚠️ proposal 5 detects integration failure in minutes rather than hours — data freshness stays open |
-| 5 | `ems_controller.py:460` (`_should_grid_charge`, tomorrow fallback) | `solcast_tomorrow_entity` | `forecast_max_age_sec` (28,800 s / 8 h) | **only on forecast fetch or date rollover** — policy `DEFAULT` | ❌ too tight — defeats the v2.0.1 grid-charge fix, **provided the branch is reached at all** (see box below: never in summer, but certainly on winter nights) | ⚠️ proposal 1 covers integration failure only, not data freshness |
-| 6 | `ems_controller.py:564` (warning banner) | `solcast_today_entity` | `forecast_max_age_sec` (28,800 s / 8 h) | **only on forecast fetch or date rollover** — policy `DEFAULT`; confirmed live as the cause of the reported false alarm (9 h 43 min) | ❌ too tight | ⚠️ same — false alarm fixed, data freshness open |
+| 5 | `ems_controller.py:460` (`_should_grid_charge`, tomorrow fallback) | `solcast_tomorrow_entity` | `forecast_max_age_sec` (28,800 s / 8 h) | **only on forecast fetch or date rollover** — policy `DEFAULT` | ✅ fixed — date check instead of `forecast_max_age_sec` (v2.0.4); the v2.0.1 grid-charge fix now applies at night again | ⚠️ integration failure solved, data freshness still open (proposal 4) |
+| 6 | `ems_controller.py:564` (warning banner) | `solcast_today_entity` | `forecast_max_age_sec` (28,800 s / 8 h) | **only on forecast fetch or date rollover** — policy `DEFAULT`; confirmed live as the cause of the reported false alarm (9 h 43 min) | ✅ fixed — date check instead of `forecast_max_age_sec` (v2.0.4) | ⚠️ integration failure solved, data freshness still open (proposal 4) |
 | 7 | Generic `required` list (warning banner) | `pv_power`, `battery_power`, `grid_power`, `load_power` | `sensor_max_age_sec` (300 s) | continuous | ✅ appropriate | ✅ |
 
 Legend for the last column: ✅ = both failure modes (connection dead / data outdated)
@@ -234,7 +234,19 @@ threshold merely postpones the problem.
 
 ## Improvement proposals
 
-### 1. Daily forecasts: check the date, not the age (recommended)
+### 1. Daily forecasts: check the date, not the age ✅
+
+!!! success "Implemented in v2.0.4"
+    `HAWebSocketClient.is_stale_daily(entity_id, grace_sec)` asks "was it written
+    today?" instead of "how old is it?". Used at both sites: the tomorrow fallback
+    in `_should_grid_charge` (#5) and the warning banner (#6, which now also covers
+    `solcast_tomorrow_entity`). The grace period `DAILY_VALUE_GRACE_SEC = 900`
+    covers the minutes after midnight in which Solcast has not rewritten yet.
+
+    The comparison runs in **local** time on purpose: the source rolls the day over
+    in the installation's timezone while `_parse_ts` stores UTC. Under CEST a UTC
+    comparison would be wrong every night between 22:00 and 00:00 UTC.
+
 
 Instead of asking "*how old* is the timestamp?", ask the semantically correct question:
 **"Is the timestamp from today?"**

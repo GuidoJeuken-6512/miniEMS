@@ -48,6 +48,27 @@
   runs backwards (firmware update, device swap, Modbus glitch) is re-anchored
   and logged as a warning rather than producing a negative delta.
 
+- **The daily solar forecasts were flagged stale every single day.**
+  `solcast_today_entity` and `solcast_tomorrow_entity` were checked against
+  `forecast_max_age_sec` (8h) — a threshold tuned for the fast-moving
+  "remaining today" sensor. But the daily totals are written only on a
+  forecast fetch or at the date rollover, so they crossed 8h on any day
+  Solcast fetched early. Measured live: 9h43min old at 18:14 UTC.
+
+  Worse than the false banner, `solcast_tomorrow_entity` gates the v2.0.1
+  grid-charge fallback ("tomorrow's sun will refill the battery, don't buy
+  grid energy tonight"). Counted as stale, that fallback silently switched
+  itself off for the entire dark charging window, every night.
+
+  Both now use `HAWebSocketClient.is_stale_daily()`, which asks *was it
+  written today?* instead of *how old is it?* — exact for a value the source
+  rewrites at every date rollover, where no age threshold can be right (the
+  same forecast is fresh at 09:00 and still correct at 23:00). The comparison
+  runs in local time, since the source rolls the day over in the
+  installation's timezone while timestamps are stored as UTC.
+  `DAILY_VALUE_GRACE_SEC` (15 min) covers the minutes after midnight before
+  the source has rewritten.
+
 ### Improvements
 
 - **The tick log now shows a pending mode change.** A debounced transition

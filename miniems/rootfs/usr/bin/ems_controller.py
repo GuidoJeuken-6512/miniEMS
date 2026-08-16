@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from battery_model import BatteryModel
 from const import (
+    DAILY_VALUE_GRACE_SEC,
     FORECAST_MAX_AGE_SEC,
     PRICE_MAX_AGE_SEC,
     SENSOR_MAX_AGE_SEC,
@@ -482,7 +483,13 @@ class EMSController:
             # tomorrow: if tomorrow's forecast alone can refill the battery,
             # there is no need to buy grid energy tonight.
             tomorrow = self._solcast.tomorrow_kwh if self._solcast else None
-            tomorrow_stale = self._is_stale(cfg.solcast_tomorrow_entity, cfg.forecast_max_age_sec)
+            # Date check, not age check: tomorrow's forecast total is written
+            # once per day, so under the old forecast_max_age_sec (8h) it counted
+            # as stale from ~8h after the last Solcast fetch onwards – i.e. for
+            # the whole dark charging window, every night. That silently disabled
+            # this very fallback, which exists to avoid buying grid energy that
+            # tomorrow's sun would have supplied.
+            tomorrow_stale = self._is_stale_daily(cfg.solcast_tomorrow_entity)
             if tomorrow is not None and tomorrow >= 0 and not tomorrow_stale:
                 if bat_kwh_free <= tomorrow * cfg.pv_charge_margin_factor + cfg.grid_charge_min_free_kwh:
                     return False   # tomorrow's PV will refill it – skip grid charging
@@ -515,6 +522,12 @@ class EMSController:
         if not entity_id:
             return True
         return self._ws.is_stale(entity_id, max_age_sec)
+
+    def _is_stale_daily(self, entity_id: str) -> bool:
+        """Staleness for a once-per-day value – asks for the date, not the age."""
+        if not entity_id:
+            return True
+        return self._ws.is_stale_daily(entity_id, DAILY_VALUE_GRACE_SEC)
 
     # ------------------------------------------------------------------
 
@@ -593,9 +606,6 @@ class EMSController:
             required.append(
                 (cfg.solcast_remaining_today_entity, "Solcast remaining today", FORECAST_MAX_AGE_SEC)
             )
-        if cfg.solcast_today_entity:
-            required.append((cfg.solcast_today_entity, "Solcast today", FORECAST_MAX_AGE_SEC))
-
         for entity, label, max_age in required:
             if not entity:
                 warnings.append(f"Config missing: {label} entity not set")
@@ -607,6 +617,21 @@ class EMSController:
                     warnings.append(
                         f"Sensor stale: {label} – last update {age / 3600:.1f} h ago ({entity})"
                     )
+
+        # Once-per-day values are checked by date, not by age: the same daily
+        # forecast total is fresh in the morning and still correct at night, so
+        # every age threshold is wrong for one of the two. Under the previous
+        # 8h limit these were flagged stale every single day.
+        for entity, label in ((cfg.solcast_today_entity, "Solcast today"),
+                              (cfg.solcast_tomorrow_entity, "Solcast tomorrow")):
+            if not entity:
+                continue
+            if ws.get_state_value(entity) is None:
+                warnings.append(f"Sensor unavailable: {label} ({entity})")
+            elif self._is_stale_daily(entity):
+                warnings.append(
+                    f"Sensor stale: {label} – no update today ({entity})"
+                )
 
         # Inverter service calls that Home Assistant rejected outright
         if self._inverter is not None and self._inverter.write_errors > 0:

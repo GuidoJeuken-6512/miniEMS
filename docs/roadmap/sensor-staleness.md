@@ -12,7 +12,7 @@ revision_date: 2026-08-15
 
     | Vorschlag | Stand |
     |---|---|
-    | 1 — Datums-Prüfung für Tagesprognosen | offen |
+    | 1 — Datums-Prüfung für Tagesprognosen | **umgesetzt in v2.0.4** |
     | 2 — `unavailable` für Hardware | bereits vorhanden, nichts zu tun |
     | 3 — Preis-Marge 6 h + 2 min | **umgesetzt in v2.0.4** |
     | 4 — Datenfrische von Solcast | offen |
@@ -157,8 +157,8 @@ Es sind **zwei orthogonale Fehlerfälle**, die die heutige Altersprüfung zusamm
 | 2 | `ems_controller.py:376-377` (`_decide`, PV-Überschuss-Vorbedingung) | `pv_power_entity`, `load_power_entity` | `sensor_max_age_sec` (300 s) | kontinuierlich, ~15-s-Takt | ✅ passend | ✅ |
 | 3 | `ems_controller.py:446` + Warnbanner | `electricity_price_entity` | `price_max_age_sec` (**21 720 s / 6 h + 2 min, seit v2.0.4**) | zeitgesteuerter Fahrplan, ändert sich nur an Tarifstufengrenzen; längstes Fenster **exakt 6 h** (06–12 Uhr, `activation_rules`) | ✅ behoben — vorher Punktlandung (Schwelle == längstes Fenster) | ✅ umgesetzt |
 | 4 | `ems_controller.py:482` (`_forecast_remaining_kwh`) | `solcast_remaining_today_entity` | `forecast_max_age_sec` (28 800 s / 8 h) | Policy `EVERY_TIME_INTERVAL` (5-min-Schreibtakt), aber **Wertänderung** nur, solange die Kurve läuft: nachts legitim **5 h 50 min** still (zwei Nächte in Folge gemessen) | ❌ blind für den realen Fehlerfall: Der Wert wird aus Cache + Uhrzeit fortgeschrieben und bleibt auch bei tagelang toter API vollständig plausibel | ⚠️ Vorschlag 5 erkennt den Integrationsausfall in Minuten statt Stunden — Datenfrische bleibt offen |
-| 5 | `ems_controller.py:460` (`_should_grid_charge`, Tomorrow-Fallback) | `solcast_tomorrow_entity` | `forecast_max_age_sec` (28 800 s / 8 h) | **nur bei Prognose-Abruf oder Datumswechsel** — Policy `DEFAULT` | ❌ zu knapp — hebelt den Netzlade-Fix aus v2.0.1 aus, **sofern der Zweig erreicht wird** (siehe Kasten unten: im Sommer nie, im Winter nachts sehr wohl) | ⚠️ Vorschlag 1 löst nur den Integrationsausfall, nicht die Datenfrische |
-| 6 | `ems_controller.py:564` (Warnbanner) | `solcast_today_entity` | `forecast_max_age_sec` (28 800 s / 8 h) | **nur bei Prognose-Abruf oder Datumswechsel** — Policy `DEFAULT`; live als Ursache des Fehlalarms bestätigt (9 h 43 min) | ❌ zu knapp | ⚠️ dito — Fehlalarm behoben, Datenfrische offen |
+| 5 | `ems_controller.py:460` (`_should_grid_charge`, Tomorrow-Fallback) | `solcast_tomorrow_entity` | `forecast_max_age_sec` (28 800 s / 8 h) | **nur bei Prognose-Abruf oder Datumswechsel** — Policy `DEFAULT` | ✅ behoben — Datums-Prüfung statt `forecast_max_age_sec` (v2.0.4); der Netzlade-Fix aus v2.0.1 greift damit auch nachts wieder | ⚠️ Integrationsausfall gelöst, Datenfrische bleibt offen (Vorschlag 4) |
+| 6 | `ems_controller.py:564` (Warnbanner) | `solcast_today_entity` | `forecast_max_age_sec` (28 800 s / 8 h) | **nur bei Prognose-Abruf oder Datumswechsel** — Policy `DEFAULT`; live als Ursache des Fehlalarms bestätigt (9 h 43 min) | ✅ behoben — Datums-Prüfung statt `forecast_max_age_sec` (v2.0.4) | ⚠️ Integrationsausfall gelöst, Datenfrische bleibt offen (Vorschlag 4) |
 | 7 | Generische `required`-Liste (Warnbanner) | `pv_power`, `battery_power`, `grid_power`, `load_power` | `sensor_max_age_sec` (300 s) | kontinuierlich | ✅ passend | ✅ |
 
 Legende der letzten Spalte: ✅ = beide Fehlerarten (Verbindung tot / Daten veraltet)
@@ -241,7 +241,20 @@ das Problem nur.
 
 ## Verbesserungsvorschlag
 
-### 1. Tagesprognosen: Datums-Prüfung statt Alters-Prüfung (empfohlen)
+### 1. Tagesprognosen: Datums-Prüfung statt Alters-Prüfung ✅
+
+!!! success "Umgesetzt in v2.0.4"
+    `HAWebSocketClient.is_stale_daily(entity_id, grace_sec)` fragt „wurde heute
+    geschrieben?" statt „wie alt?". Verwendet an beiden Stellen: dem
+    Tomorrow-Fallback in `_should_grid_charge` (#5) und dem Warnbanner (#6, jetzt
+    zusätzlich auch für `solcast_tomorrow_entity`). Karenz
+    `DAILY_VALUE_GRACE_SEC = 900` deckt die Minuten nach Mitternacht ab, in denen
+    Solcast noch nicht neu geschrieben hat.
+
+    Der Vergleich läuft bewusst in **lokaler** Zeit: Die Quelle rollt den Tag in
+    der Zeitzone der Installation um, `_parse_ts` speichert aber UTC. Unter CEST
+    wäre ein UTC-Vergleich jede Nacht zwischen 22:00 und 00:00 UTC falsch.
+
 
 Statt zu fragen „*wie alt* ist der Zeitstempel?" die fachlich richtige Frage stellen:
 **„Stammt der Zeitstempel vom heutigen Tag?"**
