@@ -53,15 +53,14 @@ class HAWebSocketClient:
         """Wait until initial states have been loaded from HA."""
         await self._ready.wait()
 
-    def get_state_value(self, entity_id: str, max_age_sec: float | None = None) -> float | None:
+    def get_state_value(self, entity_id: str) -> float | None:
         """Return the numeric state of an entity, or None if unavailable.
 
-        When max_age_sec is given, a value HA has not updated within that
-        window is treated as unavailable.  Callers that must keep counting
-        regardless (e.g. energy accounting) simply omit the argument.
+        Had an optional max_age_sec parameter that no call site ever passed – it
+        suggested a staleness check that never happened. Staleness is decided
+        explicitly by the caller via is_stale() / is_stale_daily(), because which
+        notion of "too old" applies differs per entity.
         """
-        if max_age_sec is not None and self.is_stale(entity_id, max_age_sec):
-            return None
         state = self._state_cache.get(entity_id, {})
         raw = state.get("state")
         if raw is None or raw in ("unavailable", "unknown", ""):

@@ -39,7 +39,12 @@ class CostOptimizer:
         # Latest load_total from inverter daily sensor (for bilanz formula)
         # Lifetime-counter anchors: (key, day) → the counter reading at *our*
         # local midnight. See _delta_from_total() for why this exists.
-        self._total_anchor: dict[tuple[str, date], float] = {}
+        # key -> (day, counter reading at our local midnight). One entry per
+        # counter: the stored day distinguishes a rollover from a same-day
+        # lookup, so neither a scan nor pruning is needed.
+        self._total_anchor: dict[str, tuple[date, float]] = {}
+        # key -> consecutive ticks seen below the anchor (glitch vs. real reset)
+        self._anchor_drops: dict[str, int] = {}
         # (day, value) memo for the history-derived discharge tariff
         self._discharge_tariff_cache: tuple[date, float | None] | None = None
         # Discharge-weighted price accumulators: Σ(kWh) and Σ(kWh × price)
@@ -101,7 +106,7 @@ class CostOptimizer:
         ):
             anchor = row.get(column)
             if anchor is not None:
-                self._total_anchor[(key, today)] = anchor
+                self._total_anchor[key] = (today, anchor)
 
         # Downtime gap detection
         last_ts_str = row.get("last_flush_ts")
@@ -160,46 +165,65 @@ class CostOptimizer:
         if total is None:
             return None
 
-        anchor = self._total_anchor.get((key, day))
-        if anchor is None:
-            if any(k == key and d < day for (k, d) in self._total_anchor):
-                # We were already running on an earlier day, so this call is the
-                # day rollover itself. Everything from here belongs to the new
-                # day: the anchor is simply the current reading. Deliberately NOT
-                # bootstrapped from the daily sensor – during the inverter's lag
-                # window (measured 4min54s) that sensor still carries yesterday's
-                # closing total, and using it would import yesterday's kWh into
-                # today. That is exactly the defect this whole mechanism removes.
-                anchor = total
-            else:
-                # Cold start: no prior day known, so miniEMS may be starting up
-                # mid-day. The inverter's daily counter says how much of the
-                # lifetime total already belongs to today, which makes the anchor
-                # exact instead of losing everything before startup.
-                anchor = total - (today_ha or 0.0)
-            self._total_anchor[(key, day)] = anchor
-            # Keep only today and yesterday – the rollover check needs one prior
-            # day, nothing older.
-            for stale in [k for k in self._total_anchor
-                          if k[0] == key and (day - k[1]).days > 1]:
-                del self._total_anchor[stale]
-            _LOGGER.info(
-                "%s: anchored today at %.1f kWh (lifetime=%.1f, daily sensor=%s)",
-                label, anchor, total,
-                f"{today_ha:.1f}" if today_ha is not None else "unavailable",
-            )
-        elif total < anchor - 0.001:
-            # A lifetime counter must never run backwards. If it does, this is a
-            # reportable event (firmware update, device swap, Modbus glitch),
-            # not a value to compute with.
-            _LOGGER.warning(
-                "%s: lifetime counter went backwards (%.1f < anchor %.1f) – re-anchoring",
-                label, total, anchor,
-            )
+        known = self._total_anchor.get(key)
+
+        if known is None:
+            # Cold start: no prior day known, so miniEMS may be starting up
+            # mid-day. The inverter's daily counter says how much of the lifetime
+            # total already belongs to today, which makes the anchor exact
+            # instead of losing everything before startup.
             anchor = total - (today_ha or 0.0)
-            self._total_anchor[(key, day)] = anchor
+            self._anchor_set(key, day, anchor, total, today_ha, label)
+        elif known[0] != day:
+            # Day rollover, and we were already running. Everything from here
+            # belongs to the new day, so the anchor is simply the current
+            # reading. Deliberately NOT bootstrapped from the daily sensor –
+            # during the inverter's lag window (measured 4min54s) that sensor
+            # still carries yesterday's closing total, and using it would import
+            # yesterday's kWh into today. That is the defect this removes.
+            anchor = total
+            self._anchor_set(key, day, anchor, total, today_ha, label)
+        else:
+            anchor = known[1]
+            if total < anchor - 0.001:
+                # A lifetime counter must never run backwards. Distinguishing a
+                # real reset (firmware update, device swap) from a single bad
+                # Modbus read matters a great deal: re-anchoring on a glitch and
+                # then seeing the counter recover would turn the daily figure
+                # into the difference between the two – thousands of kWh – and
+                # that wrong anchor would persist for the rest of the day.
+                # Requiring the drop to survive a second consecutive tick costs
+                # one tick of accuracy and removes that failure mode; the
+                # counters are not spike-validated the way the power sensors are.
+                self._anchor_drops[key] = self._anchor_drops.get(key, 0) + 1
+                if self._anchor_drops[key] < 2:
+                    _LOGGER.warning(
+                        "%s: lifetime counter dropped (%.1f < anchor %.1f) – ignoring "
+                        "this reading, re-anchoring only if it persists", label, total, anchor,
+                    )
+                    return None
+                _LOGGER.warning(
+                    "%s: lifetime counter stayed below the anchor (%.1f < %.1f) – "
+                    "treating it as a genuine reset and re-anchoring", label, total, anchor,
+                )
+                anchor = total - (today_ha or 0.0)
+                self._anchor_set(key, day, anchor, total, today_ha, label)
+            else:
+                self._anchor_drops.pop(key, None)
 
         return max(0.0, total - anchor)
+
+    def _anchor_set(
+        self, key: str, day: date, anchor: float,
+        total: float, today_ha: float | None, label: str,
+    ) -> None:
+        self._total_anchor[key] = (day, anchor)
+        self._anchor_drops.pop(key, None)
+        _LOGGER.info(
+            "%s: anchored today at %.1f kWh (lifetime=%.1f, daily sensor=%s)",
+            label, anchor, total,
+            f"{today_ha:.1f}" if today_ha is not None else "unavailable",
+        )
 
     def record_tick(
         self,
@@ -406,9 +430,9 @@ class CostOptimizer:
             ("feed_in", "anchor_feed_in_kwh"),
             ("load_total", "anchor_load_total_kwh"),
         ):
-            anchor = self._total_anchor.get((key, today))
-            if anchor is not None:
-                fields[column] = round(anchor, 6)
+            known = self._total_anchor.get(key)
+            if known is not None and known[0] == today:
+                fields[column] = round(known[1], 6)
         if avg_temp is not None:
             fields["avg_outdoor_temp_c"] = round(avg_temp, 2)
         await self._store.upsert_day(today, fields)
