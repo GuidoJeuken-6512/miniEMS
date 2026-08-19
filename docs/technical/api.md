@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-04-07
+revision_date: 2026-08-19
 ---
 
 # API-Referenz
@@ -103,6 +103,7 @@ Antwort: `application/json`
   "predicted_load_kwh": 10.5,
   "predicted_pv_kwh": 8.3,
   "prediction_source": "historical",
+  "remaining_load_kwh": 3.2,
 
   "warnings": [],
   "log": [

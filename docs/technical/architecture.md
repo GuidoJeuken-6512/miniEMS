@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-15
+revision_date: 2026-08-19
 ---
 
 # Architektur
@@ -120,8 +120,9 @@ Leistungswerte werden für die Kosten-/Energiebuchhaltung (nicht für die Modusl
 ablehnen wenn: |aktuell − letzter_akzeptierter_Wert| > 500 W  AND  |Δ| / letzter_akzeptierter_Wert > 50%
 ```
 
-Abgelehnte Werte geben `None` zurück; `CostOptimizer` überspringt den Tick für diesen Sensor.
-Jede Entity wird unabhängig verfolgt.
+Abgelehnte Werte geben `None` zurück; `CostOptimizer` setzt für diesen Tick **0 W** ein, nicht den letzten akzeptierten Wert. Jede Entity wird unabhängig verfolgt.
+
+Seit v2.0.6 aktualisiert eine Ablehnung allein die Vergleichsbasis nicht (ein einzelner Ausreißer soll sie nicht sofort verderben) — aber zwei **aufeinanderfolgende** abgelehnte Werte, die zueinander passen, gelten als echte, dauerhafte Verschiebung und werden übernommen. Ohne das blieb die Basis nach einer echten Verschiebung für immer eingefroren und lehnte jeden künftigen echten Messwert ab, bis das Add-on neu startete — live beobachtet über 2,5 Stunden. Details: [Berechnungen](calculations.md).
 
 ## Ausfallzeiten-Erkennung
 

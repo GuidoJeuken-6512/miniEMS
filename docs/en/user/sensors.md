@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-04-24
+revision_date: 2026-08-19
 ---
 
 # Home Assistant Sensors
@@ -143,6 +143,7 @@ Aggregated from the `daily_stats` database table.
 |---|---|---|
 | `sensor.miniems_predicted_load_kwh` | kWh | Predicted daily house load (temperature-matched historical data) |
 | `sensor.miniems_predicted_pv_kwh` | kWh | Internal PV yield estimate (fallback when Solcast unavailable) |
+| `sensor.miniems_remaining_load_kwh` | kWh | Estimated remaining house consumption until day's end — influences when the grid-friendly export hold ends |
 
 ---
 

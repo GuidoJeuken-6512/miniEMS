@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-04-07
+revision_date: 2026-08-19
 ---
 
 # HA-Sensor-Referenz
@@ -160,6 +160,7 @@ Modell (PV). Einmal pro Tag oder bei Bedingungsänderungen aktualisiert.
 |---|---|---|---|---|---|
 | `sensor.miniems_predicted_load_kwh` | `predicted_load_kwh` | kWh | `energy` | `measurement` | Vorhergesagter täglicher Hausverbrauch |
 | `sensor.miniems_predicted_pv_kwh` | `predicted_pv_kwh` | kWh | `energy` | `measurement` | Interne PV-Ertragsschätzung (Fallback wenn Solcast nicht verfügbar) |
+| `sensor.miniems_remaining_load_kwh` | `remaining_load_kwh` | kWh | `energy` | `measurement` | Seit v2.0.5: geschätzter Restverbrauch des Hauses bis Tagesende (Median der letzten 14 Tage minus bisher gemessen) — fließt in den Export-Halt ein, s. [Berechnungen](calculations.md) |
 
 ### Vorhersagequelle
 

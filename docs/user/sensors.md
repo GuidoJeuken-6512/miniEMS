@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-04-24
+revision_date: 2026-08-19
 ---
 
 # Home-Assistant-Sensoren
@@ -143,6 +143,7 @@ Aggregiert aus der Datenbanktabelle `daily_stats`.
 |---|---|---|
 | `sensor.miniems_predicted_load_kwh` | kWh | Vorhergesagte tägliche Hauslast (temperaturabgeglichene historische Daten) |
 | `sensor.miniems_predicted_pv_kwh` | kWh | Interne PV-Ertragsschätzung (Fallback wenn Solcast nicht verfügbar) |
+| `sensor.miniems_remaining_load_kwh` | kWh | Geschätzter Restverbrauch des Hauses bis Tagesende — beeinflusst, wann der netzdienliche Export-Halt endet |
 
 ---
 

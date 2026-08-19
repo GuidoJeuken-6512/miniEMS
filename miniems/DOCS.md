@@ -95,7 +95,7 @@ wirken sofort.
 | `Sensor stale: … last update X h ago` | Wert seit zu langer Zeit unverändert |
 | `Sensor stale: … no update today` | Tagesprognose wurde heute nicht geschrieben — Solcast-Integration steht |
 | `Solcast data stale: last successful API fetch X h ago` | Die Prognose kommt aus dem Cache, der Abruf schlägt fehl. Die Sensoren sehen dabei gesund aus, die Zahlen sind aber alt |
-| `Inverter control: N failed write(s)` | Home Assistant hat den Schreibbefehl abgelehnt |
+| `Inverter control: N failed write(s)` | Home Assistant hat den Schreibbefehl abgelehnt — N zählt nur die letzte Stunde, seit v2.0.6 |
 | `Inverter control: N unconfirmed write(s)` | Befehl abgesetzt, der Wechselrichter meldet den neuen Wert noch nicht zurück. Wird jeden Tick erneut versucht |
 | `Data gap detected: …` | Das Add-on stand länger als zwei Zyklen; Energie aus dieser Zeit fehlt in der Tick-Rechnung |
 
