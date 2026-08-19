@@ -1,9 +1,10 @@
 """Consumption and PV yield prediction model for miniEMS.
 
 Uses SQLite history + HA weather forecast to predict:
-  - predicted_load_kwh  – expected daily energy consumption
-  - predicted_pv_kwh    – expected PV yield for the next day
-  - should_grid_charge  – whether grid charging is recommended
+  - predicted_load_kwh  – expected daily energy consumption (dashboard only)
+  - predicted_pv_kwh    – expected PV yield for the next day (dashboard only)
+  - remaining_load_kwh  – expected *remaining* consumption for the rest of
+                          today, feeds EMSController._should_hold_pv_charge()
 
 Temperature-based matching: find historical days with similar night-temp and
 use their median load as the prediction.  Falls back to explicit temperature
@@ -16,6 +17,7 @@ Prediction source labels:
 import logging
 import statistics
 from dataclasses import dataclass
+from datetime import date
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -25,16 +27,16 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-_LOOKBACK_DAYS = 60   # history window for temperature matching
-_TEMP_WINDOW = 4.0    # ±°C tolerance for "similar" day
-_MIN_SAMPLES = 3      # minimum matches before using temp-based prediction
+_LOOKBACK_DAYS = 60          # history window for temperature matching
+_TEMP_WINDOW = 4.0           # ±°C tolerance for "similar" day
+_MIN_SAMPLES = 3             # minimum matches before using temp-based prediction
+_REMAINING_LOAD_LOOKBACK_DAYS = 14   # window for the same-day remaining-load median
 
 
 @dataclass
 class Prediction:
     predicted_load_kwh: float
     predicted_pv_kwh: float
-    should_grid_charge: bool
     confidence: str          # "high" | "low" | "none"
     source: str              # "historical" | "fallback"
     temp_today_c: float | None = None
@@ -63,19 +65,6 @@ class ConsumptionModel:
         predicted_load, pred_source = await self._predict_load(forecast)
         predicted_pv = await self._predict_pv(forecast)
 
-        # Usable battery energy right now
-        cfg = self._cfg
-        if bat_soc is not None:
-            usable_kwh = cfg.battery_capacity_kwh * max(0.0, bat_soc - cfg.battery_min_soc) / 100
-        else:
-            usable_kwh = 0.0
-
-        # Recommend grid charge if battery + expected PV cannot cover expected load
-        should_charge = (
-            predicted_load > 0
-            and (usable_kwh + predicted_pv) < predicted_load
-        )
-
         if predicted_load == 0:
             confidence = "none"
         elif forecast and forecast.avg_night_temp_c is not None:
@@ -84,19 +73,46 @@ class ConsumptionModel:
             confidence = "low"
 
         _LOGGER.debug(
-            "Prediction: load=%.2f kWh (%s), pv=%.2f kWh, usable=%.2f kWh → grid_charge=%s (%s)",
-            predicted_load, pred_source, predicted_pv, usable_kwh, should_charge, confidence,
+            "Prediction: load=%.2f kWh (%s), pv=%.2f kWh (%s)",
+            predicted_load, pred_source, predicted_pv, confidence,
         )
 
         return Prediction(
             predicted_load_kwh=round(predicted_load, 2),
             predicted_pv_kwh=round(predicted_pv, 2),
-            should_grid_charge=should_charge,
             confidence=confidence,
             source=pred_source,
             temp_today_c=forecast.temp_today_c if forecast else None,
             temp_tomorrow_c=forecast.temp_tomorrow_c if forecast else None,
         )
+
+    async def remaining_load_kwh(self, load_so_far_kwh: float) -> float | None:
+        """Estimate today's still-to-come household consumption.
+
+        Median of `load_total_kwh` from the last _REMAINING_LOAD_LOOKBACK_DAYS
+        *complete* days (today excluded – it is still in progress), minus what
+        has already been measured today.
+
+        Deliberately not temperature-matched like _predict_load(): that path
+        needs a configured weather forecast and ≥3 similar days, and there is
+        no evidence it would beat a plain multi-day median for this narrower
+        same-day question – it would just add a weather dependency for no
+        proven gain. The median (rather than a single "yesterday" value)
+        still smooths out one atypical prior day.
+
+        Returns None when no historical day exists yet (fresh install) –
+        callers must treat that as "unknown", not as zero remaining load.
+        """
+        days = await self._store.query_recent_days(_REMAINING_LOAD_LOOKBACK_DAYS)
+        today_str = str(date.today())
+        totals = [
+            d["load_total_kwh"] for d in days
+            if d["date"] != today_str and (d.get("load_total_kwh") or 0) > 0
+        ]
+        if not totals:
+            return None
+        predicted_total = statistics.median(totals)
+        return max(0.0, predicted_total - load_so_far_kwh)
 
     # ------------------------------------------------------------------
 

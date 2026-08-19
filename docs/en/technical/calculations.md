@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-15
+revision_date: 2026-08-19
 ---
 
 # Calculations
@@ -45,7 +45,8 @@ Optional strategy (`pv_export_priority_enabled`, off by default): exports PV sur
 4. bat_kwh_free > 0.05 kWh                          (there's practically still room)
 5. solcast_remaining_today_kwh available AND not stale (forecast_max_age_sec)
 
-target    = bat_kwh_free × pv_charge_margin_factor          # default factor 1.2
+need      = bat_kwh_free + remaining_load_kwh                # see below, 0 when (still) unknown
+target    = need × pv_charge_margin_factor                   # default factor 1.2
 hyst      = clamp(pv_charge_hysteresis_frac, 0.0, 0.5)       # default 0.10 (±10 %)
 threshold = target × (1 − hyst)   if currently EXPORT_SURPLUS   # easier to stay in the hold
           = target × (1 + hyst)   otherwise                     # harder to enter it
@@ -56,6 +57,19 @@ hold = solcast_remaining_today_kwh > threshold
 The threshold is deliberately asymmetric (hysteresis): **entering** the export hold requires the remaining forecast to be clearly above the need; **leaving** it only requires a smaller drop. This keeps the mode from flapping around the trigger point.
 
 While the export hold is active, `InverterController.apply_mode()` sets the charge current to `export_hold_charge_current_a` (default 0 A = charging blocked entirely) and leaves the discharge current at maximum, so a passing cloud is still covered from the battery instead of by importing from the grid.
+
+!!! danger "Since v2.0.5: household consumption counts toward the need"
+    Through v2.0.4, `need` was simply `bat_kwh_free` — the remaining forecast was
+    checked only against the battery's own need, never against what the house
+    would still consume before day's end. But PV always covers the house first;
+    part of the "remaining" forecast was never reachable by the battery to begin
+    with. Observed live on 2026-08-19: the export hold held from sunrise (06:11)
+    to 10:55, SoC sat flat at 71–72 % the entire time, and the hold only ended
+    because a Solcast API refresh happened to push the forecast below the
+    (wrong) threshold — not because the need estimate had caught up. The battery
+    topped out at 89 % that day instead of its ~95 % (`battery_max_soc`).
+    `remaining_load_kwh` (`ConsumptionModel.remaining_load_kwh()`, section
+    "Consumption & PV Prediction" below) closes this gap.
 
 ### Grid-Charge Decision (`_should_grid_charge`, mode `GRID_CHARGING`)
 
@@ -511,13 +525,14 @@ columns, queried via `store.query_month()`.
 Computed once per EMS tick in `consumption_model.py`.
 Data source: SQLite daily history (`store.py`) + optional HA weather forecast.
 
-!!! info "Dashboard display only, no control effect"
-    Both prediction values (`predicted_load_kwh`, `predicted_pv_kwh`) are computed
-    regardless of whether Solcast is configured, and are used purely for the
-    dashboard display. The actual grid-charge and export decisions rely
-    exclusively on the Solcast remaining-today forecast (see the "Grid-Charge
-    Decision" section further up this page) — this model no longer feeds into
-    that logic at all.
+!!! info "predicted_load_kwh / predicted_pv_kwh: dashboard display only"
+    Both whole-day prediction values are computed regardless of whether Solcast
+    is configured, and are used purely for the dashboard display. The
+    grid-charge decision relies exclusively on the Solcast remaining-today
+    forecast (see the "Grid-Charge Decision" section further up this page) —
+    this model does not feed into it. The export hold, however, has used a
+    third, separately computed value from the same module since v2.0.5:
+    `remaining_load_kwh`, see below.
 
 ### Predicted Load (`predicted_load_kwh`)
 
@@ -572,6 +587,24 @@ decl        = 23.45° × sin(360° × (284 + day_of_year) / 365)
 cos_ha      = −tan(lat) × tan(decl)   [clamped to −1 … 1]
 daylight_h  = 2 × arccos(cos_ha) / 15
 ```
+
+### Estimated Remaining Load Today (`remaining_load_kwh`, since v2.0.5)
+
+Unlike the two values above, **this one feeds a decision** — see "Grid-Friendly Export Hold" further up this page. No temperature matching, no weather forecast needed: a plain median of the last 14 complete days, minus what has already been measured today.
+
+```
+days = query_recent_days(14), today's (still in progress) row excluded
+If no days available:
+  remaining_load_kwh = None                    # unknown, no zero-effect on the export hold
+Else:
+  predicted_total     = median(load_total_kwh of these days)
+  remaining_load_kwh  = max(0, predicted_total − today_load_total_kwh_so_far)
+```
+
+`None` degrades the export hold to its pre-v2.0.5 behaviour (`need = bat_kwh_free`) — a fresh installation with no history is not blocked, it simply behaves as before.
+
+!!! note "Why no temperature matching like predicted_load_kwh"
+    The median-over-several-days approach in `_predict_load()` reliably smooths out a single atypical comparison day — `remaining_load_kwh` keeps that. Temperature matching itself has no demonstrated benefit for this narrower question ("what will the house still consume today"), but it does add a dependency on a configured weather forecast, and it fails early in an installation's life (< 3 similar days) onto fallback constants that are visibly oversized for this installation (see above).
 
 ### Weather Data Cache
 

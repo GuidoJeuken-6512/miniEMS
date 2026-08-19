@@ -61,6 +61,7 @@
       "year_load_cost": { "name": "Year Load Cost" },
       "predicted_load": { "name": "Predicted Load" },
       "predicted_pv_yield": { "name": "Predicted PV Yield" },
+      "remaining_load": { "name": "Estimated Remaining Load Today" },
       "battery_free_to_charge": { "name": "Battery Free to Charge" },
       "battery_useable": { "name": "Battery Useable" },
       "battery_capacity": { "name": "Battery Capacity" },

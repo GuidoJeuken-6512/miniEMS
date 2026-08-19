@@ -1,5 +1,32 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.5
+
+### Bug Fixes
+
+- **The grid-friendly export hold ("Export Surplus") could survive nearly
+  all morning while the battery sat flat.** `_should_hold_pv_charge()`
+  compared the Solcast remaining-today forecast only against the battery's
+  free capacity, never against what the house itself would still consume
+  before day's end – but PV covers the house first, so part of any
+  "remaining" forecast was never reachable by the battery in the first
+  place. Measured live on the production system on 2026-08-19: the hold
+  held from sunrise (06:11) to 10:55 with SoC flat at 71–72%, released only
+  because a live Solcast API refresh happened to cut the forecast, and the
+  battery topped out at 89% instead of its ~95% max that day.
+  `_should_hold_pv_charge()` now compares the forecast against
+  `bat_kwh_free + remaining_load_kwh`, where the new
+  `ConsumptionModel.remaining_load_kwh()` is a plain median of the last 14
+  complete days' total load minus what has already been measured today –
+  `None` (no history yet) degrades to the previous battery-only comparison.
+
+### Removed
+
+- `ConsumptionModel`/`Prediction.should_grid_charge` – computed every tick
+  since the netzdienlich PV strategy but never read anywhere (the grid-charge
+  decision has used the Solcast forecast exclusively since then, see docs).
+  `predicted_load_kwh`/`predicted_pv_kwh` stay as dashboard-only values.
+
 ## 2.0.4
 
 ### Bug Fixes

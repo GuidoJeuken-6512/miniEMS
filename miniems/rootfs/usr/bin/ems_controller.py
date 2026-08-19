@@ -59,6 +59,11 @@ class EMSController:
         self._battery_model = BatteryModel(config)
         self._mode: EMSMode = EMSMode.IDLE
         self._prediction: "Prediction | None" = None
+        # Estimated remaining household consumption for the rest of today,
+        # from ConsumptionModel.remaining_load_kwh(). None until history
+        # exists or the model is disabled – _should_hold_pv_charge() then
+        # degrades to comparing the forecast against battery need alone.
+        self._remaining_load_kwh: float | None = None
         self._last_price: float | None = None
         self._last_event_log_cleanup: date | None = None
         # Debounce state for _commit(): (proposed mode, first proposed at)
@@ -113,6 +118,11 @@ class EMSController:
         # Update prediction before mode decision so it influences GRID_CHARGING
         if self._model:
             self._prediction = await self._model.predict(bat_soc)
+            self._remaining_load_kwh = await self._model.remaining_load_kwh(
+                self._optimizer.today_load_total_kwh()
+            )
+        else:
+            self._remaining_load_kwh = None
 
         # Use today's temperature from weather forecast (provided by WeatherClient via ConsumptionModel)
         outdoor_temp = self._prediction.temp_today_c if self._prediction else None
@@ -348,6 +358,7 @@ class EMSController:
             result["prediction_source"] = self._prediction.source
             result["temp_today_c"] = self._prediction.temp_today_c
             result["temp_tomorrow_c"] = self._prediction.temp_tomorrow_c
+        result["remaining_load_kwh"] = self._remaining_load_kwh
         return result
 
     # ------------------------------------------------------------------
@@ -421,7 +432,7 @@ class EMSController:
             # must take effect immediately.
             return ModeDecision(
                 EMSMode.PV_CHARGING, reason,
-                urgent=(reason != "forecast above battery need"),
+                urgent=(reason != "forecast above battery+load need"),
             )
 
         # 4. Cheap dynamic tariff → charge from the grid.
@@ -460,17 +471,29 @@ class EMSController:
         if remaining is None:
             return False, "forecast unavailable"
 
-        # Charge once the remaining forecast has fallen to what the battery
-        # still needs. Asymmetric threshold: harder to enter the hold than to
-        # leave it, so the mode cannot flap around the trigger point.
-        target = bat_kwh_free * cfg.pv_charge_margin_factor
+        # Charge once the remaining PV forecast has fallen to what the
+        # battery still needs *plus* what the house is still expected to
+        # consume today. PV covers the house first – only the leftover ever
+        # reaches the battery – so comparing the forecast against
+        # bat_kwh_free alone overstates the spare PV and holds the export
+        # too long. Observed live: the hold survived from sunrise to 10:55
+        # while SoC sat flat, and only released because a live Solcast
+        # refresh happened to cut the forecast, not because the need
+        # estimate ever caught up with reality.
+        # self._remaining_load_kwh is None on a fresh install (no history
+        # yet) – degrades to the old battery-only comparison.
+        need = bat_kwh_free + (self._remaining_load_kwh or 0.0)
+        target = need * cfg.pv_charge_margin_factor
+
+        # Asymmetric threshold: harder to enter the hold than to leave it,
+        # so the mode cannot flap around the trigger point.
         hyst = max(0.0, min(0.5, cfg.pv_charge_hysteresis_frac))
         threshold = target * ((1.0 - hyst) if self._mode is EMSMode.EXPORT_SURPLUS
                               else (1.0 + hyst))
 
         if remaining > threshold:
-            return True, "forecast above battery need"
-        return False, "forecast below battery need"
+            return True, "forecast above battery+load need"
+        return False, "forecast below battery+load need"
 
     def _should_grid_charge(
         self, price: float | None, bat_kwh_free: float | None, now: datetime

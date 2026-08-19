@@ -278,6 +278,15 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:weather-sunny",
     ),
+    MiniEMSSensorDescription(
+        key="miniems_remaining_load_kwh",
+        translation_key="remaining_load",
+        status_key="remaining_load_kwh",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:home-clock",
+    ),
     # ── Battery computed ─────────────────────────────────────────────────────
     MiniEMSSensorDescription(
         key="miniems_battery_kwh_freetochange",

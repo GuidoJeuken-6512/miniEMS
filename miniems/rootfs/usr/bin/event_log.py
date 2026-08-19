@@ -6,7 +6,7 @@ Entries are added whenever:
   - The electricity price changes                    (entry_type="price_change")
 
 Each mode_change entry carries the new `mode` and the `reason` the decision
-logic produced for it (e.g. "time backstop", "forecast below battery need")
+logic produced for it (e.g. "time backstop", "forecast below battery+load need")
 so the frontend can explain grid-friendly PV strategy transitions, not just
 show that *something* changed.
 

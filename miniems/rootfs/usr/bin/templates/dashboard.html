@@ -205,6 +205,11 @@
             <div class="slabel">${T.predicted_pv || 'Predicted PV Yield'}</div>
             <div class="svalue">${fmt(d.predicted_pv_kwh, 2)} kWh</div>
           </div>
+          ${d.remaining_load_kwh !== null && d.remaining_load_kwh !== undefined ? `
+          <div class="savings-card">
+            <div class="slabel">${T.remaining_load || 'Remaining Load Today'}</div>
+            <div class="svalue muted">${fmt(d.remaining_load_kwh, 2)} kWh</div>
+          </div>` : ''}
           ${d.temp_today_c !== null && d.temp_today_c !== undefined ? `
           <div class="savings-card">
             <div class="slabel">${T.temp_today || 'Temp Today'}</div>

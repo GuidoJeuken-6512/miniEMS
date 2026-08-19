@@ -61,6 +61,7 @@
       "year_load_cost": { "name": "Jährliche Verbrauchskosten" },
       "predicted_load": { "name": "Prognostizierter Verbrauch" },
       "predicted_pv_yield": { "name": "Prognostizierter PV-Ertrag" },
+      "remaining_load": { "name": "Voraussichtlicher Restverbrauch heute" },
       "battery_free_to_charge": { "name": "Batterie frei zum Laden" },
       "battery_useable": { "name": "Nutzbare Batteriekapazität" },
       "battery_capacity": { "name": "Batteriekapazität" },
