@@ -8,7 +8,7 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "2.0.5"
+VERSION = "2.0.6"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
 CONFIG_SCHEMA_VERSION = 16
@@ -88,6 +88,13 @@ INVERTER_WRITE_CONFIRM_TIMEOUT_SEC = 30
 # value only needs to be generous enough to catch the common case without
 # stalling the EMS loop – it is deliberately below the tick interval budget.
 INVERTER_SERVICE_CALL_TIMEOUT_SEC = 15
+
+# Window over which InverterController.write_errors counts real (HTTP-rejected)
+# write failures for the dashboard/warning banner. A plain lifetime total never
+# clears once any failure has happened since the last add-on restart – 28
+# failures from days ago would look identical to 28 happening right now.
+# Pruned to this window on every read instead.
+INVERTER_WRITE_ERROR_WINDOW_SEC = 3600   # 1 h
 
 # ── Custom integration installer ──────────────────────────────────────────────
 from pathlib import Path

@@ -27,6 +27,7 @@ Two fields are exposed per direction:
 import asyncio
 import logging
 import time
+from collections import deque
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
@@ -36,6 +37,7 @@ from const import (
     HA_SERVICES_URL,
     INVERTER_SERVICE_CALL_TIMEOUT_SEC,
     INVERTER_WRITE_CONFIRM_TIMEOUT_SEC,
+    INVERTER_WRITE_ERROR_WINDOW_SEC,
 )
 
 if TYPE_CHECKING:
@@ -78,11 +80,27 @@ class InverterController:
         self.discharge_current_limit_a: int | None = None    # confirmed
         self.charge_current_target_a: int | None = None      # intended
         self.discharge_current_target_a: int | None = None   # intended
-        self.write_errors: int = 0
+        # Monotonic timestamps of real (HTTP-rejected) write failures, pruned
+        # to INVERTER_WRITE_ERROR_WINDOW_SEC on every read – see write_errors.
+        self._write_error_times: deque[float] = deque()
 
     @property
     def simulation(self) -> bool:
         return self._cfg.battery_control_simulation
+
+    @property
+    def write_errors(self) -> int:
+        """Count of real write failures within the last
+        INVERTER_WRITE_ERROR_WINDOW_SEC, not a lifetime total. A lifetime
+        counter never clears once any failure has occurred since the last
+        add-on restart, so the warning banner would keep alarming about
+        failures that resolved hours or days ago, indistinguishable from an
+        ongoing problem.
+        """
+        cutoff = time.monotonic() - INVERTER_WRITE_ERROR_WINDOW_SEC
+        while self._write_error_times and self._write_error_times[0] < cutoff:
+            self._write_error_times.popleft()
+        return len(self._write_error_times)
 
     @property
     def write_unconfirmed(self) -> int:
@@ -257,7 +275,7 @@ class InverterController:
         ch.sent_at = now
         if ok is False:
             # HA actively rejected the call (non-2xx) – that is a real failure.
-            self.write_errors += 1
+            self._write_error_times.append(now)
             _LOGGER.error("%s write FAILED (target=%s) – retrying next tick", label, target)
         elif ok is None:
             # No verdict: the request timed out. HA very likely applied it

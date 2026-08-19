@@ -118,6 +118,9 @@ per channel (charge current, discharge current, grid-charge switch), independent
 
 `write_unconfirmed` (0–3) is a live count of how many of the three channels are currently unconfirmed, and drops back to 0 once the real state catches up — separate from `write_errors`, which only counts outright HTTP/connection failures. Both surface as warnings in the dashboard banner.
 
+!!! danger "Since v2.0.6: write_errors only counts the recent window"
+    Through v2.0.5, `write_errors` was a lifetime counter with no reset — 28 failures from three days ago looked identical in the banner to 28 happening right now, and the warning never cleared on its own even once the problem was long resolved. `write_errors` is now a property that counts only failures within the last `INVERTER_WRITE_ERROR_WINDOW_SEC` (default 1 h); older ones are pruned on every read.
+
 ### Battery Protection Hysteresis
 
 ```
@@ -179,13 +182,18 @@ today's accumulators are restored from SQLite before the first tick.
 ### Prerequisite: Spike Filtering
 
 Every power reading is validated by `SensorValidator` before use.
-A sample is rejected (replaced by the last accepted value) when:
+A sample counts as a spike (rejection) when:
 
 ```
 |delta| > 500 W  AND  |delta| / previous_value > 50 %
 ```
 
-If no prior value exists for a sensor, the first reading is always accepted.
+A rejected reading returns `None`; the caller (`CostOptimizer.record_tick()`) substitutes **0 W** for that tick — not the last accepted value. If no prior value exists for a sensor, the first reading is always accepted.
+
+!!! danger "Since v2.0.6: a rejected value can confirm itself after two ticks"
+    Through v2.0.5, a rejection never updated the reference (`_last`) — by design, so a single outlier could not immediately corrupt it. The side effect: if the real value shifts **permanently and legitimately** (e.g. a load switches off for good), every future real reading again looks like a spike against the old, frozen reference — the rejection prevents it from ever correcting itself, until the add-on restarts. Observed live: `battery_power` got rejected on every tick for 2.5+ hours after a real drop from ~1341 W to ~394 W, with `0 W` going into the cost accounting instead of the real ~270–290 W.
+
+    Since v2.0.6 the same two-tick rule used for lifetime-counter re-anchoring (`cost_optimizer.py`) applies here: if two **consecutive** rejected readings roughly agree with each other — regardless of how far they are from the old reference — the shift counts as real, and the second reading becomes the new reference. A single outlier in between only delays recovery by one more tick, it does not block it.
 
 ### Interval Duration
 

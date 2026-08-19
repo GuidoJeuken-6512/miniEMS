@@ -119,6 +119,9 @@ pro Kanal (Ladestrom, Entladestrom, Netzlade-Schalter) unabhängig:
 
 `write_unconfirmed` (0–3) zählt live, wie viele der drei Kanäle gerade unbestätigt sind, und fällt auf 0 sobald der reale Zustand aufholt — getrennt von `write_errors`, das nur echte HTTP-/Verbindungsfehler zählt. Beide erscheinen als Warnung im Dashboard-Banner.
 
+!!! danger "Seit v2.0.6: write_errors zählt nur noch das letzte Zeitfenster"
+    Bis v2.0.5 war `write_errors` ein lebenslanger Zähler ohne Reset — 28 Fehler von vor drei Tagen sahen im Banner identisch aus wie 28 Fehler gerade eben, und die Meldung verschwand nie von selbst, auch wenn das Problem längst behoben war. `write_errors` ist jetzt eine Property, die nur Fehlschläge der letzten `INVERTER_WRITE_ERROR_WINDOW_SEC` (Standard 1 h) zählt; ältere werden bei jedem Zugriff verworfen.
+
 ### Batterieschutz-Hysterese
 
 ```
@@ -180,13 +183,18 @@ werden die heutigen Akkumulatoren vor dem ersten Tick aus SQLite wiederhergestel
 ### Voraussetzung: Spike-Filterung
 
 Jeder Leistungswert wird vor der Verwendung von `SensorValidator` validiert.
-Ein Messwert wird abgelehnt (durch den letzten akzeptierten Wert ersetzt), wenn:
+Ein Messwert gilt als Spike (Ablehnung), wenn:
 
 ```
 |delta| > 500 W  AND  |delta| / vorheriger_Wert > 50 %
 ```
 
-Wenn kein vorheriger Wert für einen Sensor vorhanden ist, wird die erste Messung immer akzeptiert.
+Ein abgelehnter Wert liefert `None`; der Aufrufer (`CostOptimizer.record_tick()`) setzt für diesen Tick **0 W** ein — nicht den letzten akzeptierten Wert. Wenn kein vorheriger Wert für einen Sensor vorhanden ist, wird die erste Messung immer akzeptiert.
+
+!!! danger "Seit v2.0.6: ein abgelehnter Wert kann sich nach zwei Ticks bestätigen"
+    Bis v2.0.5 aktualisierte eine Ablehnung die Vergleichsbasis (`_last`) nicht — das war beabsichtigt, damit ein einzelner Ausreißer sie nicht sofort verdirbt. Der Effekt: verschiebt sich der reale Wert **dauerhaft und legitim** (z. B. ein Verbraucher schaltet ab), sieht danach *jeder* künftige echte Messwert wieder wie ein Spike gegenüber der alten, eingefrorenen Basis aus — die Ablehnung verhindert für immer, dass sie sich korrigiert, bis das Add-on neu startet. Live beobachtet: `battery_power` blieb nach einem echten Rückgang von ~1341 W auf ~394 W über 2,5 Stunden lang bei jedem Tick abgelehnt, mit `0 W` in der Kostenrechnung statt der echten ~270–290 W.
+
+    Seit v2.0.6 gilt dasselbe Zwei-Tick-Prinzip wie bei den Lebenszeit-Zähler-Ankern (`cost_optimizer.py`): Stimmen zwei **aufeinanderfolgende** abgelehnte Werte in etwa überein — unabhängig davon, wie weit sie von der alten Basis entfernt sind —, gilt der Sprung als real, und der zweite Wert wird als neue Basis übernommen. Ein einzelner Ausreißer dazwischen verzögert die Erholung nur um einen weiteren Tick, verhindert sie aber nicht.
 
 ### Intervall-Dauer
 

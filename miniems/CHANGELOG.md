@@ -1,5 +1,33 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.6
+
+### Bug Fixes
+
+- **"N failed write(s)" never cleared, even long after the problem was
+  fixed.** `InverterController.write_errors` was a lifetime counter,
+  incremented on every real HTTP-rejected write and never reset – 28
+  failures from days ago looked identical in the dashboard banner to 28
+  happening right now, with no way to tell from the UI whether it was
+  current or ancient history. `write_errors` is now a property counting
+  only failures within the last `INVERTER_WRITE_ERROR_WINDOW_SEC` (default
+  1 h); older ones are pruned on every read.
+
+- **A single legitimate power swing could permanently freeze spike
+  detection for an entity.** `SensorValidator` rejected a reading that
+  differed too much from the last *accepted* value, but never updated that
+  reference on rejection – correct for filtering a one-off outlier, but if
+  the real value then shifted permanently (a load switches off for good),
+  every future real reading looked like a spike against the same stale
+  reference forever, until the add-on restarted. Observed live on the
+  production system: `battery_power` rejected every tick for 2.5+ hours
+  after a real drop from ~1341 W to ~394 W, feeding `0 W` into the cost
+  accounting instead of the real ~270–290 W. Two consecutive rejected
+  readings that agree with each other now count as a real shift and get
+  adopted as the new reference – the same two-tick confirmation rule
+  already used for lifetime-counter re-anchoring in `cost_optimizer.py`. A
+  single outlier in between only delays recovery by one more tick.
+
 ## 2.0.5
 
 ### Bug Fixes
