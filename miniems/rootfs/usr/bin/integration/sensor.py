@@ -399,6 +399,24 @@ class MiniEMSSensor(CoordinatorEntity[MiniEMSCoordinator], SensorEntity):
         self.entity_description = description
         self._attr_unique_id = description.key
         self._attr_device_info = device_info
+        # Set the entity_id explicitly instead of letting HA derive it from
+        # the (translated!) entity name + device name on first registration.
+        # That derivation depends on translations and the device registry
+        # entry both being ready at the exact moment the entity is first
+        # added; when either isn't, HA falls back to f"{platform}_{unique_id}"
+        # (entity_registry.py, _async_get_full_entity_name) — and since our
+        # unique_id already starts with "miniems_" like the platform domain
+        # does, that fallback doubles the prefix
+        # (sensor.miniems_miniems_inverter_write_status instead of
+        # sensor.miniems_inverter_write_status). Observed live: every sensor
+        # added since early in the project's life still has the correct ID
+        # (registered before this fragility mattered); every sensor added
+        # more recently doesn't. Setting entity_id ourselves short-circuits
+        # that whole derivation (entity_platform.py: "An entity may suggest
+        # the entity_id by setting entity_id itself") and also makes the ID
+        # independent of the user's HA language, which the translated-name
+        # derivation was not.
+        self.entity_id = f"sensor.{description.key}"
 
     @property
     def native_value(self) -> Any:

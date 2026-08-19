@@ -1,5 +1,35 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.8
+
+### Bug Fixes
+
+- **Newly-registered `sensor.miniems_*` entity IDs came out with a
+  duplicated `miniems_` prefix** (`sensor.miniems_miniems_inverter_write_
+  status` instead of `sensor.miniems_inverter_write_status`), first noticed
+  on `inverter_write_status` and `remaining_load_kwh`. Root cause traced in
+  Home Assistant Core's own source (`helpers/entity_registry.py`,
+  `_async_get_full_entity_name`): on first-ever registration HA derives the
+  entity ID from the *translated* device and entity name; if translations
+  or the device registry entry aren't ready at that exact moment, HA falls
+  back to `f"{platform}_{unique_id}"` — and since our `unique_id` already
+  starts with `"miniems_"`, same as the integration's domain, that fallback
+  doubles the prefix. `MiniEMSSensor` now sets `self.entity_id` explicitly
+  in `__init__`, which per Home Assistant's own code comment ("An entity
+  may suggest the entity_id by setting entity_id itself") bypasses that
+  whole derivation — deterministic, and no longer dependent on HA's
+  language or startup timing. Verified with a purpose-built test entity
+  that had never been registered before.
+
+  > [!NOTE]
+  > Entities that already registered with the broken ID keep it – Home
+  > Assistant deliberately never renames an already-assigned entity ID on
+  > its own. If `sensor.miniems_inverter_write_status` or
+  > `sensor.miniems_remaining_load_kwh` show up with the duplicated prefix
+  > on an existing installation, remove them from **Settings → Devices &
+  > Services → Entities** (or delete and re-add the integration) so they
+  > re-register under the fixed logic.
+
 ## 2.0.7
 
 ### Added
@@ -38,10 +68,9 @@
 > restarts, not just the add-on. `homeassistant.reload_config_entry`
 > reloads the integration but does not re-import its Python module, so a
 > sensor added to `SENSOR_DESCRIPTIONS` stays invisible until the next full
-> Core restart. Separately, newly-registered entity IDs have been observed
-> with a duplicated `miniems_` prefix (e.g.
-> `sensor.miniems_miniems_inverter_write_status`) — state and attributes
-> are correct, only the ID is affected; not yet root-caused.
+> Core restart. Newly-registered entity IDs were also observed with a
+> duplicated `miniems_` prefix on first registration — fixed in 2.0.8, see
+> below.
 
 ## 2.0.6
 
