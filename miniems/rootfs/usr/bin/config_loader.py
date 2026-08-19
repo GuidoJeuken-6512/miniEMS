@@ -20,6 +20,7 @@ from const import (
     CONFIG_FILE,
     CONFIG_SCHEMA_VERSION,
     FORECAST_MAX_AGE_SEC,
+    INVERTER_WRITE_STUCK_THRESHOLD_SEC,
     OPTIONS_FILE,
     PRICE_MAX_AGE_SEC,
     SENSOR_MAX_AGE_SEC,
@@ -152,6 +153,10 @@ class Config:
     daily_base_price_eur: float = 0.0
     # Average discharge tariff for ROI calculation (€/kWh); 0 = auto-derive from price tiers
     avg_discharge_tariff_eur_kwh: float = 0.0
+    # How long a single inverter write channel must stay continuously
+    # unconfirmed before sensor.miniems_inverter_write_status reports "error"
+    # instead of "warning". Provisional default – see const.py.
+    inverter_write_stuck_threshold_sec: int = INVERTER_WRITE_STUCK_THRESHOLD_SEC
 
     @property
     def monitored_entities(self) -> list[str]:

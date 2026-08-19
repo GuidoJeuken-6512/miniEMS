@@ -36,7 +36,8 @@
       'pv_export_min_soc_pct', 'pv_charge_backstop_hour', 'export_hold_charge_current_a',
       'mode_dwell_sec', 'battery_soc_hysteresis_pct',
       'grid_charge_dark_start_hour', 'grid_charge_dark_end_hour',
-      'sensor_max_age_sec', 'forecast_max_age_sec', 'price_max_age_sec'
+      'sensor_max_age_sec', 'forecast_max_age_sec', 'price_max_age_sec',
+      'inverter_write_stuck_threshold_sec'
     ]);
     const FLOAT_FIELDS = new Set([
       'battery_capacity_kwh', 'cheap_rate_threshold_eur', 'medium_rate_threshold_eur',
@@ -105,6 +106,7 @@
           { key: 'battery_discharging_current_entity', label: 'Max Discharging Current Entity' },
           { key: 'battery_max_charge_current_a',       label: 'Max Charge Current (A)' },
           { key: 'battery_max_discharge_current_a',    label: 'Max Discharge Current (A)' },
+          { key: 'inverter_write_stuck_threshold_sec', label: 'Write "error" threshold (s) — provisional default, see docs' },
         ]
       },
       {

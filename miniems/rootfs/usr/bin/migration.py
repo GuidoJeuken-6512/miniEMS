@@ -5,7 +5,12 @@ Add a new function and increment CURRENT_VERSION whenever the config schema chan
 """
 import logging
 
-from const import CONFIG_SCHEMA_VERSION, FORECAST_MAX_AGE_SEC, PRICE_MAX_AGE_SEC
+from const import (
+    CONFIG_SCHEMA_VERSION,
+    FORECAST_MAX_AGE_SEC,
+    INVERTER_WRITE_STUCK_THRESHOLD_SEC,
+    PRICE_MAX_AGE_SEC,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,6 +87,9 @@ def migrate(data: dict) -> dict:
 
     if version < 16:
         data = _v15_to_v16(data)
+
+    if version < 17:
+        data = _v16_to_v17(data)
 
     data["_version"] = CURRENT_VERSION
     return data
@@ -266,6 +274,20 @@ def _v11_to_v12(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v11→v12: set %s = %r", key, default)
+    return data
+
+
+def _v16_to_v17(data: dict) -> dict:
+    """v16 → v17: threshold for the inverter write-status sensor.
+
+    How long a write channel must stay continuously unconfirmed before it
+    counts as a real ("error") rather than a still-plausibly-resolving
+    ("warning") problem. See const.py for why the default is provisional.
+    """
+    if "inverter_write_stuck_threshold_sec" not in data:
+        data["inverter_write_stuck_threshold_sec"] = INVERTER_WRITE_STUCK_THRESHOLD_SEC
+        _LOGGER.info("Migration v16→v17: set inverter_write_stuck_threshold_sec = %r",
+                     data["inverter_write_stuck_threshold_sec"])
     return data
 
 

@@ -121,6 +121,50 @@ per channel (charge current, discharge current, grid-charge switch), independent
 !!! danger "Since v2.0.6: write_errors only counts the recent window"
     Through v2.0.5, `write_errors` was a lifetime counter with no reset — 28 failures from three days ago looked identical in the banner to 28 happening right now, and the warning never cleared on its own even once the problem was long resolved. `write_errors` is now a property that counts only failures within the last `INVERTER_WRITE_ERROR_WINDOW_SEC` (default 1 h); older ones are pruned on every read.
 
+#### Write status as a sensor (`sensor.miniems_inverter_write_status`, since v2.0.7)
+
+Through v2.0.6, `write_errors`/`write_unconfirmed` were visible only on the add-on's own dashboard — not queryable via the normal HA entity API, not usable in an automation. The new sensor turns that into a regular HA state with three tiers (worst case wins):
+
+```
+if the longest continuously-unconfirmed channel > inverter_write_stuck_threshold_sec:
+    "error"      # the inverter demonstrably diverges from what the app wants, for a long time
+elif write_unconfirmed > 0 OR write_errors > 0:
+    "warning"    # currently unconfirmed or a recent real failure — normal, usually self-resolving
+else:
+    "ok"
+```
+
+The raw numbers remain available as attributes: `write_errors`, `write_unconfirmed`, `stuck_channels` (currently affected channels, longest-pending first). The distinction between "definitely rejected via HTTP" and "just slow" deliberately lives only in the attributes, not in the tier itself — both leave the channel equally unconfirmed, and only the *duration* shows whether it actually matters.
+
+An `error` also adds its own, specifically-named warning-banner line ("… unconfirmed for Xs (> Ys) — check inverter/Solarman connectivity"), in addition to the existing, milder "N unconfirmed write(s)" line.
+
+!!! danger "inverter_write_stuck_threshold_sec is a provisional value"
+    Default 1800s (30 min) — well above the one historical figure on record (~25 min, see CHANGELOG v2.0.1), which is itself unsourced (no Solarman spec, no retained raw data). See "Write-Confirm Logging" below: the value is meant to be replaced once real, multi-day latency data exists.
+
+#### Write-Confirm Logging (`event_log`, since v2.0.7)
+
+The add-on's own log buffer is only a few minutes deep on the production system — too short to analyse confirmation latency over days. Every channel's lifecycle is therefore also persisted durably to the existing `event_log` SQLite table (`entry_type="write_confirm"`):
+
+```
+InverterController.pop_write_events() returns, per event:
+  channel       – e.g. "Discharge current (number.deye8k_battery_max_discharging_current)"
+  target        – the requested value
+  outcome       – "confirmed" | "failed" | "unconfirmed_at_shutdown"
+  latency_sec   – time from "became unconfirmed" to this outcome
+```
+
+`EMSController.update()` drains this once per tick after `apply_mode()` and persists each event. `unconfirmed_at_shutdown` is written on shutdown for every channel still open — otherwise the most interesting case (a write that never confirmed at all) would vanish silently on restart, since channel state lives only in process memory.
+
+Simulated writes (`battery_control_simulation: true`) deliberately produce no events — they confirm instantly by definition and would corrupt the latency statistics.
+
+`to_list(include_write_confirm=False)` (default) hides these entries from the Log page so the human-facing timeline isn't cluttered with channel diagnostics. Analyse after a few days of runtime via a direct SQL query:
+
+```sql
+SELECT write_channel, write_outcome, write_latency_sec
+FROM event_log WHERE entry_type = 'write_confirm'
+ORDER BY timestamp;
+```
+
 ### Battery Protection Hysteresis
 
 ```

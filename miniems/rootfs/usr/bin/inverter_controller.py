@@ -49,12 +49,18 @@ _LOGGER = logging.getLogger(__name__)
 
 class _WriteChannel:
     """Tracks one inverter write's target and confirmation state."""
-    __slots__ = ("target", "sent_at", "confirmed")
+    __slots__ = ("target", "sent_at", "confirmed", "pending_since", "label")
 
     def __init__(self) -> None:
         self.target: Any = None
         self.sent_at: float | None = None   # time.monotonic() of the last send
         self.confirmed: bool = True         # nothing pending yet
+        # time.monotonic() of when this channel most recently became
+        # unconfirmed – distinct from sent_at, which resets on every retry.
+        # Lets longest_pending_sec answer "how long has this really been
+        # wrong", not "how long since the last attempt".
+        self.pending_since: float | None = None
+        self.label: str = ""                # human-readable, set on first use
 
 
 class InverterController:
@@ -83,6 +89,9 @@ class InverterController:
         # Monotonic timestamps of real (HTTP-rejected) write failures, pruned
         # to INVERTER_WRITE_ERROR_WINDOW_SEC on every read – see write_errors.
         self._write_error_times: deque[float] = deque()
+        # Write-confirm lifecycle events (confirmed/failed/unconfirmed_at_shutdown)
+        # since the last pop_write_events() call – see that method.
+        self._pending_events: list[dict[str, Any]] = []
 
     @property
     def simulation(self) -> bool:
@@ -110,6 +119,48 @@ class InverterController:
             0 if ch.confirmed else 1
             for ch in (self._charge_ch, self._discharge_ch, self._grid_ch)
         )
+
+    @property
+    def longest_pending_sec(self) -> float:
+        """Seconds the longest-unconfirmed channel has been continuously
+        unconfirmed right now. 0 when all three are confirmed.
+
+        This is what separates a normal, self-resolving confirmation cycle
+        (any Solarman bridge can legitimately take a while) from a channel
+        that has genuinely diverged from what the app wants for a long time –
+        see inverter_write_status / INVERTER_WRITE_STUCK_THRESHOLD_SEC.
+        """
+        now = time.monotonic()
+        pending = [
+            now - ch.pending_since
+            for ch in (self._charge_ch, self._discharge_ch, self._grid_ch)
+            if not ch.confirmed and ch.pending_since is not None
+        ]
+        return max(pending, default=0.0)
+
+    @property
+    def stuck_channel_labels(self) -> list[str]:
+        """Labels of currently-unconfirmed channels, longest-pending first."""
+        now = time.monotonic()
+        pending = [
+            (now - ch.pending_since, ch.label)
+            for ch in (self._charge_ch, self._discharge_ch, self._grid_ch)
+            if not ch.confirmed and ch.pending_since is not None and ch.label
+        ]
+        pending.sort(reverse=True)
+        return [label for _, label in pending]
+
+    def pop_write_events(self) -> list[dict[str, Any]]:
+        """Return and clear write-confirm lifecycle events accumulated since
+        the last call – one entry per confirmation, real failure, or channel
+        still unconfirmed at shutdown.
+
+        The add-on's own log buffer is far too short-lived (minutes) to
+        analyse real confirmation latency over days; the caller persists
+        these into the durable event_log table instead.
+        """
+        events, self._pending_events = self._pending_events, []
+        return events
 
     async def apply_mode(self, mode: EMSMode) -> None:
         """Apply inverter settings for the given EMS mode.
@@ -169,6 +220,20 @@ class InverterController:
         cfg = self._cfg
         sim = self.simulation
         _LOGGER.info("Restoring safe inverter defaults before shutdown")
+
+        now = time.monotonic()
+        for ch in (self._charge_ch, self._discharge_ch, self._grid_ch):
+            if not ch.confirmed and ch.pending_since is not None:
+                # The most interesting case (a write that never confirmed at
+                # all) would otherwise vanish silently on restart – the
+                # per-channel state below is about to be thrown away.
+                self._pending_events.append({
+                    "channel": ch.label,
+                    "target": ch.target,
+                    "outcome": "unconfirmed_at_shutdown",
+                    "latency_sec": round(now - ch.pending_since, 1),
+                })
+
         self._charge_ch = _WriteChannel()
         self._discharge_ch = _WriteChannel()
         self._grid_ch = _WriteChannel()
@@ -245,18 +310,28 @@ class InverterController:
         being retried instead of being assumed done after a single 200.
         """
         now = time.monotonic()
+        ch.label = label
 
         if ch.target != target:
             ch.target = target
             ch.confirmed = False
             ch.sent_at = None
+            ch.pending_since = now
 
         if ch.confirmed:
             return
 
         if matched:
+            if ch.pending_since is not None:
+                self._pending_events.append({
+                    "channel": label,
+                    "target": target,
+                    "outcome": "confirmed",
+                    "latency_sec": round(now - ch.pending_since, 1),
+                })
             ch.confirmed = True
             ch.sent_at = None
+            ch.pending_since = None
             return
 
         if ch.sent_at is not None and (now - ch.sent_at) < INVERTER_WRITE_CONFIRM_TIMEOUT_SEC:
@@ -266,9 +341,13 @@ class InverterController:
             # Nothing is actually sent to the inverter, so there is nothing
             # for the real HA state to ever confirm – treat it as done right
             # away (matches pre-v2.0.1 behaviour: log once per target change).
+            # Not logged as a write-confirm event: simulated writes never
+            # touch real hardware and would corrupt the real-world latency
+            # data this is meant to collect.
             _LOGGER.info("[SIM] %s.%s(%s)", domain, service, data)
             ch.confirmed = True
             ch.sent_at = None
+            ch.pending_since = None
             return
 
         ok = await self._call_service(domain, service, data)
@@ -276,6 +355,12 @@ class InverterController:
         if ok is False:
             # HA actively rejected the call (non-2xx) – that is a real failure.
             self._write_error_times.append(now)
+            self._pending_events.append({
+                "channel": label,
+                "target": target,
+                "outcome": "failed",
+                "latency_sec": round(now - ch.pending_since, 1) if ch.pending_since else None,
+            })
             _LOGGER.error("%s write FAILED (target=%s) – retrying next tick", label, target)
         elif ok is None:
             # No verdict: the request timed out. HA very likely applied it

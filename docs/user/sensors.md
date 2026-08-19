@@ -147,6 +147,14 @@ Aggregiert aus der Datenbanktabelle `daily_stats`.
 
 ---
 
+## Wechselrichter-Steuerung
+
+| Entität | Zustände | Beschreibung |
+|---|---|---|
+| `sensor.miniems_inverter_write_status` | `ok` / `warning` / `error` | Ob der Wechselrichter gerade zuverlässig auf Befehle reagiert. `error` nur, wenn ein Kanal (Ladestrom/Entladestrom/Netzlade-Schalter) lange genug unbestätigt ist, dass es den realen Betrieb beeinflusst — nicht schon bei jedem kurzen, sich selbst lösenden Timeout. Attribute: `write_errors`, `write_unconfirmed`, `stuck_channels`. |
+
+---
+
 ## Szenario 2: Netzladen – Effizienz & ROI
 
 Diese Sensoren sind **optional** und nur verfügbar, wenn folgende Entitäten in der Konfiguration

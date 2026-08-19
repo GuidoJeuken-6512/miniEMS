@@ -178,6 +178,21 @@ class EMSController:
         # Apply inverter control (simulation or real)
         if self._inverter:
             await self._inverter.apply_mode(self._mode)
+            # Persist write-confirm lifecycle events durably (SQLite survives
+            # restarts and days; the add-on's own log buffer does not) – see
+            # InverterController.pop_write_events().
+            for wevent in self._inverter.pop_write_events():
+                await self._event_log.append(LogEntry(
+                    timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    state="write_confirm",
+                    entry_type="write_confirm",
+                    battery_kwh_freetochange=0.0,
+                    battery_kwh_useable=0.0,
+                    predicted_load_kwh=None,
+                    write_channel=wevent.get("channel"),
+                    write_latency_sec=wevent.get("latency_sec"),
+                    write_outcome=wevent.get("outcome"),
+                ))
 
         feed_in_kwh_ha = (
             ws.get_state_value(cfg.feed_in_energy_entity)
@@ -351,6 +366,8 @@ class EMSController:
             result["discharge_current_target_a"] = self._inverter.discharge_current_target_a
             result["inverter_write_errors"] = self._inverter.write_errors
             result["inverter_write_unconfirmed"] = self._inverter.write_unconfirmed
+            result["inverter_write_stuck_channels"] = self._inverter.stuck_channel_labels
+            result["inverter_write_status"] = self._inverter_write_status()
         if self._prediction:
             result["predicted_load_kwh"] = self._prediction.predicted_load_kwh
             result["predicted_pv_kwh"] = self._prediction.predicted_pv_kwh
@@ -572,6 +589,23 @@ class EMSController:
             return True
         return self._ws.is_stale(entity_id, max_age_sec)
 
+    def _inverter_write_status(self) -> str:
+        """"ok" | "warning" | "error" for sensor.miniems_inverter_write_status.
+
+        "error" only once a channel has been unconfirmed long enough that the
+        inverter demonstrably isn't doing what the app decided – a single
+        write that hasn't confirmed yet, or one that just failed and is being
+        retried, is "warning": normal, usually self-resolving, not yet worth
+        an alarm. Worst case wins.
+        """
+        if self._inverter is None:
+            return "ok"
+        if self._inverter.longest_pending_sec > self._cfg.inverter_write_stuck_threshold_sec:
+            return "error"
+        if self._inverter.write_unconfirmed > 0 or self._inverter.write_errors > 0:
+            return "warning"
+        return "ok"
+
     def _grid_charge_pays(self, price: float) -> bool:
         """Does buying this kWh for the battery actually earn anything?
 
@@ -762,6 +796,17 @@ class EMSController:
             warnings.append(
                 f"Inverter control: {self._inverter.write_unconfirmed} unconfirmed write(s) – "
                 "HA accepted the command but the inverter has not reported the new value yet"
+            )
+        # Escalated: a channel has been unconfirmed long enough that it is no
+        # longer a normal, self-resolving confirmation cycle – see
+        # _inverter_write_status() / inverter_write_stuck_threshold_sec.
+        if self._inverter is not None and self._inverter_write_status() == "error":
+            channels = ", ".join(self._inverter.stuck_channel_labels)
+            warnings.append(
+                f"Inverter control: {channels} unconfirmed for "
+                f"{self._inverter.longest_pending_sec:.0f}s (> "
+                f"{self._cfg.inverter_write_stuck_threshold_sec}s) – "
+                "check inverter/Solarman connectivity"
             )
 
         return warnings

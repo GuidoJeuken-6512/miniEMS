@@ -39,6 +39,12 @@ restored on add-on restart.
 entries from any prior miniEMS config entry on startup. These stale entries cause
 `_2` / `_3` entity ID suffixes when the integration is deleted and re-added.
 
+!!! danger "A new SENSOR_DESCRIPTIONS entry doesn't appear after reload_config_entry"
+    `integration_installer.py` triggers `homeassistant.reload_config_entry` after an update — that re-runs `async_unload_entry`/`async_setup_entry`, but does **not** re-import the Python module itself. A sensor freshly added to `SENSOR_DESCRIPTIONS` therefore stays invisible until the next **full** Home Assistant Core restart, even though the file on disk is already current and the add-on itself restarts cleanly. Observed live in the devcontainer: both `remaining_load_kwh` (v2.0.5) and `inverter_write_status` (v2.0.7) were missing from the entity registry until `docker restart homeassistant` (on `.59`, a real Core restart) ran.
+
+!!! bug "Known issue: duplicated prefix on newly-registered entity IDs"
+    After that restart, both sensors above appeared with a duplicated prefix — `sensor.miniems_miniems_inverter_write_status` instead of `sensor.miniems_inverter_write_status` — while sensors registered before this session are correct (`sensor.miniems_mode`). `friendly_name` is correct in both cases (`"miniEMS Inverter Control Status"`); only the entity-ID slug is affected. State and attributes were verified live and are correct — only the name is unexpected. Not yet root-caused; likely a `has_entity_name`/`unique_id` interaction in `integration/sensor.py` that only shows up on first-time registration.
+
 ---
 
 ## Operating Mode
@@ -171,6 +177,14 @@ The `/api/status` response includes a `prediction_source` field (not a HA sensor
 
 ---
 
+## Inverter Control
+
+| Entity ID | Key | Device Class | Description |
+|---|---|---|---|
+| `sensor.miniems_inverter_write_status` | `inverter_write_status` | `enum` (`ok`/`warning`/`error`) | Since v2.0.7: write-confirmation status of the three inverter channels (charge current, discharge current, grid-charge switch), see [Calculations](calculations.md). Carries three attributes: `write_errors` (real HTTP rejections in the last hour), `write_unconfirmed` (0–3, live), `stuck_channels` (list, longest-pending first). |
+
+---
+
 ## Sensor Count Summary
 
 | Category | Count |
@@ -184,7 +198,8 @@ The `/api/status` response includes a `prediction_source` field (not a HA sensor
 | Monthly totals | 6 |
 | Yearly totals | 3 |
 | Predictions | 2 |
-| **Total** | **28** |
+| Inverter control | 1 |
+| **Total** | **29** |
 
 ---
 
@@ -217,6 +232,6 @@ but are **not** registered as Home Assistant sensor entities:
 
 | File | Purpose |
 |---|---|
-| `integration/sensor.py` | `SENSOR_DESCRIPTIONS` tuple — all 28 sensor definitions |
+| `integration/sensor.py` | `SENSOR_DESCRIPTIONS` tuple — all 29 sensor definitions |
 | `integration/coordinator.py` | `DataUpdateCoordinator` — polls `/api/status` every 30 s |
 | `integration/__init__.py` | Integration setup, device registration, and Entity Registry orphan cleanup |

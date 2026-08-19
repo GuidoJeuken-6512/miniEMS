@@ -41,6 +41,12 @@ Entity-Registry-Einträge aus früheren miniEMS-Config-Entries. Diese Einträge
 können `_2`- oder `_3`-Suffixe bei Entity-IDs verursachen, wenn die Integration
 gelöscht und erneut hinzugefügt wird.
 
+!!! danger "Ein neuer Eintrag in SENSOR_DESCRIPTIONS erscheint nicht nach reload_config_entry"
+    `integration_installer.py` löst nach einem Update `homeassistant.reload_config_entry` aus — das ruft `async_unload_entry`/`async_setup_entry` erneut auf, importiert das Python-Modul selbst aber **nicht neu**. Ein frisch zur `SENSOR_DESCRIPTIONS`-Tuple hinzugefügter Sensor bleibt dadurch bis zum nächsten **vollständigen** Home-Assistant-Core-Neustart unsichtbar, obwohl die Datei auf der Platte bereits aktuell ist und das Add-on selbst sauber neu startet. Live im Devcontainer nachvollzogen: sowohl `remaining_load_kwh` (v2.0.5) als auch `inverter_write_status` (v2.0.7) fehlten in der Entity-Registry, bis `docker restart homeassistant` (bzw. auf `.59` ein echter Core-Neustart) lief.
+
+!!! bug "Bekannter Fehler: doppeltes Präfix bei neu registrierten Entity-IDs"
+    Nach diesem Neustart erschienen beide oben genannten Sensoren mit doppeltem Präfix — `sensor.miniems_miniems_wechselrichter_steuerungsstatus` statt `sensor.miniems_inverter_write_status` — während älterer, vor dieser Session registrierter Sensoren korrekt sind (`sensor.miniems_mode`). Der `friendly_name` ist in beiden Fällen korrekt (`"miniEMS Wechselrichter-Steuerungsstatus"`); nur der Entity-ID-Slug ist betroffen. Zustand und Attribute sind live geprüft korrekt — nur der Name unerwartet. Noch nicht root-caused; vermutlich eine `has_entity_name`/`unique_id`-Wechselwirkung in `integration/sensor.py`, die sich nur bei erstmaliger Registrierung zeigt.
+
 ---
 
 ## Betriebsmodus
@@ -173,6 +179,14 @@ Die `/api/status`-Antwort enthält ein `prediction_source`-Feld (kein HA-Sensor)
 
 ---
 
+## Wechselrichter-Steuerung
+
+| Entity-ID | Key | Device Class | Beschreibung |
+|---|---|---|---|
+| `sensor.miniems_inverter_write_status` | `inverter_write_status` | `enum` (`ok`/`warning`/`error`) | Seit v2.0.7: Schreibbestätigungsstatus der drei Wechselrichter-Kanäle (Ladestrom, Entladestrom, Netzlade-Schalter), s. [Berechnungen](calculations.md). Trägt drei Attribute: `write_errors` (echte HTTP-Ablehnungen der letzten Stunde), `write_unconfirmed` (0–3, live), `stuck_channels` (Liste, längster zuerst). |
+
+---
+
 ## Sensor-Anzahl-Zusammenfassung
 
 | Kategorie | Anzahl |
@@ -186,7 +200,8 @@ Die `/api/status`-Antwort enthält ein `prediction_source`-Feld (kein HA-Sensor)
 | Monatstotale | 6 |
 | Jahrestotale | 3 |
 | Vorhersagen | 2 |
-| **Gesamt** | **28** |
+| Wechselrichter-Steuerung | 1 |
+| **Gesamt** | **29** |
 
 ---
 
@@ -219,6 +234,6 @@ verwendet, sind aber **nicht** als Home-Assistant-Sensor-Entities registriert:
 
 | Datei | Zweck |
 |---|---|
-| `integration/sensor.py` | `SENSOR_DESCRIPTIONS`-Tuple — alle 28 Sensor-Definitionen |
+| `integration/sensor.py` | `SENSOR_DESCRIPTIONS`-Tuple — alle 29 Sensor-Definitionen |
 | `integration/coordinator.py` | `DataUpdateCoordinator` — ruft `/api/status` alle 30 s ab |
 | `integration/__init__.py` | Integration-Setup, Geräte-Registrierung und Entity-Registry-Bereinigung |

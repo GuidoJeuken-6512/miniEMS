@@ -69,7 +69,15 @@
       "today_grid_charge_energy_balance": { "name": "Heutige Netzladung (Energiebilanz)" },
       "today_grid_charge_cost_energy_balance": { "name": "Heutige Netzladekosten (Energiebilanz)" },
       "today_grid_charge_roi": { "name": "Heutiger Netzladungs-ROI" },
-      "today_base_price": { "name": "Heutiger Grundpreis" }
+      "today_base_price": { "name": "Heutiger Grundpreis" },
+      "inverter_write_status": {
+        "name": "Wechselrichter-Steuerungsstatus",
+        "state": {
+          "ok": "OK",
+          "warning": "Warnung",
+          "error": "Fehler"
+        }
+      }
     }
   }
 }

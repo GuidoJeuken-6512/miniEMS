@@ -30,6 +30,10 @@ class MiniEMSSensorDescription(SensorEntityDescription):
     """Extends SensorEntityDescription with the /api/status JSON key."""
 
     status_key: str = ""
+    # Optional: attribute name -> /api/status key, for sensors that carry
+    # supplementary diagnostic detail (e.g. per-channel counts) alongside
+    # their main value. None for the (large majority of) plain-value sensors.
+    attributes_keys: dict[str, str] | None = None
 
 
 # ── Complete sensor list ──────────────────────────────────────────────────────
@@ -315,6 +319,20 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:battery",
     ),
+    # ── Inverter control ──────────────────────────────────────────────────────
+    MiniEMSSensorDescription(
+        key="miniems_inverter_write_status",
+        translation_key="inverter_write_status",
+        status_key="inverter_write_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=["ok", "warning", "error"],
+        icon="mdi:transmission-tower",
+        attributes_keys={
+            "write_errors": "inverter_write_errors",
+            "write_unconfirmed": "inverter_write_unconfirmed",
+            "stuck_channels": "inverter_write_stuck_channels",
+        },
+    ),
     # ── Scenario 2: efficiency / bilanz / ROI ────────────────────────────────
     # These sensors are only available when the corresponding inverter entities
     # are configured (today_production_entity, today_losses_entity, etc.).
@@ -387,6 +405,16 @@ class MiniEMSSensor(CoordinatorEntity[MiniEMSCoordinator], SensorEntity):
         if not self.coordinator.data:
             return None
         return self.coordinator.data.get(self.entity_description.status_key)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        keys = self.entity_description.attributes_keys
+        if not keys or not self.coordinator.data:
+            return None
+        return {
+            attr_name: self.coordinator.data.get(status_key)
+            for attr_name, status_key in keys.items()
+        }
 
     @property
     def available(self) -> bool:

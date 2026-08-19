@@ -147,6 +147,14 @@ Aggregated from the `daily_stats` database table.
 
 ---
 
+## Inverter Control
+
+| Entity | States | Description |
+|---|---|---|
+| `sensor.miniems_inverter_write_status` | `ok` / `warning` / `error` | Whether the inverter is currently responding to commands reliably. `error` only once a channel (charge current/discharge current/grid-charge switch) has been unconfirmed long enough to actually affect real operation — not on every short, self-resolving timeout. Attributes: `write_errors`, `write_unconfirmed`, `stuck_channels`. |
+
+---
+
 ## Scenario 2: Grid Charging — Efficiency & ROI
 
 These sensors are **optional** and only available when the following entities are set in the

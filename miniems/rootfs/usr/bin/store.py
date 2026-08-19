@@ -82,7 +82,13 @@ class EnergyStore:
                 pass   # column already exists – ignore
         await self._db.execute(_CREATE_EVENT_LOG_TABLE)
         # Add columns if missing (upgrade for existing DBs)
-        for col_def in ("mode TEXT", "reason TEXT"):
+        for col_def in (
+            "mode TEXT", "reason TEXT",
+            # write_confirm entries only – see InverterController.pop_write_events()
+            "write_channel TEXT",
+            "write_latency_sec REAL",
+            "write_outcome TEXT",
+        ):
             try:
                 await self._db.execute(f"ALTER TABLE event_log ADD COLUMN {col_def}")
             except Exception:
@@ -190,13 +196,16 @@ class EnergyStore:
         await self._db.execute(
             """INSERT INTO event_log
                (timestamp, entry_type, state, battery_kwh_freetochange,
-                battery_kwh_useable, predicted_load_kwh, price_eur_kwh, mode, reason)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                battery_kwh_useable, predicted_load_kwh, price_eur_kwh, mode, reason,
+                write_channel, write_latency_sec, write_outcome)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [
                 entry["timestamp"], entry["entry_type"], entry["state"],
                 entry["battery_kwh_freetochange"], entry["battery_kwh_useable"],
                 entry.get("predicted_load_kwh"), entry.get("price_eur_kwh"),
                 entry.get("mode"), entry.get("reason"),
+                entry.get("write_channel"), entry.get("write_latency_sec"),
+                entry.get("write_outcome"),
             ],
         )
         await self._db.commit()

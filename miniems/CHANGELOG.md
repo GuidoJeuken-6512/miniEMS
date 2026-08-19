@@ -1,5 +1,48 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.7
+
+### Added
+
+- **`sensor.miniems_inverter_write_status`** — the inverter write-confirm
+  state (`write_errors`, `write_unconfirmed`), previously visible only on
+  the add-on's own dashboard, is now a real HA sensor with three states:
+  `ok`, `warning` (a channel is currently unconfirmed or recently failed,
+  but not for long — the normal, usually self-resolving case), and `error`
+  (a channel has been unconfirmed for longer than
+  `inverter_write_stuck_threshold_sec`, i.e. the inverter demonstrably isn't
+  doing what the app decided, not just waiting out a slow confirmation).
+  `write_errors`, `write_unconfirmed` and `stuck_channels` are exposed as
+  entity attributes. Reachable via the normal HA entity API — closes a gap
+  hit while diagnosing a "28 failed write(s)" banner on the production
+  system with no way to verify the live state from outside the dashboard.
+- **Write-confirm events now persist to `event_log`** (`entry_type=
+  "write_confirm"`), not just the add-on's own log buffer (which on the
+  production system holds only ~10 minutes). Every confirmation, real
+  failure, or write still unconfirmed at shutdown is recorded with its
+  channel and latency. Excluded from the default Log-page view (`to_list
+  (include_write_confirm=False)`) so it doesn't clutter the human-facing
+  timeline — query `event_log` directly for analysis.
+
+  > [!NOTE]
+  > `inverter_write_stuck_threshold_sec` (default 1800s / 30 min) is a
+  > **provisional** value. The only prior figure on record for how long a
+  > legitimate Solarman confirmation can take (~25 min, see 2.0.1 below) is
+  > an unsourced historical observation, not measured data. The new
+  > write-confirm log exists specifically to replace that guess with real,
+  > multi-day latency numbers — revisit the default once that data exists.
+
+> [!IMPORTANT]
+> After updating, `sensor.miniems_inverter_write_status` (and any other
+> brand-new sensor) may not appear until Home Assistant Core itself
+> restarts, not just the add-on. `homeassistant.reload_config_entry`
+> reloads the integration but does not re-import its Python module, so a
+> sensor added to `SENSOR_DESCRIPTIONS` stays invisible until the next full
+> Core restart. Separately, newly-registered entity IDs have been observed
+> with a duplicated `miniems_` prefix (e.g.
+> `sensor.miniems_miniems_inverter_write_status`) — state and attributes
+> are correct, only the ID is affected; not yet root-caused.
+
 ## 2.0.6
 
 ### Bug Fixes

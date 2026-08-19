@@ -8,10 +8,10 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "2.0.6"
+VERSION = "2.0.7"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
-CONFIG_SCHEMA_VERSION = 16
+CONFIG_SCHEMA_VERSION = 17
 
 # ── Battery current limits ────────────────────────────────────────────────────
 # The Deye inverter exposes battery limits as CURRENT in amperes
@@ -95,6 +95,18 @@ INVERTER_SERVICE_CALL_TIMEOUT_SEC = 15
 # failures from days ago would look identical to 28 happening right now.
 # Pruned to this window on every read instead.
 INVERTER_WRITE_ERROR_WINDOW_SEC = 3600   # 1 h
+
+# How long a single channel (charge/discharge current, grid-charge switch)
+# must stay continuously unconfirmed before InverterController.longest_pending_sec
+# counts it as a real, consequential problem (sensor.miniems_inverter_write_status
+# = "error") rather than a normal, still-plausibly-resolving confirmation cycle
+# ("warning"). Deliberately conservative and explicitly PROVISIONAL: the only
+# figure on record for how long a legitimate confirmation can take (~25 min,
+# CHANGELOG v2.0.1) is an unsourced historical observation, not a vendor spec
+# and not backed by retained raw data. The write-confirm events persisted to
+# event_log (entry_type="write_confirm") exist specifically to replace this
+# guess with real, multi-day latency data – revisit once that exists.
+INVERTER_WRITE_STUCK_THRESHOLD_SEC = 1800   # 30 min – provisional, see above
 
 # ── Custom integration installer ──────────────────────────────────────────────
 from pathlib import Path

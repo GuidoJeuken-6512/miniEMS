@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-15
+revision_date: 2026-08-19
 ---
 
 # Configuration
@@ -121,6 +121,7 @@ To create one: **HA → Profile → Long-Lived Access Tokens → Create Token**.
 | `battery_discharging_current_entity` | `number.deye8k_battery_max_discharging_current` | Entity for setting the discharge current limit (A) |
 | `battery_max_charge_current_a` | `185` | Maximum charge current (A). Automatically clamped to 0–350 A. |
 | `battery_max_discharge_current_a` | `185` | Maximum discharge current (A). Automatically clamped to 0–350 A. |
+| `inverter_write_stuck_threshold_sec` | `1800` | Once a channel has been continuously unconfirmed for longer than this, `sensor.miniems_inverter_write_status` reports "error" instead of "warning" (since v2.0.7). **Provisional value** — see the note below. |
 
 ### How inverter control works
 
@@ -138,6 +139,8 @@ Commands are idempotent — miniEMS only sends a service call when the target va
 
 !!! info "Write confirmation (since v2.0.1)"
     A service call Home Assistant accepts (HTTP 200) is not proof the inverter applied it — some Deye/Solarman bridges only confirm a written value on their next poll, which can lag several minutes. miniEMS therefore compares the real HA state against the target on **every** tick and automatically resends the command as long as they don't match — independently for charge current, discharge current, and the grid-charge switch. If a value stays unconfirmed, a warning appears in the dashboard banner ("Inverter control: N unconfirmed write(s)").
+
+    Since v2.0.7 this status is also available as `sensor.miniems_inverter_write_status` (`ok`/`warning`/`error`, raw numbers as attributes) — see [Calculations](../technical/calculations.md). `inverter_write_stuck_threshold_sec` decides when "warning" becomes "error"; the default is explicitly provisional until enough real confirmation durations have been collected.
 
 ---
 

@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-15
+revision_date: 2026-08-19
 ---
 
 # Konfiguration
@@ -121,6 +121,7 @@ Zum Erstellen: **HA → Profil → Langlebige Zugriffstoken → Token erstellen*
 | `battery_discharging_current_entity` | `number.deye8k_battery_max_discharging_current` | Entität zum Setzen des Entladestrom-Limits (A) |
 | `battery_max_charge_current_a` | `185` | Maximaler Ladestrom (A). Automatisch auf 0–350 A begrenzt. |
 | `battery_max_discharge_current_a` | `185` | Maximaler Entladestrom (A). Automatisch auf 0–350 A begrenzt. |
+| `inverter_write_stuck_threshold_sec` | `1800` | Ab dieser Dauer ununterbrochener Unbestätigtheit meldet `sensor.miniems_inverter_write_status` „error" statt „warning" (seit v2.0.7). **Vorläufiger Wert** — siehe Hinweis unten. |
 
 ### Wie die Wechselrichtersteuerung funktioniert
 
@@ -138,6 +139,8 @@ Befehle sind idempotent — miniEMS sendet einen Service-Call nur, wenn sich der
 
 !!! info "Schreibbestätigung (seit v2.0.1)"
     Ein von Home Assistant angenommener Service-Call (HTTP 200) ist noch kein Beweis, dass der Wechselrichter den Wert übernommen hat — manche Deye/Solarman-Anbindungen bestätigen einen geschriebenen Wert erst bei ihrem nächsten Poll, was mehrere Minuten dauern kann. miniEMS gleicht deshalb bei **jedem** Tick den echten HA-Zustand mit dem Zielwert ab und sendet den Befehl automatisch erneut, solange beides nicht übereinstimmt — unabhängig für Ladestrom, Entladestrom und Netzlade-Schalter. Bleibt ein Wert dauerhaft unbestätigt, erscheint eine Warnung im Dashboard-Banner ("Inverter control: N unconfirmed write(s)").
+
+    Seit v2.0.7 ist dieser Status auch als `sensor.miniems_inverter_write_status` abrufbar (`ok`/`warning`/`error`, Rohzahlen als Attribute) — siehe [Berechnungen](../technical/calculations.md). `inverter_write_stuck_threshold_sec` bestimmt, ab wann aus „warning" ein „error" wird; der Standardwert ist ausdrücklich vorläufig, bis genug reale Bestätigungsdauern gesammelt sind.
 
 ---
 

@@ -122,6 +122,50 @@ pro Kanal (Ladestrom, Entladestrom, Netzlade-Schalter) unabhängig:
 !!! danger "Seit v2.0.6: write_errors zählt nur noch das letzte Zeitfenster"
     Bis v2.0.5 war `write_errors` ein lebenslanger Zähler ohne Reset — 28 Fehler von vor drei Tagen sahen im Banner identisch aus wie 28 Fehler gerade eben, und die Meldung verschwand nie von selbst, auch wenn das Problem längst behoben war. `write_errors` ist jetzt eine Property, die nur Fehlschläge der letzten `INVERTER_WRITE_ERROR_WINDOW_SEC` (Standard 1 h) zählt; ältere werden bei jedem Zugriff verworfen.
 
+#### Schreibstatus als Sensor (`sensor.miniems_inverter_write_status`, seit v2.0.7)
+
+Bis v2.0.6 waren `write_errors`/`write_unconfirmed` nur über das Add-on-eigene Dashboard sichtbar — nicht über die normale HA-Entity-API abfragbar, auch nicht per Automation nutzbar. Der neue Sensor macht daraus einen regulären HA-Zustand mit drei Stufen (schwerster Fall gewinnt):
+
+```
+wenn längster durchgehend unbestätigter Kanal > inverter_write_stuck_threshold_sec:
+    "error"      # der Wechselrichter weicht nachweislich lange von dem ab, was die App will
+sonst wenn write_unconfirmed > 0 ODER write_errors > 0:
+    "warning"    # gerade unbestätigt oder kürzlich ein echter Fehlschlag — normal, meist selbstheilend
+sonst:
+    "ok"
+```
+
+Die Rohzahlen bleiben als Attribute erhalten: `write_errors`, `write_unconfirmed`, `stuck_channels` (Liste der aktuell betroffenen Kanäle, längster zuerst). Der Unterschied zwischen „eindeutig per HTTP abgelehnt" und „nur langsam" steckt bewusst nur in den Attributen, nicht in der Stufe selbst — beides lässt den Kanal gleichermaßen unbestätigt, und erst die *Dauer* zeigt, ob es wirklich etwas bewirkt.
+
+Ein `error` erzeugt zusätzlich eine eigene, namentlich benannte Warnbanner-Zeile („… unconfirmed for Xs (> Ys) — check inverter/Solarman connectivity"), unabhängig von der bereits bestehenden, milderen „N unconfirmed write(s)"-Zeile.
+
+!!! danger "inverter_write_stuck_threshold_sec ist ein vorläufiger Wert"
+    Standard 1800 s (30 min) — deutlich über der einzigen bekannten historischen Beobachtung (~25 min, siehe CHANGELOG v2.0.1), die aber selbst unbelegt ist (keine Solarman-Spezifikation, keine erhaltenen Rohdaten). Siehe „Write-Confirm-Protokollierung" unten: der Wert soll ersetzt werden, sobald echte Latenzdaten über mehrere Tage vorliegen.
+
+#### Write-Confirm-Protokollierung (`event_log`, seit v2.0.7)
+
+Der Log-Puffer des Add-ons selbst ist auf der Produktivinstanz nur wenige Minuten tief — zu kurz, um Bestätigungslatenzen über Tage zu analysieren. Jeder Kanal-Lebenszyklus wird deshalb zusätzlich dauerhaft in der bestehenden `event_log`-SQLite-Tabelle abgelegt (`entry_type="write_confirm"`):
+
+```
+InverterController.pop_write_events() liefert je Ereignis:
+  channel       – z. B. "Discharge current (number.deye8k_battery_max_discharging_current)"
+  target        – der angeforderte Wert
+  outcome       – "confirmed" | "failed" | "unconfirmed_at_shutdown"
+  latency_sec   – Zeit von "wurde unbestätigt" bis zu diesem Ergebnis
+```
+
+`EMSController.update()` liest das einmal pro Tick nach `apply_mode()` aus und persistiert jedes Ereignis. `unconfirmed_at_shutdown` wird beim Herunterfahren für jeden noch offenen Kanal geschrieben — sonst ginge der interessanteste Fall (ein Write, der nie bestätigt wurde) beim Neustart spurlos verloren, weil der Kanalzustand nur im Prozessspeicher lebt.
+
+Simulierte Schreibvorgänge (`battery_control_simulation: true`) erzeugen bewusst keine Ereignisse — sie bestätigen sich per Definition sofort und würden die Latenzstatistik verfälschen.
+
+`to_list(include_write_confirm=False)` (Standard) blendet diese Einträge aus der Log-Seite aus, damit die für Menschen gedachte Zeitleiste nicht mit Kanal-Diagnosedaten zugestellt wird. Auswertung nach einigen Tagen Laufzeit per direkter SQL-Abfrage:
+
+```sql
+SELECT write_channel, write_outcome, write_latency_sec
+FROM event_log WHERE entry_type = 'write_confirm'
+ORDER BY timestamp;
+```
+
 ### Batterieschutz-Hysterese
 
 ```
