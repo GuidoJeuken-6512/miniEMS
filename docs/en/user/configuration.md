@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-19
+revision_date: 2026-08-28
 ---
 
 # Configuration
@@ -230,6 +230,24 @@ Also editable only via **config.json**:
 |---|---|---|
 | `daily_base_price_eur` | `0.0` | Fixed daily base/standing charge (€/day) added on top of energy costs — e.g. your contract's monthly base fee, spread over the day |
 | `avg_discharge_tariff_eur_kwh` | `0.0` | Average discharge tariff used for the battery discharge ROI calculation (€/kWh). `0` = auto-derive from the three price tiers |
+
+---
+
+## Device Detection (Preview)
+
+The **Devices** tab in the dashboard shows which devices and entities Home Assistant knows
+about (device registry and energy dashboard) and how miniEMS *would* bind each role (PV
+power, battery SoC, grid-charge switch, …) from that data. This resolution does not yet
+feed the actual control path — the 30 entity fields above remain the only source that is
+really used. Details on the planned full resolution:
+[Roadmap "Device Profiles"](../../roadmap/v3.0-geraeteprofile.md).
+
+Two fields prepare for that, also only editable via **config.json**:
+
+| Setting | Default | Description |
+|---|---|---|
+| `entity_overrides` | `{}` | Manually binds a single role to an entity, `"<class>.<role>": "entity_id"` (e.g. `{"inverter.pv_power": "sensor.my_pv"}`). Beats any automatically detected binding in the Devices resolution preview — including one derived from the 30 entity fields above. |
+| `device_detection_enabled` | `false` on an update, `true` on a genuinely new install | Doesn't switch anything in the control path yet — preparation for a later version where the resolution actually drives runtime config. |
 
 ---
 

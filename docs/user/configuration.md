@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-19
+revision_date: 2026-08-28
 ---
 
 # Konfiguration
@@ -230,6 +230,24 @@ Ebenfalls nur über **config.json** editierbar:
 |---|---|---|
 | `daily_base_price_eur` | `0.0` | Fixer Grundpreis (€/Tag), der zusätzlich zu den Energiekosten aufgeschlagen wird — z. B. der monatliche Grundpreis deines Stromvertrags, umgelegt auf den Tag |
 | `avg_discharge_tariff_eur_kwh` | `0.0` | Durchschnittlicher Bezugstarif für die ROI-Berechnung der Batterieentladung (€/kWh). `0` = automatisch aus den drei Preis-Tarifstufen abgeleitet |
+
+---
+
+## Geräteerkennung (Vorschau)
+
+Der Tab **Devices** im Dashboard zeigt, welche Geräte und Entitäten Home Assistant kennt
+(Geräte-Registry und Energie-Dashboard) und wie miniEMS die einzelnen Rollen (PV-Leistung,
+Batterie-SoC, Netzladeschalter, …) daraus binden *würde*. Diese Auflösung speist heute noch
+nicht die tatsächliche Steuerung — die 30 Entitäts-Felder oben bleiben die einzige Quelle,
+die wirklich verwendet wird. Details zur geplanten vollen Auflösung:
+[Roadmap „Geräteprofile"](../roadmap/v3.0-geraeteprofile.md).
+
+Zwei Felder bereiten das vor, ebenfalls nur über **config.json** editierbar:
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `entity_overrides` | `{}` | Bindet einzelne Rollen manuell an eine Entität, `"<klasse>.<rolle>": "entity_id"` (z. B. `{"inverter.pv_power": "sensor.meine_pv"}`). Schlägt in der Devices-Auflösungsvorschau jede automatisch erkannte Bindung — auch die aus den 30 Entitäts-Feldern oben abgeleitete. |
+| `device_detection_enabled` | `false` bei einem Update, `true` bei einer echten Neuinstallation | Schaltet noch nichts in der Steuerung — Vorbereitung für eine spätere Version, in der die Auflösung die Laufzeitkonfiguration tatsächlich speist. |
 
 ---
 

@@ -19,3 +19,7 @@ _miniEMS add-on for Home Assistant with web interface via Ingress._
 
 [aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
 [amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
+
+---
+
+Zuletzt aktualisiert: 2026-08-28
