@@ -1,7 +1,7 @@
 """EMS decision logic – determines operating mode and triggers cost accounting."""
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from battery_model import BatteryModel
@@ -484,6 +484,89 @@ class EMSController:
         if bat_kwh_free is None or bat_kwh_free <= 0.05:
             return False, "no free capacity"
 
+        # V3a (docs/roadmap/energiefahrplan.md): hold exactly until the real
+        # PV peak, sized by how long the battery actually needs to charge –
+        # takes over whenever a confident answer is possible, ahead of the
+        # coarser remaining-forecast comparison below.
+        if cfg.solcast_peak_time_today_entity:
+            peak_result = self._should_hold_for_peak_time(bat_kwh_free, now)
+            if peak_result is not None:
+                return peak_result
+
+        return self._should_hold_by_forecast(bat_kwh_free, now)
+
+    def _should_hold_for_peak_time(
+        self, bat_kwh_free: float, now: datetime
+    ) -> tuple[bool, str] | None:
+        """V3a: hold until the PV peak minus the time needed to charge.
+
+        Returns None when no confident answer is possible – peak-time sensor
+        missing/stale, or no usable charge-power estimate (battery_voltage
+        unavailable) – so the caller falls back to _should_hold_by_forecast().
+        In practice the peak-time and remaining-forecast sensors come from
+        the same Solcast integration and fail together, so this fallback
+        degrades to the same "forecast unavailable" -> hold=False result
+        either way.
+
+        The one case that is NOT a fallback: once the peak has already
+        passed (e.g. a restart in the afternoon), holding any longer serves
+        no purpose and must not be overridden by a stale, over-optimistic
+        remaining-forecast estimate – this is the "hold survived from
+        sunrise to 10:55" case the roadmap doc records.
+        """
+        cfg = self._cfg
+        entity = cfg.solcast_peak_time_today_entity
+        peak_today = self._ws.get_state_datetime(entity)
+        if peak_today is None or self._is_stale_daily(entity):
+            return None
+
+        peak_local = peak_today.astimezone(now.tzinfo)
+        if now >= peak_local:
+            return False, "peak time passed"
+
+        charge_kw = self._charge_power_kw()
+        if charge_kw is None or charge_kw <= 0:
+            return None
+
+        t_needed_h = bat_kwh_free / charge_kw
+        # deadline = pv_charge_backstop_hour, reinterpreted here as "battery
+        # must be full again by this local hour" rather than "always charge
+        # from here on" – see docs/roadmap/energiefahrplan.md, V3a.
+        deadline = now.replace(hour=cfg.pv_charge_backstop_hour, minute=0, second=0, microsecond=0)
+        if deadline <= now:
+            deadline += timedelta(days=1)
+        latest_start = deadline - timedelta(hours=t_needed_h)
+        actual_start = min(peak_local, latest_start)
+
+        if now < actual_start:
+            return True, "peak-time hold"
+        return False, "peak-time window reached"
+
+    def _charge_power_kw(self) -> float | None:
+        """Assumed charging power, for T_needed_h = bat_kwh_free / charge_kw.
+
+        Config-derived for now (current × voltage); the SoC-bucketed learned
+        value from history (docs/roadmap/energiefahrplan.md, "Gelernte
+        Ladeleistung") replaces this in a later step.
+
+        None when battery_voltage is unavailable – callers then fall back to
+        the older, voltage-independent remaining-forecast estimate instead of
+        guessing a voltage.
+        """
+        cfg = self._cfg
+        if not cfg.battery_voltage_entity:
+            return None
+        voltage = self._ws.get_state_value(cfg.battery_voltage_entity)
+        if voltage is None or voltage <= 0:
+            return None
+        return cfg.battery_max_charge_current_a * voltage / 1000.0
+
+    def _should_hold_by_forecast(self, bat_kwh_free: float, now: datetime) -> tuple[bool, str]:
+        """Menge-based fallback: compare the remaining PV forecast to the need.
+
+        Pre-V3a logic, kept as the fallback for installs without a usable
+        peak-time sensor or battery voltage reading.
+        """
         remaining = self._forecast_remaining_kwh()
         if remaining is None:
             return False, "forecast unavailable"
@@ -500,11 +583,11 @@ class EMSController:
         # self._remaining_load_kwh is None on a fresh install (no history
         # yet) – degrades to the old battery-only comparison.
         need = bat_kwh_free + (self._remaining_load_kwh or 0.0)
-        target = need * cfg.pv_charge_margin_factor
+        target = need * self._cfg.pv_charge_margin_factor
 
         # Asymmetric threshold: harder to enter the hold than to leave it,
         # so the mode cannot flap around the trigger point.
-        hyst = max(0.0, min(0.5, cfg.pv_charge_hysteresis_frac))
+        hyst = max(0.0, min(0.5, self._cfg.pv_charge_hysteresis_frac))
         threshold = target * ((1.0 - hyst) if self._mode is EMSMode.EXPORT_SURPLUS
                               else (1.0 + hyst))
 

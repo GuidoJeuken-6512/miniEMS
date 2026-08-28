@@ -18,7 +18,7 @@ revision_date: 2026-08-28
     | Config-Feld `battery_voltage_entity` | ✅ umgesetzt (Config-Schema v19) — Voraussetzung für V1 und V3a, noch von keiner Entscheidung gelesen |
     | V1 — Ladeleistung strecken | offen; braucht die Frist aus V2 |
     | V2 — PriceCurve | Modul gebaut und getestet; Fensterwahl bewusst nicht verdrahtet |
-    | V3 — Export-Halt auf den echten PV-Peak-Zeitpunkt | offen; V3a (Peak-Sensoren) und V3b (volle Kurve) |
+    | V3 — Export-Halt auf den echten PV-Peak-Zeitpunkt | V3a ✅ umgesetzt (v2.0.10, Konfigurationswert als `P_charge_kw`); V3b (volle Kurve) offen |
     | **Gelernte Ladeleistung** — SoC-gebuckerte Historie statt Konfigurationswert | offen |
     | V4 — Wirtschaftlichkeits-Gate | ✅ umgesetzt in v2.0.4 |
     | V5 — Zweistufigkeit als Prinzip | offen |
@@ -185,6 +185,22 @@ Aufwand und unterschiedlicher Reichweite.
 
 #### V3a — dedizierte Peak-Zeitpunkt-Sensoren (leichtgewichtig)
 
+!!! success "Umgesetzt in v2.0.10"
+    `EMSController._should_hold_pv_charge()` ruft zuerst
+    `_should_hold_for_peak_time()`; liefert die eine Definitive Antwort (siehe
+    Fail-Safe-Kasten unten), übernimmt sie. Nur wenn diese Funktion `None`
+    zurückgibt — Peak-Sensor fehlt/`is_stale_daily()` oder `battery_voltage`
+    unbekannt —, fällt der Aufruf auf die bisherige
+    `_should_hold_by_forecast()` (Mengen-Schätzung, unverändert) zurück. Diese
+    Abweichung von einer wörtlichen Lesart des Fail-Safe-Kastens ist bewusst:
+    Peak-Zeitpunkt- und Restprognose-Sensor stammen aus derselben
+    Solcast-Integration und fallen in der Praxis gemeinsam aus — ein Umstieg
+    ohne Solcast-Konfiguration verhält sich damit identisch zum Vorzustand,
+    statt den Export-Halt stillschweigend abzuschalten. `P_charge_kw` ist in
+    diesem Schritt noch `battery_max_charge_current_a × battery_voltage_v`
+    (Konfigurationswert) — die SoC-gebuckerte Historie aus dem nächsten
+    Abschnitt ersetzt das noch nicht.
+
 Seit [Sensor-Staleness](../technical/sensor-staleness.md) sind zwei zusätzliche
 Solcast-Entities angebunden (`solcast_peak_time_today_entity`,
 `solcast_peak_time_tomorrow_entity`, Klasse (d) — einmal täglich geschrieben, per
@@ -348,14 +364,18 @@ Zeitpunkt exakt bekannt ist statt geschätzt.
 !!! note "Fail-Safe, passend zur bestehenden Philosophie"
     Deckt sich mit dem Docstring von `_should_hold_pv_charge()` — *"EVERY failure path
     returns hold=False, so a missing or stale input can never leave the battery empty at
-    nightfall"*:
+    nightfall"*. Umgesetzt als zwei verschiedene Reaktionen, je nachdem, ob überhaupt eine
+    informierte Entscheidung möglich ist:
 
-    - `peak_time_today` fehlt/`is_stale_daily()` → `hold = False` (sofort laden, wie
-      heute bei fehlender Prognose).
+    - `peak_time_today` fehlt/`is_stale_daily()` **oder** `battery_voltage` unbekannt →
+      `_should_hold_for_peak_time()` liefert `None`, der Aufrufer fällt auf die
+      Mengen-Schätzung zurück (`_should_hold_by_forecast()`, unverändert) — keine
+      eigenständige Entscheidung ohne die Daten dafür.
     - `now ≥ peak_time_today` (Peak schon vorbei, z. B. nach einem Neustart am
-      Nachmittag) → `hold = False`, sofort nachladen statt auf morgen zu warten.
-    - `battery_voltage` fehlt → Fallback auf die heutige Mengen-Schätzung statt hartem
-      Fehler.
+      Nachmittag) → **kein** Rückfall auf die Mengen-Schätzung, sondern direkt
+      `hold = False`: genau der Fall, den dieser Abschnitt beheben soll — eine
+      überoptimistische Restprognose darf den Halt nach dem Peak nicht künstlich
+      verlängern.
 
 #### V3b — volle 48-Punkte-Kurve (`detailedForecast`)
 
@@ -615,7 +635,7 @@ Aktualisiert sich mit dem stündlichen Trigger oben, nicht mit jedem 30-s-Tick �
 | 2 | **V1 Peak-Strecken** — kostenneutral, unmittelbar netzdienlich | mittel | hoch |
 | 3 | **V2 PriceCurve** — Modul gebaut und getestet in v2.0.4; Fensterwahl noch nicht verdrahtet | mittel | hoch |
 | 4 | ✅ **V4 Wirtschaftlichkeits-Gate** — **umgesetzt in v2.0.4** | klein | mittel |
-| 5 | **V3a Peak-Sensoren** ersetzt `pv_charge_backstop_hour` — Sensoren bereits angebunden | klein–mittel | hoch |
+| 5 | ✅ **V3a Peak-Sensoren** ersetzt `pv_charge_backstop_hour` — **umgesetzt in v2.0.10** | klein–mittel | hoch |
 | 5b | **Gelernte Ladeleistung** — SoC-gebuckerte Historie statt Konfigurationswert für `P_charge_kw` | mittel | hoch, macht V3a/Energiefahrplan-Deadlines belastbar |
 | 6 | **Energiefahrplan** — `deficit_kwh` proaktiv + Fensterwahl, stündlicher Trigger | mittel | hoch |
 | 7 | **`ChargeTask`-Abstraktion** — Batterie als erster/einziger Task, Struktur für weitere | klein | Freischalter für EV |
@@ -661,7 +681,8 @@ Smoke-Tests via `docker exec` im Add-on-Container für alles mit echtem HA-/Wech
 3. **Peak-Strecken:** Bei Bedarf *E* und Fensterrest *h* muss der gesetzte Strom ≈ `E/h/U` sein und über die Fensterdauer monoton nachgeführt werden.
 4. **Selbstkorrektur:** Fenster künstlich verkürzen → der berechnete Strom muss ansteigen, bis er an `max` klemmt; danach Warnung statt stiller Unterdeckung.
 5. **Wirtschaftlichkeits-Gate:** Mit `avg_discharge_tariff` unter dem Bezugspreis darf nicht geladen werden.
-6. **V3a Deadline-Fallback:** `peak_time_today` künstlich so spät setzen, dass `T_needed_h` nicht mehr bis zur Deadline passt → `actual_start` muss auf `latest_start` zurückfallen.
+6. ✅ **V3a Deadline-Fallback:** `peak_time_today` künstlich so spät setzen, dass `T_needed_h` nicht mehr bis zur Deadline passt → `actual_start` muss auf `latest_start` zurückfallen. Getestet:
+   `test_deadline_binds_when_peak_leaves_too_little_time` (`test_ems_controller.py`).
 7. **Energiefahrplan-Bilanz:** `deficit_kwh` muss bei `bat_kwh_free = 0` stets `0` sein, unabhängig von der PV-Prognose (nichts zu laden, wenn der Akku schon voll ist).
 8. **`ChargeTask`-Priorität:** Zwei synthetische Tasks mit überlappendem billigstem Fenster und identischer Deadline → der Task mit `charge_priority` gewinnt die Fensterkapazität zuerst, der andere weicht auf das nächstbillige Fenster aus.
 9. **Prioritätsschalter-Sync:** GUI-Änderung muss sich im HA-Switch-Zustand spiegeln und umgekehrt, ohne Add-on-Neustart.

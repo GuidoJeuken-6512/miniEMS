@@ -207,6 +207,111 @@ class TestShouldHoldPvCharge:
         assert hold_holding is True        # 5.2 > 4.5 (exit threshold) -> keeps holding
 
 
+class TestChargePowerKw:
+    """_charge_power_kw(): current x voltage, None when voltage is unusable."""
+
+    def test_computes_kw_from_current_and_voltage(self, make_config, fake_ws):
+        ctrl = make_controller(make_config, fake_ws, battery_max_charge_current_a=10,
+                                battery_voltage_entity="sensor.voltage")
+        fake_ws.values["sensor.voltage"] = 50.0
+        assert ctrl._charge_power_kw() == pytest.approx(0.5)
+
+    def test_none_when_voltage_entity_blank(self, make_config, fake_ws):
+        ctrl = make_controller(make_config, fake_ws, battery_voltage_entity="")
+        assert ctrl._charge_power_kw() is None
+
+    def test_none_when_voltage_unavailable(self, make_config, fake_ws):
+        ctrl = make_controller(make_config, fake_ws, battery_voltage_entity="sensor.voltage")
+        assert ctrl._charge_power_kw() is None
+
+    def test_none_when_voltage_not_positive(self, make_config, fake_ws):
+        ctrl = make_controller(make_config, fake_ws, battery_voltage_entity="sensor.voltage")
+        fake_ws.values["sensor.voltage"] = 0.0
+        assert ctrl._charge_power_kw() is None
+
+
+class TestShouldHoldForPeakTime:
+    """V3a: peak-time-based export hold, replacing the forecast comparison
+    whenever a confident answer is possible."""
+
+    def _base_kwargs(self):
+        return dict(
+            pv_export_priority_enabled=True,
+            pv_export_min_soc_pct=30,
+            battery_max_charge_current_a=10,
+            battery_voltage_entity="sensor.voltage",
+            solcast_peak_time_today_entity="sensor.peak_today",
+            solcast_remaining_today_entity="sensor.remaining",
+        )
+
+    def test_missing_peak_time_falls_back_to_forecast(self, make_config, fake_ws, now):
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs(),
+                                pv_charge_backstop_hour=23)
+        fake_ws.values["sensor.voltage"] = 50.0
+        fake_ws.values["sensor.remaining"] = 100.0   # would hold, via the fallback
+        hold, reason = ctrl._should_hold_pv_charge(50.0, 5.0, now)
+        assert hold is True
+        assert reason == "forecast above battery+load need"
+
+    def test_stale_peak_time_falls_back_to_forecast(self, make_config, fake_ws, now):
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs(),
+                                pv_charge_backstop_hour=23)
+        fake_ws.values["sensor.voltage"] = 50.0
+        fake_ws.datetimes["sensor.peak_today"] = now + timedelta(hours=2)
+        fake_ws.stale_daily["sensor.peak_today"] = True
+        fake_ws.values["sensor.remaining"] = 0.01   # fallback releases the hold
+        hold, reason = ctrl._should_hold_pv_charge(50.0, 5.0, now)
+        assert hold is False
+        assert reason == "forecast below battery+load need"
+
+    def test_missing_voltage_falls_back_to_forecast(self, make_config, fake_ws, now):
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs(),
+                                pv_charge_backstop_hour=23)
+        fake_ws.datetimes["sensor.peak_today"] = now + timedelta(hours=2)
+        fake_ws.values["sensor.remaining"] = 100.0
+        hold, reason = ctrl._should_hold_pv_charge(50.0, 5.0, now)
+        assert hold is True
+        assert reason == "forecast above battery+load need"
+
+    def test_peak_already_passed_forces_charge_over_large_forecast(self, make_config, fake_ws, now):
+        """Fixes the observed live bug: a stale-optimistic forecast must not
+        keep holding once the real peak has already gone by."""
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs(),
+                                pv_charge_backstop_hour=23)
+        fake_ws.values["sensor.voltage"] = 50.0
+        fake_ws.datetimes["sensor.peak_today"] = now - timedelta(hours=1)
+        fake_ws.values["sensor.remaining"] = 100.0   # would hold under the old logic
+        hold, reason = ctrl._should_hold_pv_charge(50.0, 5.0, now)
+        assert hold is False
+        assert reason == "peak time passed"
+
+    def test_holds_until_peak_when_deadline_has_slack(self, make_config, fake_ws, now):
+        """T_needed_h fits comfortably before the deadline -> the peak itself
+        is the binding constraint (actual_start == peak_local)."""
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs(),
+                                pv_charge_backstop_hour=23)
+        fake_ws.values["sensor.voltage"] = 50.0   # charge_kw = 10*50/1000 = 0.5
+        fake_ws.datetimes["sensor.peak_today"] = now + timedelta(hours=2)
+        # bat_kwh_free=1.0 -> T_needed_h=2h -> latest_start=21:00, well after the
+        # 14:00 peak: peak binds (actual_start == peak_local).
+        hold, reason = ctrl._should_hold_pv_charge(50.0, 1.0, now)
+        assert hold is True
+        assert reason == "peak-time hold"
+
+    def test_deadline_binds_when_peak_leaves_too_little_time(self, make_config, fake_ws, now):
+        """Peak_time_today set unrealistically late -> T_needed_h no longer
+        fits before the deadline, actual_start falls back to latest_start."""
+        deadline_hour = (now.hour + 1) % 24
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs(),
+                                pv_charge_backstop_hour=deadline_hour)
+        fake_ws.values["sensor.voltage"] = 50.0   # charge_kw = 0.5 kW
+        fake_ws.datetimes["sensor.peak_today"] = now + timedelta(hours=6)
+        # bat_kwh_free=0.5 -> T_needed_h=1h; deadline in 1h -> latest_start == now
+        hold, reason = ctrl._should_hold_pv_charge(50.0, 0.5, now)
+        assert hold is False
+        assert reason == "peak-time window reached"
+
+
 class TestShouldGridCharge:
     def test_missing_price_never_charges(self, make_config, fake_ws, now):
         ctrl = make_controller(make_config, fake_ws)

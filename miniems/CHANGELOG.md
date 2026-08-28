@@ -1,5 +1,20 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.10
+
+### Added
+
+- **V3a (Energiefahrplan-Roadmap): Export-Halt endet am echten PV-Peak
+  statt an einer hartkodierten Stunde.** `_should_hold_pv_charge()` fragt
+  jetzt zuerst `_should_hold_for_peak_time()`: hält den Export exakt bis
+  `peak_time_today` minus der geschätzten Ladezeit, geprüft gegen
+  `pv_charge_backstop_hour` als späteste Deadline. Fällt zurück auf die
+  bisherige Restprognose-Schätzung, solange Peak-Sensor oder
+  `battery_voltage` fehlen – Verhalten bleibt für Installationen ohne diese
+  Sensoren unverändert. Behebt insbesondere den beobachteten Fall, in dem
+  eine überoptimistische Restprognose den Halt weit über den tatsächlichen
+  Peak hinaus verlängerte.
+
 ## 2.0.9
 
 ### Added
