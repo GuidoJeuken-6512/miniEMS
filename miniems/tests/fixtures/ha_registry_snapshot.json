@@ -1,5 +1,5 @@
 {
-  "_source": "Redacted live capture from local devcontainer test HA instance, 2026-08-28. Trimmed from 17 devices/748 entities to a representative slice covering the real gotchas found during exploration: Deye's model is a literal glob string ('SG0*LP3'), Lambda's model is a firmware version, Octopus/OpenWeather have model=null. This test instance has no duplicate Deye device (unlike the production system referenced in docs/roadmap/v3.0-geraeteprofile.md).",
+  "_source": "Redacted live capture from local devcontainer test HA instance, 2026-08-28. Trimmed from 17 devices/748 entities to a representative slice covering the real gotchas found during exploration: Deye's model is a literal glob string ('SG0*LP3'), Lambda's model is a firmware version, Octopus/OpenWeather have model=null. This test instance has no duplicate Deye device (unlike the production system referenced in docs/roadmap/v3.0-geraeteprofile.md). Includes today/total_load_consumption entities for the device-resolver golden test.",
   "energy_prefs": {
     "energy_sources": [
       {
@@ -504,6 +504,22 @@
       "original_name": "Total Energy Export",
       "platform": "solarman",
       "translation_key": "total_energy_export"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_today_load_consumption",
+      "name": null,
+      "original_name": "Today Load Consumption",
+      "platform": "solarman",
+      "translation_key": "today_load_consumption"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_total_load_consumption",
+      "name": null,
+      "original_name": "Total Load Consumption",
+      "platform": "solarman",
+      "translation_key": "total_load_consumption"
     },
     {
       "device_id": "117f826e9f65444e206da7a4946b4e54",

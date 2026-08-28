@@ -1,5 +1,53 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.2.0
+
+### Added
+
+- **Geräteprofile (I3): Rollenauflösung mit sichtbarer Mapping-Vorschau.**
+  Neue Module `role_catalog.py` (`roles.yaml` – Rollenkatalog für alle
+  fünf Geräteklassen `inverter`/`battery`/`ev`/`energy_meter`/`load_actor`,
+  implementiert sind bisher `inverter` und `battery`), `device_profile.py`
+  (lädt/matched `profiles/**/*.yaml` gegen die Geräte-Registry, exaktes
+  `(manufacturer, model)`-Matching ohne Glob, `model` bewusst nicht
+  Pflicht), `device_resolver.py` (die fünfstufige Auflösungskette: Config
+  → Energie-Dashboard → Profil → Heuristik → sichtbar unaufgelöst — nie
+  stilles Raten, jeder Widerspruch zwischen Quellen wird als Konflikt
+  protokolliert, nicht verschwiegen). Neues `legacy_entity_fields.py`
+  überträgt die 30 bestehenden `*_entity`-Konfigurationsfelder, die vom
+  Standard abweichen, unverändert als `entity_overrides` in die neue
+  Auflösungskette — **keine Verhaltensänderung** für Bestandsinstallationen.
+
+  Erste zwei Profile: `profiles/inverter/deye_sg0x_lp3.yaml` (live
+  verifiziert), `profiles/battery/pylontech_force.yaml` (offline von der
+  Solarman-Definition abgeleitet, **nicht** an echter Hardware geprüft).
+  Herkunft und Lizenzstatus der Quellen in `profiles/SOURCES.md`
+  dokumentiert (Solarman: MIT; SEM: kein Lizenz-File, nicht übernommen).
+
+  `/devices`-Seite erweitert um eine Mapping-Vorschau: aufgelöste Rolle,
+  gewählte Entity, Herkunft, sichtbare Konflikte und unaufgelöste
+  Pflichtrollen. Weiterhin rein informativ — nichts fließt in die
+  Steuerung ein.
+
+  **Golden-Resolution-Regressionstest** (`test_device_resolver.py`): der
+  Resolver muss, gegen eine redigierte echte Registry-Erfassung und die
+  echte Produktiv-`config.json`, für 19 Rollen exakt dieselben Entity-IDs
+  liefern wie die heutige Konfiguration — automatisiert die stärkste
+  Verifikation aus `docs/roadmap/v3.0-geraeteprofile.md`.
+
+  Live gegen die lokale Testinstanz verifiziert, aus dem gebauten
+  Container heraus: alle 19 Pflicht-/Optionalrollen der Klasse `inverter`
+  lösen korrekt auf (0 unaufgelöst), das erkannte Profil `deye_sg0x_lp3`
+  bindet stark an das reale Deye-Gerät, und die Auflösung deckt einen
+  echten, bisher unbemerkten Widerspruch auf: `pv_power_entity` in der
+  Config zeigt auf `sensor.deye8k_pv_power`, während Home Assistants
+  Energie-Dashboard `sensor.deye8k_power` für dieselbe Rolle führt — genau
+  der Fall, den die sichtbare Konflikt-Anzeige lösen soll, statt ihn
+  stillschweigend zu überschreiben.
+
+  `pyyaml>=6.0` als direkte Abhängigkeit in `requirements.txt` ergänzt
+  (vorher nur transitiv über `uvicorn[standard]`).
+
 ## 2.1.0
 
 ### Added

@@ -5,3 +5,7 @@ jinja2>=3.1
 python-multipart>=0.0.9
 aiomqtt>=2.0
 aiosqlite>=0.19
+# Was only present transitively (via uvicorn[standard]) before v2.1.0/2.2.0 –
+# now a direct dependency: web_server.py (translations) and role_catalog.py/
+# device_profile.py (roles.yaml, profiles/*.yaml) all parse YAML.
+pyyaml>=6.0

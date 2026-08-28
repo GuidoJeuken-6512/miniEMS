@@ -111,6 +111,42 @@ class TestApiDevices:
         assert data["devices"][0]["model"] == "SG0*LP3"
         assert data["devices"][0]["entity_count"] == 2
 
+    def test_resolution_shows_energy_dashboard_source_for_pv_power(self, client, monkeypatch):
+        monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", self._fake_snapshot_ok)
+        r = client.get("/api/devices")
+        data = r.json()
+        binding = data["resolution"]["bindings"]["pv_power"]
+        assert binding["entity_id"] == "sensor.pv_power"
+        assert binding["source"] == "energy_dashboard"
+        assert data["resolution"]["matched_device_id"] == "dev1"
+
+    def test_resolution_prefers_config_override_over_energy_dashboard(self, monkeypatch):
+        monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", self._fake_snapshot_ok)
+        cfg = Config()
+        cfg.pv_power_entity = "sensor.my_custom_override"
+        app = create_app({}, cfg, "tok", None)
+        r = TestClient(app).get("/api/devices")
+        data = r.json()
+        binding = data["resolution"]["bindings"]["pv_power"]
+        assert binding["entity_id"] == "sensor.my_custom_override"
+        assert binding["source"] == "config"
+        # The energy-dashboard candidate is still offered -> recorded as a conflict.
+        conflict_roles = {c["role"] for c in data["resolution"]["conflicts"]}
+        assert "pv_power" in conflict_roles
+
+    def test_resolution_reports_unresolved_required_control_roles(self, monkeypatch):
+        async def _fake(long_lived_token=""):
+            return {}, [], []   # nothing resolvable at all
+
+        monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", _fake)
+        cfg = Config()
+        cfg.battery_control_enabled = True
+        app = create_app({}, cfg, "tok", None)
+        r = TestClient(app).get("/api/devices")
+        data = r.json()
+        assert "battery_charge_limit" in data["resolution"]["unresolved_required"]
+        assert "pv_power" in data["resolution"]["unresolved_required"]
+
     def test_ws_error_yields_error_field_not_a_5xx(self, client, monkeypatch):
         import ha_ws_api
 

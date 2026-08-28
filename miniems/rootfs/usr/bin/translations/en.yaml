@@ -29,6 +29,12 @@ name: Name
 entities: Entities
 no_energy_dashboard: No energy dashboard configured in Home Assistant.
 no_devices: No devices found.
+resolution_section: Resolved Roles (Inverter)
+matched_device: Matched device
+source: Source
+also_offered_by: also offered by
+role_unresolved: Role unresolved
+no_resolution: Nothing resolved yet.
 
 # Dashboard – live power cards
 pv_power: PV Power

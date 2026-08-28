@@ -20,9 +20,14 @@ from fastapi.templating import Jinja2Templates
 
 import const
 import ha_ws_api
+from config_loader import Config
 from const import CONFIG_FILE, OPTIONS_FILE, SUPERVISOR_RESTART_URL
+from device_profile import load_profiles
 from device_registry import RegistrySnapshot
+from device_resolver import resolve_class
 from energy_dashboard import parse_energy_prefs
+from legacy_entity_fields import inverter_overrides
+from role_catalog import load_role_catalog
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -224,6 +229,23 @@ def create_app(
         ]
         devices.sort(key=lambda d: (d["manufacturer"] or "", d["name"] or ""))
 
+        # Mapping preview: resolve the "inverter" class's roles against the
+        # same data, so the page shows what miniEMS would actually bind –
+        # not just what HA reports. Purely a preview: resolve_class() is not
+        # called anywhere in the control path yet, see
+        # docs/roadmap/v3.0-geraeteprofile.md.
+        live_config = config if config is not None else Config()
+        overrides = inverter_overrides(live_config, Config())
+        resolution = resolve_class(
+            "inverter",
+            catalog=load_role_catalog(),
+            overrides=overrides,
+            energy_map=energy_map,
+            registry=snapshot,
+            profiles=load_profiles(),
+            config_flags={"battery_control_enabled": live_config.battery_control_enabled},
+        )
+
         return JSONResponse({
             "energy_dashboard": {
                 "candidates": energy_map.candidates,
@@ -232,6 +254,22 @@ def create_app(
                 "battery_capacity_kwh": energy_map.battery_capacity_kwh,
             },
             "devices": devices,
+            "resolution": {
+                "matched_device_id": resolution.matched_device_id,
+                "bindings": {
+                    role: {"entity_id": b.entity_id, "source": b.source}
+                    for role, b in resolution.bindings.items()
+                },
+                "unresolved_required": list(resolution.unresolved_required),
+                "conflicts": [
+                    {
+                        "role": c.role,
+                        "chosen": {"entity_id": c.chosen.entity_id, "source": c.chosen.source},
+                        "rejected": [{"entity_id": r.entity_id, "source": r.source} for r in c.rejected],
+                    }
+                    for c in resolution.conflicts
+                ],
+            },
         })
 
     @app.get("/api/config")

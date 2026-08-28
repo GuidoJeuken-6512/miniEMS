@@ -32,12 +32,17 @@ class SignSpec:
     - "inverted": same as signed, but the entity's own sign is the *opposite*
                   of the physical direction – HA's `stat_rate_inverted`.
     - "split":    two separate entities, one per direction, not one signed
-                  value – HA's `stat_rate_from`/`stat_rate_to`. The two
-                  entity ids live in EnergyDashboardMap.split_candidates,
-                  not in `candidates`; `positive` is not meaningful here.
+                  value – HA's `stat_rate_from`/`stat_rate_to`. When parsed
+                  from an energy-dashboard payload the two entity ids live in
+                  EnergyDashboardMap.split_candidates, not in `candidates`.
+                  When *declared* in roles.yaml (role_catalog.py), the two
+                  directions are instead two other role names – `from_role`/
+                  `to_role` below.
     """
     mode: str  # "unsigned" | "signed" | "inverted" | "split"
     positive: str | None = None   # "import" | "export" | "charge" | "discharge"
+    from_role: str | None = None  # split only, roles.yaml usage
+    to_role: str | None = None    # split only, roles.yaml usage
 
 
 @dataclass(frozen=True)

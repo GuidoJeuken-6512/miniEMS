@@ -1,0 +1,84 @@
+# Deye SG0*LP3 / SG0*HP3 hybrid inverter, via the ha-solarman integration.
+#
+# Live-verified against a production installation (see
+# docs/roadmap/v3.0-geraeteprofile.md, "Machbarkeit verifiziert" /
+# CHANGELOG v2.0.9-2.0.16). translation_key values below are the exact
+# Solarman entity registry values observed live, not guessed.
+schema: 1
+id: deye_sg0x_lp3
+class: inverter
+verified: true
+derived_from: "solarman/deye_p3.yaml (custom_components/solarman/inverter_definitions/), MIT, David Rapan – used offline only to name the entities, never read at runtime"
+
+match:
+  manufacturer: Deye
+  model: ["SG0*LP3", "SG0*HP3"]
+  integration: solarman
+  entity_hints: [battery_max_charging_current, battery_grid_charging]
+
+roles:
+  pv_power:                       {translation_key: [pv_power, pv_total_power]}
+  battery_soc:                    {translation_key: [battery, battery_soc]}
+  battery_power:                  {translation_key: [battery_power]}
+  battery_voltage:                {translation_key: [battery_voltage]}
+  grid_power:                     {translation_key: [grid_power]}
+  load_power:                     {translation_key: [load_power]}
+  battery_capacity_kwh:           {translation_key: [battery_capacity]}
+  battery_state:                  {translation_key: [battery_state]}
+  grid_import_energy:             {translation_key: [today_energy_import]}
+  grid_import_energy_total:       {translation_key: [total_energy_import]}
+  feed_in_energy:                 {translation_key: [today_energy_export]}
+  feed_in_energy_total:           {translation_key: [total_energy_export]}
+  load_consumption_energy:        {translation_key: [today_load_consumption]}
+  load_consumption_energy_total:  {translation_key: [total_load_consumption]}
+  today_production:               {translation_key: [today_production]}
+  today_losses:                   {translation_key: [today_losses]}
+  power_losses:                   {translation_key: [power_losses]}
+  grid_charge_enable:             {translation_key: [battery_grid_charging]}
+  battery_charge_limit:           {translation_key: [battery_max_charging_current]}
+  battery_discharge_limit:        {translation_key: [battery_max_discharging_current]}
+
+signs:
+  battery_power: {mode: signed, positive: discharge}   # empirically verified, see CHANGELOG
+  grid_power:    {mode: signed, positive: import}
+
+control:
+  battery_charge_limit:
+    quantity: power
+    domain: number
+    actuator_unit: A
+    via: dc_current                # W -> A needs a voltage
+    voltage_role: battery_voltage
+    voltage_fallback_v: 48
+    limits_from: entity_attributes  # live min/max/step, see CHANGELOG v2.1.0
+    fallback_limits: {min: 0, max: 350, step: 1}
+  battery_discharge_limit:
+    quantity: power
+    domain: number
+    actuator_unit: A
+    via: dc_current
+    voltage_role: battery_voltage
+    voltage_fallback_v: 48
+    limits_from: entity_attributes
+    fallback_limits: {min: 0, max: 350, step: 1}
+  grid_charge_enable:
+    quantity: boolean
+    domain: switch
+    on:  {service: turn_on,  expect_state: "on"}
+    off: {service: turn_off, expect_state: "off"}
+
+modes:                             # EMSMode -> setpoint vocabulary, no numbers
+  GRID_CHARGING:   {grid_charge_enable: true,  charge: requested, discharge: off}
+  PV_CHARGING:     {grid_charge_enable: false, charge: max,       discharge: max}
+  EXPORT_SURPLUS:  {grid_charge_enable: false, charge: hold,      discharge: max}
+  PROTECT_BATTERY: {grid_charge_enable: false, charge: max,       discharge: off}
+  IDLE:            {grid_charge_enable: false, charge: max,       discharge: max}
+
+caveats:
+  - "Tageszähler rollen ~4:54 min nach lokaler Mitternacht über – kWh-Größen aus den
+     Lebenszeit-Zählern ableiten (grid_import_energy_total, feed_in_energy_total,
+     load_consumption_energy_total), nicht aus den Tageswerten des Geräts."
+  - "Solarman ist Poll-basiert: ein geschriebener Sollwert wird erst mit dem nächsten
+     Poll zurückgemeldet, nicht sofort. Unconfirmed writes bis dahin sind normal."
+  - "battery_capacity trägt denselben translation_key auf zwei Entities (sensor.* und
+     number.*) – nur die sensor-Domain ist die Rolle battery_capacity_kwh."

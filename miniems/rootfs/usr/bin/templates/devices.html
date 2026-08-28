@@ -94,6 +94,45 @@
       `;
     }
 
+    function renderResolution(res) {
+      if (!res) return '';
+      const bindings = res.bindings || {};
+      const conflictsByRole = {};
+      (res.conflicts || []).forEach(c => { conflictsByRole[c.role] = c; });
+
+      const rows = Object.entries(bindings).map(([role, b]) => {
+        const conflict = conflictsByRole[role];
+        const conflictNote = conflict
+          ? `<br><span class="svalue muted" style="font-size:0.8rem">${T.also_offered_by || 'also offered by'}: ${
+              conflict.rejected.map(r => `<code>${esc(r.entity_id)}</code> (${esc(r.source)})`).join(', ')
+            }</span>`
+          : '';
+        return `
+        <tr>
+          <td>${esc(role)}</td>
+          <td><code>${esc(b.entity_id)}</code>${conflictNote}</td>
+          <td>${esc(b.source)}</td>
+        </tr>`;
+      }).join('');
+
+      const unresolved = res.unresolved_required || [];
+      const unresolvedBanner = unresolved.length > 0 ? `
+        <div class="warnings-banner">${unresolved.map(role =>
+          `<div class="warn-item">&#9888; ${T.role_unresolved || 'Role unresolved'}: ${esc(role)}</div>`
+        ).join('')}</div>` : '';
+
+      return `
+        <p class="section-title">${T.resolution_section || 'Resolved Roles (inverter)'}</p>
+        ${res.matched_device_id ? `<p class="svalue muted" style="font-size:0.9rem;margin-bottom:0.75rem">${T.matched_device || 'Matched device'}: <code>${esc(res.matched_device_id)}</code></p>` : ''}
+        ${unresolvedBanner}
+        ${rows ? `
+        <table class="devices-table">
+          <thead><tr><th>${T.role || 'Role'}</th><th>${T.entity || 'Entity'}</th><th>${T.source || 'Source'}</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>` : `<p class="svalue muted">${T.no_resolution || 'Nothing resolved yet.'}</p>`}
+      `;
+    }
+
     async function load() {
       const el = document.getElementById('devices-content');
       try {
@@ -103,7 +142,9 @@
           el.innerHTML = `<div class="warnings-banner"><div class="warn-item">&#9888; ${esc(d.error)}</div></div>`;
           return;
         }
-        el.innerHTML = renderEnergyDashboard(d.energy_dashboard || {}) + renderDevices(d.devices || []);
+        el.innerHTML = renderResolution(d.resolution)
+          + renderEnergyDashboard(d.energy_dashboard || {})
+          + renderDevices(d.devices || []);
       } catch(e) {
         el.innerHTML = `<div class="warnings-banner"><div class="warn-item">&#9888; ${esc('Request failed: ' + e)}</div></div>`;
       }
