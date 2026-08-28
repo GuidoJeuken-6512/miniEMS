@@ -6,7 +6,7 @@ import pytest
 
 from device_profile import DeviceProfile, ProfileMatch, RoleHint, load_profiles
 from device_registry import RegistryDevice, RegistrySnapshot
-from device_resolver import _pick_best_device_match, resolve_class
+from device_resolver import ClassResolution, RoleBinding, RoleConflict, _pick_best_device_match, profile_status, resolve_class
 from energy_dashboard import EnergyDashboardMap, SignSpec
 from role_catalog import RoleCatalog, RoleSpec
 
@@ -242,6 +242,31 @@ class TestPickBestDeviceMatch:
         assert _pick_best_device_match([a, b]) is None
 
 
+class TestProfileStatus:
+    """docs/roadmap/v3.0-geraeteprofile.md, I6: the ok/degraded/unresolved
+    signal a future sensor.miniems_device_profile_status would expose –
+    today only surfaced in the /api/devices preview."""
+
+    def test_no_unresolved_no_conflicts_is_ok(self):
+        assert profile_status(ClassResolution(class_name="inverter")) == "ok"
+
+    def test_unresolved_required_wins_over_everything(self):
+        binding = RoleBinding("pv_power", "sensor.x", "config")
+        conflict = RoleConflict("pv_power", binding, (binding,))
+        resolution = ClassResolution(
+            class_name="inverter",
+            unresolved_required=("battery_soc",),
+            conflicts=(conflict,),
+        )
+        assert profile_status(resolution) == "unresolved"
+
+    def test_conflicts_without_unresolved_is_degraded(self):
+        binding = RoleBinding("pv_power", "sensor.x", "config")
+        conflict = RoleConflict("pv_power", binding, (binding,))
+        resolution = ClassResolution(class_name="inverter", conflicts=(conflict,))
+        assert profile_status(resolution) == "degraded"
+
+
 class TestGoldenResolutionAgainstProduction:
     """Regression test: the resolver, using the real shipped roles.yaml and
     profiles/, must reproduce the entity ids the real production config.json
@@ -304,3 +329,54 @@ class TestGoldenResolutionAgainstProduction:
 
     def test_resolved_device_is_the_real_deye_device(self, resolution):
         assert resolution.matched_device_id is not None
+
+
+class TestGoldenResolutionEnergyMeter:
+    """Same idea as TestGoldenResolutionAgainstProduction, for the Shelly
+    Gen1 3EM (energy_meter class) in the same fixture – docs/roadmap/
+    v3.0-geraeteprofile.md, I7. No production config.json field to compare
+    against (energy_meter isn't wired into any config field at all yet),
+    so this only asserts the resolution itself, not a config round-trip."""
+
+    @pytest.fixture
+    def resolution(self):
+        from role_catalog import load_role_catalog
+        catalog = load_role_catalog(_REAL_ROLES_YAML)
+        profiles = load_profiles(_REAL_PROFILES_DIR)
+        registry = RegistrySnapshot.from_lists(_FIXTURE["devices"], _FIXTURE["entities"])
+        return resolve_class(
+            "energy_meter", catalog=catalog, overrides={},
+            energy_map=EnergyDashboardMap(), registry=registry, profiles=profiles,
+            config_flags={},
+        )
+
+    def test_all_nine_phase_roles_resolve(self, resolution):
+        for role in (
+            "l1_power", "l2_power", "l3_power",
+            "l1_voltage", "l2_voltage", "l3_voltage",
+            "l1_current", "l2_current", "l3_current",
+        ):
+            assert resolution.entity_for(role) is not None, f"{role} did not resolve"
+
+    def test_phase_roles_bind_to_the_correct_phase(self, resolution):
+        assert resolution.entity_for("l1_power") == "sensor.shelly3emlambda_phase_a_leistung"
+        assert resolution.entity_for("l2_power") == "sensor.shelly3emlambda_phase_b_leistung"
+        assert resolution.entity_for("l3_power") == "sensor.shelly3emlambda_phase_c_leistung"
+
+    def test_power_roles_are_signed_positive_import(self, resolution):
+        binding = resolution.bindings["l1_power"]
+        assert binding.sign.mode == "signed"
+        assert binding.sign.positive == "import"
+
+    def test_aggregate_roles_stay_unresolved_no_sensor_exists(self, resolution):
+        """Not a bug: this specific Gen1 hardware has no combined/site-total
+        sensor at all, see the profile's caveats – binding one would mean
+        inventing a value, not reading one."""
+        assert resolution.entity_for("active_power") is None
+        assert resolution.entity_for("import_energy") is None
+        assert resolution.entity_for("export_energy") is None
+
+    def test_no_required_role_is_unresolved(self, resolution):
+        # energy_meter has no required roles at all (a meter can legitimately
+        # be read-only-partial) - this just documents that fact stays true.
+        assert resolution.unresolved_required == ()

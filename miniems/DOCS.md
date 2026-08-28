@@ -41,7 +41,7 @@ Deye-8K-Installation (`sensor.deye8k_*`).
 
 Nach der Installation erscheint miniEMS in der Seitenleiste. Die Oberfläche hat
 die Reiter **Dashboard**, **Einstellungen**, **Log**, **config.json**,
-**options.json** und **Datenbank**.
+**options.json**, **Datenbank** und **Devices** (Geräte-/Rollen-Erkennungsvorschau).
 
 ### 2. Entities zuordnen
 
@@ -135,3 +135,7 @@ Die vollständige Liste steht in der
 - [Berechnungen](https://github.com/GuidoJeuken-6512/miniEMS/blob/main/docs/technical/calculations.md) — die Formeln dahinter
 - [Konfigurationsreferenz](https://github.com/GuidoJeuken-6512/miniEMS/blob/main/docs/user/configuration.md) — alle Felder
 - [CHANGELOG](https://github.com/GuidoJeuken-6512/miniEMS/blob/main/miniems/CHANGELOG.md) — Änderungen je Version
+
+---
+
+Zuletzt aktualisiert: 2026-08-28 (v2.5.0)

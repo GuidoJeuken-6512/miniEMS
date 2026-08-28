@@ -469,6 +469,33 @@ classes:
         unit: [V]
         hints: [phase_c_voltage]
 
+      l1_current:
+        required: false
+        kind: measurement
+        quantity: current
+        domain: [sensor]
+        device_class: current
+        unit: [A]
+        hints: [phase_a_current]
+
+      l2_current:
+        required: false
+        kind: measurement
+        quantity: current
+        domain: [sensor]
+        device_class: current
+        unit: [A]
+        hints: [phase_b_current]
+
+      l3_current:
+        required: false
+        kind: measurement
+        quantity: current
+        domain: [sensor]
+        device_class: current
+        unit: [A]
+        hints: [phase_c_current]
+
       power_factor:
         required: false
         kind: measurement

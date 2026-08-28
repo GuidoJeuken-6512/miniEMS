@@ -24,7 +24,7 @@ from config_loader import Config
 from const import CONFIG_FILE, OPTIONS_FILE, SUPERVISOR_RESTART_URL
 from device_profile import load_profiles
 from device_registry import RegistrySnapshot
-from device_resolver import resolve_class
+from device_resolver import profile_status, resolve_class
 from energy_dashboard import parse_energy_prefs
 from legacy_entity_fields import inverter_overrides
 from role_catalog import load_role_catalog
@@ -124,6 +124,48 @@ def _coerce(key: str, value: Any) -> Any:
     if key in _DICT_FIELDS:
         return value if isinstance(value, dict) else {}
     return str(value) if value is not None else ""
+
+
+def _resolve_class_json(
+    class_name: str,
+    *,
+    catalog: Any,
+    overrides: dict[str, str],
+    energy_map: Any,
+    registry: Any,
+    profiles: list[Any],
+    live_config: "Config",
+) -> dict[str, Any]:
+    """resolve_class() for one class, JSON-shaped for /api/devices. `battery_
+    control_enabled` is the only config_flags entry any role currently
+    declares required_if on (inverter's three control roles) – harmless to
+    pass for every class, roles.yaml's other classes simply don't reference it."""
+    resolution = resolve_class(
+        class_name,
+        catalog=catalog,
+        overrides=overrides,
+        energy_map=energy_map,
+        registry=registry,
+        profiles=profiles,
+        config_flags={"battery_control_enabled": live_config.battery_control_enabled},
+    )
+    return {
+        "status": profile_status(resolution),
+        "matched_device_id": resolution.matched_device_id,
+        "bindings": {
+            role: {"entity_id": b.entity_id, "source": b.source}
+            for role, b in resolution.bindings.items()
+        },
+        "unresolved_required": list(resolution.unresolved_required),
+        "conflicts": [
+            {
+                "role": c.role,
+                "chosen": {"entity_id": c.chosen.entity_id, "source": c.chosen.source},
+                "rejected": [{"entity_id": r.entity_id, "source": r.source} for r in c.rejected],
+            }
+            for c in resolution.conflicts
+        ],
+    }
 
 
 def create_app(
@@ -239,27 +281,31 @@ def create_app(
         ]
         devices.sort(key=lambda d: (d["manufacturer"] or "", d["name"] or ""))
 
-        # Mapping preview: resolve the "inverter" class's roles against the
-        # same data, so the page shows what miniEMS would actually bind –
-        # not just what HA reports. Purely a preview: resolve_class() is not
-        # called anywhere in the control path yet, see
-        # docs/roadmap/v3.0-geraeteprofile.md.
+        # Mapping preview: resolve every implemented class's roles against
+        # the same data, so the page shows what miniEMS would actually bind
+        # – not just what HA reports. Purely a preview: resolve_class() is
+        # not called anywhere in the control path yet, see
+        # docs/roadmap/v3.0-geraeteprofile.md. "battery" is left out here –
+        # its only profile (pylontech_force) is unverified and the legacy
+        # config has never had a separate battery slot to compare against.
         live_config = config if config is not None else Config()
         # entity_overrides (explicit, "<class>.<role>" keyed – set via the raw
         # config.json editor today, an entity-picker later) wins over a
         # legacy *_entity field that merely differs from its default: both
         # are resolution source 1, but entity_overrides is the more
-        # deliberate signal of the two.
+        # deliberate signal of the two. resolve_class() only ever reads the
+        # keys prefixed for the class it was called with, so one merged dict
+        # can be reused across every class's call.
         overrides = {**inverter_overrides(live_config, Config()), **(live_config.entity_overrides or {})}
-        resolution = resolve_class(
-            "inverter",
-            catalog=load_role_catalog(),
-            overrides=overrides,
-            energy_map=energy_map,
-            registry=snapshot,
-            profiles=load_profiles(),
-            config_flags={"battery_control_enabled": live_config.battery_control_enabled},
-        )
+        catalog = load_role_catalog()
+        profiles = load_profiles()
+        resolutions = {
+            class_name: _resolve_class_json(
+                class_name, catalog=catalog, overrides=overrides, energy_map=energy_map,
+                registry=snapshot, profiles=profiles, live_config=live_config,
+            )
+            for class_name in ("inverter", "energy_meter")
+        }
 
         return JSONResponse({
             "energy_dashboard": {
@@ -269,22 +315,7 @@ def create_app(
                 "battery_capacity_kwh": energy_map.battery_capacity_kwh,
             },
             "devices": devices,
-            "resolution": {
-                "matched_device_id": resolution.matched_device_id,
-                "bindings": {
-                    role: {"entity_id": b.entity_id, "source": b.source}
-                    for role, b in resolution.bindings.items()
-                },
-                "unresolved_required": list(resolution.unresolved_required),
-                "conflicts": [
-                    {
-                        "role": c.role,
-                        "chosen": {"entity_id": c.chosen.entity_id, "source": c.chosen.source},
-                        "rejected": [{"entity_id": r.entity_id, "source": r.source} for r in c.rejected],
-                    }
-                    for c in resolution.conflicts
-                ],
-            },
+            "resolutions": resolutions,
         })
 
     @app.get("/api/config")

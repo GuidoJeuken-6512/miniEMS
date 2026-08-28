@@ -20,6 +20,15 @@ production installation):
   glob/regex match, and callers must not treat a missing `model` as
   disqualifying on its own – see the device-profile matcher's own hint-based
   fallback.
+
+A third quirk, found live against a Shelly Gen1 3EM (docs/roadmap/
+v3.0-geraeteprofile.md, I7): a single physical device can show up as
+*several* registry devices with no formal parent/child link between them –
+this integration's `parent_device_id` is `null` on every one of them. HA
+still groups them under one shared `config_entry_id`, though, which is what
+`devices_in_config_entry()`/`entities_of_group()` below use to treat such a
+group as one logical device for role resolution – see device_profile.py's
+`group_by_config_entry`.
 """
 from __future__ import annotations
 
@@ -36,6 +45,12 @@ class RegistryEntity:
     device_class: str | None       # effective: override (device_class) or original_device_class
     translation_key: str | None
     original_name: str | None
+    # Stable, integration-assigned id (e.g. "EC64C9C6A0C2-emeter_0-power").
+    # translation_key is unset on every entity of at least one real
+    # integration observed so far (Shelly) – unique_id is the only
+    # role-matching key a device profile can then use, see
+    # device_profile.RoleHint.unique_id_suffix.
+    unique_id: str | None
 
     @classmethod
     def from_raw(cls, raw: dict[str, Any]) -> "RegistryEntity":
@@ -47,6 +62,7 @@ class RegistryEntity:
             device_class=raw.get("device_class") or raw.get("original_device_class"),
             translation_key=raw.get("translation_key"),
             original_name=raw.get("original_name"),
+            unique_id=raw.get("unique_id"),
         )
 
 
@@ -56,6 +72,10 @@ class RegistryDevice:
     manufacturer: str | None
     model: str | None
     name: str | None
+    # Which integration config entry created this device – see module
+    # docstring, "a single physical device can show up as several registry
+    # devices". None for a device registered without one (rare).
+    config_entry_id: str | None = None
 
     @classmethod
     def from_raw(cls, raw: dict[str, Any]) -> "RegistryDevice":
@@ -64,6 +84,7 @@ class RegistryDevice:
             manufacturer=raw.get("manufacturer"),
             model=raw.get("model"),
             name=raw.get("name_by_user") or raw.get("name"),
+            config_entry_id=raw.get("config_entry_id"),
         )
 
 
@@ -116,3 +137,21 @@ class RegistrySnapshot:
             d for d in self.devices.values()
             if d.manufacturer == manufacturer and d.model in models
         ]
+
+    def devices_in_config_entry(self, config_entry_id: str | None) -> list[RegistryDevice]:
+        """Every device sharing `config_entry_id` – the group a
+        `group_by_config_entry` profile treats as one logical device. `None`
+        always yields `[]`: a device with no config entry of its own is
+        never "grouped" with anything."""
+        if not config_entry_id:
+            return []
+        return [d for d in self.devices.values() if d.config_entry_id == config_entry_id]
+
+    def entities_of_group(self, device_ids: list[str]) -> list[RegistryEntity]:
+        """Union of entities_of() over several devices, deduplicated by
+        entity_id (a device can in principle appear twice in `device_ids`)."""
+        seen: dict[str, RegistryEntity] = {}
+        for device_id in device_ids:
+            for entity in self.entities_of(device_id):
+                seen[entity.entity_id] = entity
+        return list(seen.values())

@@ -128,10 +128,28 @@ class TestApiDevices:
         monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", self._fake_snapshot_ok)
         r = client.get("/api/devices")
         data = r.json()
-        binding = data["resolution"]["bindings"]["pv_power"]
+        binding = data["resolutions"]["inverter"]["bindings"]["pv_power"]
         assert binding["entity_id"] == "sensor.pv_power"
         assert binding["source"] == "energy_dashboard"
-        assert data["resolution"]["matched_device_id"] == "dev1"
+        assert data["resolutions"]["inverter"]["matched_device_id"] == "dev1"
+
+    def test_resolution_status_is_one_of_the_three_values(self, client, monkeypatch):
+        monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", self._fake_snapshot_ok)
+        r = client.get("/api/devices")
+        data = r.json()
+        assert data["resolutions"]["inverter"]["status"] in ("ok", "degraded", "unresolved")
+
+    def test_resolution_status_unresolved_when_a_required_role_is_missing(self, monkeypatch):
+        async def _fake(long_lived_token=""):
+            return {}, [], []
+
+        monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", _fake)
+        cfg = Config()
+        cfg.battery_control_enabled = True
+        app = create_app({}, cfg, "tok", None)
+        r = TestClient(app).get("/api/devices")
+        data = r.json()
+        assert data["resolutions"]["inverter"]["status"] == "unresolved"
 
     def test_resolution_prefers_config_override_over_energy_dashboard(self, monkeypatch):
         monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", self._fake_snapshot_ok)
@@ -140,11 +158,11 @@ class TestApiDevices:
         app = create_app({}, cfg, "tok", None)
         r = TestClient(app).get("/api/devices")
         data = r.json()
-        binding = data["resolution"]["bindings"]["pv_power"]
+        binding = data["resolutions"]["inverter"]["bindings"]["pv_power"]
         assert binding["entity_id"] == "sensor.my_custom_override"
         assert binding["source"] == "config"
         # The energy-dashboard candidate is still offered -> recorded as a conflict.
-        conflict_roles = {c["role"] for c in data["resolution"]["conflicts"]}
+        conflict_roles = {c["role"] for c in data["resolutions"]["inverter"]["conflicts"]}
         assert "pv_power" in conflict_roles
 
     def test_resolution_prefers_entity_overrides_over_legacy_field_diff(self, monkeypatch):
@@ -159,7 +177,7 @@ class TestApiDevices:
         app = create_app({}, cfg, "tok", None)
         r = TestClient(app).get("/api/devices")
         data = r.json()
-        binding = data["resolution"]["bindings"]["pv_power"]
+        binding = data["resolutions"]["inverter"]["bindings"]["pv_power"]
         assert binding["entity_id"] == "sensor.explicit_override"
         assert binding["source"] == "config"
 
@@ -173,8 +191,17 @@ class TestApiDevices:
         app = create_app({}, cfg, "tok", None)
         r = TestClient(app).get("/api/devices")
         data = r.json()
-        assert "battery_charge_limit" in data["resolution"]["unresolved_required"]
-        assert "pv_power" in data["resolution"]["unresolved_required"]
+        assert "battery_charge_limit" in data["resolutions"]["inverter"]["unresolved_required"]
+        assert "pv_power" in data["resolutions"]["inverter"]["unresolved_required"]
+
+    def test_resolutions_include_energy_meter_class(self, client, monkeypatch):
+        """docs/roadmap/v3.0-geraeteprofile.md, I6/I7: the preview resolves
+        every implemented class, not just inverter."""
+        monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", self._fake_snapshot_ok)
+        r = client.get("/api/devices")
+        data = r.json()
+        assert "energy_meter" in data["resolutions"]
+        assert data["resolutions"]["energy_meter"]["bindings"] == {}   # fixture has no Shelly
 
     def test_ws_error_yields_error_field_not_a_5xx(self, client, monkeypatch):
         import ha_ws_api

@@ -29,11 +29,15 @@ name: Name
 entities: Entities
 no_energy_dashboard: No energy dashboard configured in Home Assistant.
 no_devices: No devices found.
-resolution_section: Resolved Roles (Inverter)
+resolution_section_inverter: Resolved Roles (Inverter)
+resolution_section_energy_meter: Resolved Roles (Energy Meter)
 matched_device: Matched device
 source: Source
 also_offered_by: also offered by
 role_unresolved: Role unresolved
+profile_status_ok: ok
+profile_status_degraded: ambiguous
+profile_status_unresolved: unresolved
 no_resolution: Nothing resolved yet.
 
 # Dashboard – live power cards

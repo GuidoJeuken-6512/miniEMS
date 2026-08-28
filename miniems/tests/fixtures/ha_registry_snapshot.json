@@ -1,5 +1,5 @@
 {
-  "_source": "Redacted live capture from local devcontainer test HA instance, 2026-08-28. Trimmed from 17 devices/748 entities to a representative slice covering the real gotchas found during exploration: Deye's model is a literal glob string ('SG0*LP3'), Lambda's model is a firmware version, Octopus/OpenWeather have model=null. This test instance has no duplicate Deye device (unlike the production system referenced in docs/roadmap/v3.0-geraeteprofile.md). Includes today/total_load_consumption entities for the device-resolver golden test.",
+  "_source": "Redacted live capture from local devcontainer test HA instance, 2026-08-28. Trimmed from 17 devices/748 entities to a representative slice covering the real gotchas found during exploration: Deye's model is a literal glob string ('SG0*LP3'), Lambda's model is a firmware version, Octopus/OpenWeather have model=null. This test instance has no duplicate Deye device (unlike the production system referenced in docs/roadmap/v3.0-geraeteprofile.md). Includes today/total_load_consumption entities for the device-resolver golden test. Extended 2026-08-28 (I7) with a real Shelly Gen1 3EM (split into 4 registry devices – 1 parent + 3 phase sub-devices sharing one config_entry_id, no parent_device_id link at all) and a Shelly 1 Mini Gen3 (a plain switch, no power sensor at all – kept as the 'other Shellys are just switches' case, not used by any profile). Trimmed to the entities the shelly_gen1_3em profile and its tests actually touch, not the full ~26/~10 entity set.",
   "energy_prefs": {
     "energy_sources": [
       {
@@ -398,6 +398,76 @@
       "name": "SEM",
       "parent_device_id": null,
       "sw_version": "2.0.0-beta.18"
+    },
+    {
+      "id": "b5127ba188df05ff0baa61189ef93b64",
+      "manufacturer": "Shelly",
+      "model": "Shelly 3EM",
+      "model_id": "SHEM-3",
+      "name_by_user": null,
+      "name": "Shelly3EMLambda",
+      "config_entry_id": "01M149M5HEJZJDJPASW6DVQR5W",
+      "config_entries": [
+        "01M149M5HEJZJDJPASW6DVQR5W"
+      ],
+      "parent_device_id": null,
+      "hw_version": "gen1"
+    },
+    {
+      "id": "f9d41f7fb409dfea6158e5478933615a",
+      "manufacturer": "Shelly",
+      "model": "Shelly 3EM",
+      "model_id": "SHEM-3",
+      "name_by_user": null,
+      "name": "Shelly3EMLambda Phase A",
+      "config_entry_id": "01M149M5HEJZJDJPASW6DVQR5W",
+      "config_entries": [
+        "01M149M5HEJZJDJPASW6DVQR5W"
+      ],
+      "parent_device_id": null,
+      "hw_version": null
+    },
+    {
+      "id": "513fa77d2f63a233494c631b8a65e7a6",
+      "manufacturer": "Shelly",
+      "model": "Shelly 3EM",
+      "model_id": "SHEM-3",
+      "name_by_user": null,
+      "name": "Shelly3EMLambda Phase B",
+      "config_entry_id": "01M149M5HEJZJDJPASW6DVQR5W",
+      "config_entries": [
+        "01M149M5HEJZJDJPASW6DVQR5W"
+      ],
+      "parent_device_id": null,
+      "hw_version": null
+    },
+    {
+      "id": "d7d95ce368624f312d31534e75f2c5b5",
+      "manufacturer": "Shelly",
+      "model": "Shelly 3EM",
+      "model_id": "SHEM-3",
+      "name_by_user": null,
+      "name": "Shelly3EMLambda Phase C",
+      "config_entry_id": "01M149M5HEJZJDJPASW6DVQR5W",
+      "config_entries": [
+        "01M149M5HEJZJDJPASW6DVQR5W"
+      ],
+      "parent_device_id": null,
+      "hw_version": null
+    },
+    {
+      "id": "557cc1bdd941a12896fd7b924f509a54",
+      "manufacturer": "Shelly",
+      "model": "Shelly 1 Mini Gen3",
+      "model_id": "S3SW-001X8EU",
+      "name_by_user": null,
+      "name": "shelly1minig3-cc8da2469d80",
+      "config_entry_id": "01M149NAJ8TQRSW5CP904PGW2K",
+      "config_entries": [
+        "01M149NAJ8TQRSW5CP904PGW2K"
+      ],
+      "parent_device_id": null,
+      "hw_version": "gen3"
     }
   ],
   "entities": [
@@ -1064,6 +1134,231 @@
       "original_name": "Aktiv",
       "platform": "hassio",
       "translation_key": "state"
+    },
+    {
+      "entity_id": "binary_sensor.shelly3emlambda_uberlast",
+      "device_id": "b5127ba188df05ff0baa61189ef93b64",
+      "platform": "shelly",
+      "translation_key": "overpowering",
+      "unique_id": "EC64C9C6A0C2-relay_0-overpower",
+      "original_name": "Überlast",
+      "name": null
+    },
+    {
+      "entity_id": "binary_sensor.shelly3emlambda_cloud",
+      "device_id": "b5127ba188df05ff0baa61189ef93b64",
+      "platform": "shelly",
+      "translation_key": "cloud",
+      "unique_id": "EC64C9C6A0C2-cloud",
+      "original_name": "Cloud",
+      "name": null
+    },
+    {
+      "entity_id": "switch.shelly3emlambda",
+      "device_id": "b5127ba188df05ff0baa61189ef93b64",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-relay_0",
+      "original_name": null,
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_signalstarke",
+      "device_id": "b5127ba188df05ff0baa61189ef93b64",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-rssi",
+      "original_name": "Signalstärke",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_a_leistung",
+      "device_id": "f9d41f7fb409dfea6158e5478933615a",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_0-power",
+      "original_name": "Leistung",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_a_energie",
+      "device_id": "f9d41f7fb409dfea6158e5478933615a",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_0-energy",
+      "original_name": "Energie",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_a_energieeinspeisung",
+      "device_id": "f9d41f7fb409dfea6158e5478933615a",
+      "platform": "shelly",
+      "translation_key": "energy_returned",
+      "unique_id": "EC64C9C6A0C2-emeter_0-energyReturned",
+      "original_name": "Energieeinspeisung",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_a_spannung",
+      "device_id": "f9d41f7fb409dfea6158e5478933615a",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_0-voltage",
+      "original_name": "Spannung",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_a_stromstarke",
+      "device_id": "f9d41f7fb409dfea6158e5478933615a",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_0-current",
+      "original_name": "Stromstärke",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_a_leistungsfaktor",
+      "device_id": "f9d41f7fb409dfea6158e5478933615a",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_0-powerFactor",
+      "original_name": "Leistungsfaktor",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_b_leistung",
+      "device_id": "513fa77d2f63a233494c631b8a65e7a6",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_1-power",
+      "original_name": "Leistung",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_b_energie",
+      "device_id": "513fa77d2f63a233494c631b8a65e7a6",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_1-energy",
+      "original_name": "Energie",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_b_energieeinspeisung",
+      "device_id": "513fa77d2f63a233494c631b8a65e7a6",
+      "platform": "shelly",
+      "translation_key": "energy_returned",
+      "unique_id": "EC64C9C6A0C2-emeter_1-energyReturned",
+      "original_name": "Energieeinspeisung",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_b_spannung",
+      "device_id": "513fa77d2f63a233494c631b8a65e7a6",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_1-voltage",
+      "original_name": "Spannung",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_b_stromstarke",
+      "device_id": "513fa77d2f63a233494c631b8a65e7a6",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_1-current",
+      "original_name": "Stromstärke",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_b_leistungsfaktor",
+      "device_id": "513fa77d2f63a233494c631b8a65e7a6",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_1-powerFactor",
+      "original_name": "Leistungsfaktor",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_c_leistung",
+      "device_id": "d7d95ce368624f312d31534e75f2c5b5",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_2-power",
+      "original_name": "Leistung",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_c_energie",
+      "device_id": "d7d95ce368624f312d31534e75f2c5b5",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_2-energy",
+      "original_name": "Energie",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_c_energieeinspeisung",
+      "device_id": "d7d95ce368624f312d31534e75f2c5b5",
+      "platform": "shelly",
+      "translation_key": "energy_returned",
+      "unique_id": "EC64C9C6A0C2-emeter_2-energyReturned",
+      "original_name": "Energieeinspeisung",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_c_spannung",
+      "device_id": "d7d95ce368624f312d31534e75f2c5b5",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_2-voltage",
+      "original_name": "Spannung",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_c_stromstarke",
+      "device_id": "d7d95ce368624f312d31534e75f2c5b5",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_2-current",
+      "original_name": "Stromstärke",
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly3emlambda_phase_c_leistungsfaktor",
+      "device_id": "d7d95ce368624f312d31534e75f2c5b5",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "EC64C9C6A0C2-emeter_2-powerFactor",
+      "original_name": "Leistungsfaktor",
+      "name": null
+    },
+    {
+      "entity_id": "binary_sensor.shelly1minig3_cc8da2469d80_eingang_0",
+      "device_id": "557cc1bdd941a12896fd7b924f509a54",
+      "platform": "shelly",
+      "translation_key": "input_with_number",
+      "unique_id": "CC8DA2469D80-input:0-input",
+      "original_name": "Eingang 0",
+      "name": null
+    },
+    {
+      "entity_id": "switch.shelly1minig3_cc8da2469d80",
+      "device_id": "557cc1bdd941a12896fd7b924f509a54",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "CC8DA2469D80-switch:0",
+      "original_name": null,
+      "name": null
+    },
+    {
+      "entity_id": "sensor.shelly1minig3_cc8da2469d80_temperatur",
+      "device_id": "557cc1bdd941a12896fd7b924f509a54",
+      "platform": "shelly",
+      "translation_key": null,
+      "unique_id": "CC8DA2469D80-switch:0-temperature",
+      "original_name": "Temperatur",
+      "name": null
     }
   ]
 }

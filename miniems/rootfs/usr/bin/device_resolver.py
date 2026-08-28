@@ -152,17 +152,33 @@ def _candidates_for_role(
             RoleBinding(role_name, eb_entity, "energy_dashboard", energy_map.signs.get(role_name))
         )
 
-    # Source 3: matched device profile.
+    # Source 3: matched device profile. Binds against the exact same entity
+    # pool match_profiles() scored (best_match.entities) – for a
+    # group_by_config_entry profile that can span several registry devices,
+    # see device_registry.py's module docstring; using the same precomputed
+    # pool here (rather than re-deriving it from best_match.device alone)
+    # keeps scoring and binding from ever drifting apart.
     if best_match is not None:
         hint = best_match.profile.roles.get(role_name)
         if hint is not None:
-            device_entities = registry.entities_of(best_match.device.device_id)
+            pool = best_match.entities
+            found: list = []
             for key in hint.translation_keys:
-                found = [e for e in device_entities if e.translation_key == key]
-                if len(found) == 1:
-                    sign = best_match.profile.signs.get(role_name, spec.sign)
-                    candidates.append(RoleBinding(role_name, found[0].entity_id, "profile", sign))
+                match = [e for e in pool if e.translation_key == key]
+                if len(match) == 1:
+                    found = match
                     break
+            if not found:
+                # endswith, not `in` – see device_profile._hint_resolves()'s
+                # comment on why a substring match is unsafe here.
+                for frag in hint.unique_id_suffix:
+                    match = [e for e in pool if e.unique_id and e.unique_id.endswith(frag)]
+                    if len(match) == 1:
+                        found = match
+                        break
+            if found:
+                sign = best_match.profile.signs.get(role_name, spec.sign)
+                candidates.append(RoleBinding(role_name, found[0].entity_id, "profile", sign))
 
     # Source 4: generic heuristic – only within the matched device if there
     # is one, else across the whole registry. Accepted only when the filter
@@ -170,7 +186,7 @@ def _candidates_for_role(
     # exactly one candidate; anything else is not a confident answer.
     if not any(c.source in ("config", "profile") for c in candidates) and spec.hints:
         pool = (
-            registry.entities_of(best_match.device.device_id)
+            list(best_match.entities)
             if best_match is not None else list(registry.entities.values())
         )
         hits = [e for e in pool if e.translation_key in spec.hints]
@@ -207,3 +223,24 @@ def _pick_best_device_match(matches: list[ProfileMatch]) -> ProfileMatch | None:
     if pool[0].resolved_role_count > pool[1].resolved_role_count:
         return pool[0]
     return None
+
+
+def profile_status(resolution: ClassResolution) -> str:
+    """"ok" | "degraded" | "unresolved" for one class's resolution – the
+    same three-value shape as the existing inverter_write_status sensor
+    (ems_controller._inverter_write_status()), so a future
+    sensor.miniems_device_profile_status can reuse the pattern.
+
+    "unresolved" (a required role has no binding at all) always wins over
+    "degraded" (every role bound, but at least one came from more than one
+    source) – a missing binding is the worse problem of the two. Not yet
+    wired into the EMS tick loop or any HA sensor – see
+    docs/roadmap/v3.0-geraeteprofile.md, I6: doing that safely needs the
+    resolver to run on a cadence of its own rather than once per WS round
+    trip in the /api/devices preview, which is a separate step.
+    """
+    if resolution.unresolved_required:
+        return "unresolved"
+    if resolution.conflicts:
+        return "degraded"
+    return "ok"

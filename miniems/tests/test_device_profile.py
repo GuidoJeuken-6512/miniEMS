@@ -222,6 +222,115 @@ class TestMatchProfiles:
         assert matches[0].strong is False
 
 
+_MINIMAL_SHELLY_PROFILE = """
+schema: 1
+id: shelly_test
+class: energy_meter
+match:
+  manufacturer: Shelly
+  model: ["Shelly 3EM"]
+  group_by_config_entry: true
+roles:
+  l1_power: {unique_id_suffix: [emeter_0-power]}
+  l2_power: {unique_id_suffix: [emeter_1-power]}
+"""
+
+
+def _write_energy_meter_profile(tmp_path, name, content):
+    d = tmp_path / "energy_meter"
+    d.mkdir(exist_ok=True)
+    f = d / name
+    f.write_text(content)
+    return f
+
+
+class TestGroupByConfigEntry:
+    """docs/roadmap/v3.0-geraeteprofile.md, I7: a Shelly Gen1 3EM registers
+    as 4 separate devices (1 parent + 3 phase sub-devices) sharing one
+    config_entry_id, with no parent_device_id link between them at all –
+    group_by_config_entry pools their entities into one match instead of
+    scoring 4 (tied, unresolvable) candidates."""
+
+    def _registry(self):
+        return RegistrySnapshot.from_lists(
+            [
+                {"id": "parent", "manufacturer": "Shelly", "model": "Shelly 3EM",
+                 "config_entry_id": "entry1"},
+                {"id": "phase_a", "manufacturer": "Shelly", "model": "Shelly 3EM",
+                 "config_entry_id": "entry1"},
+                {"id": "phase_b", "manufacturer": "Shelly", "model": "Shelly 3EM",
+                 "config_entry_id": "entry1"},
+                {"id": "unrelated", "manufacturer": "Shelly", "model": "Shelly 1 Mini Gen3",
+                 "config_entry_id": "entry2"},
+            ],
+            [
+                {"entity_id": "switch.relay", "device_id": "parent",
+                 "unique_id": "MAC-relay_0"},
+                {"entity_id": "sensor.phase_a_power", "device_id": "phase_a",
+                 "unique_id": "MAC-emeter_0-power"},
+                # The collision this design has to get right: a substring
+                # match on "emeter_0-power" would also hit this entity.
+                {"entity_id": "sensor.phase_a_power_factor", "device_id": "phase_a",
+                 "unique_id": "MAC-emeter_0-powerFactor"},
+                {"entity_id": "sensor.phase_b_power", "device_id": "phase_b",
+                 "unique_id": "MAC-emeter_1-power"},
+                {"entity_id": "switch.other", "device_id": "unrelated",
+                 "unique_id": "OTHERMAC-switch:0"},
+            ],
+        )
+
+    def test_pools_entities_across_the_whole_group_into_one_match(self, tmp_path):
+        _write_energy_meter_profile(tmp_path, "shelly.yaml", _MINIMAL_SHELLY_PROFILE)
+        profiles = load_profiles(tmp_path)
+        matches = match_profiles(profiles, "energy_meter", self._registry())
+        assert len(matches) == 1   # not 3 – the group collapses to one match
+        assert matches[0].strong is True
+        assert matches[0].resolved_role_count == 2   # l1_power, l2_power
+        assert len(matches[0].entities) == 4          # every entity in the group, pooled
+
+    def test_unrelated_config_entry_is_not_pulled_into_the_group(self, tmp_path):
+        _write_energy_meter_profile(tmp_path, "shelly.yaml", _MINIMAL_SHELLY_PROFILE)
+        profiles = load_profiles(tmp_path)
+        matches = match_profiles(profiles, "energy_meter", self._registry())
+        uids = {e.unique_id for e in matches[0].entities}
+        assert "OTHERMAC-switch:0" not in uids
+
+    def test_representative_device_is_deterministic(self, tmp_path):
+        """Doesn't matter *which* of the 4 devices is picked to represent
+        the group – but it must be the same one on every call, since it
+        ends up as ClassResolution.matched_device_id."""
+        _write_energy_meter_profile(tmp_path, "shelly.yaml", _MINIMAL_SHELLY_PROFILE)
+        profiles = load_profiles(tmp_path)
+        ids = {match_profiles(profiles, "energy_meter", self._registry())[0].device.device_id
+               for _ in range(5)}
+        assert len(ids) == 1
+
+    def test_ungrouped_profile_is_unaffected(self, tmp_path):
+        """A profile without group_by_config_entry (every existing inverter/
+        battery profile) must still score one match per device, exactly as
+        before – config_entry_id sharing is opt-in per profile."""
+        _write_profile(tmp_path, "deye.yaml", _MINIMAL_DEYE_PROFILE)
+        profiles = load_profiles(tmp_path)
+        registry = RegistrySnapshot.from_lists(
+            [
+                {"id": "dev1", "manufacturer": "Deye", "model": "SG0*LP3",
+                 "config_entry_id": "shared"},
+                {"id": "dev2", "manufacturer": "Deye", "model": "SG0*LP3",
+                 "config_entry_id": "shared"},
+            ],
+            [
+                {"entity_id": "sensor.pv1", "device_id": "dev1", "translation_key": "pv_power"},
+                {"entity_id": "number.bmcc1", "device_id": "dev1",
+                 "translation_key": "battery_max_charging_current"},
+                {"entity_id": "sensor.pv2", "device_id": "dev2", "translation_key": "pv_power"},
+                {"entity_id": "number.bmcc2", "device_id": "dev2",
+                 "translation_key": "battery_max_charging_current"},
+            ],
+        )
+        matches = match_profiles(profiles, "inverter", registry)
+        assert len(matches) == 2   # NOT collapsed into one, unlike the grouped case above
+
+
 class TestRealProfilesAgainstRealFixture:
     """Against the shipped profiles/*.yaml and the redacted live registry
     capture – see tests/fixtures/ha_registry_snapshot.json."""
@@ -246,3 +355,32 @@ class TestRealProfilesAgainstRealFixture:
         assert len(deye_matches) == 1
         assert deye_matches[0].strong is True
         assert deye_matches[0].resolved_role_count > 10   # most of the profile's roles
+
+    def test_shelly_profile_loads_and_is_verified(self):
+        profiles = load_profiles(_REAL_PROFILES_DIR)
+        shelly = [p for p in profiles if p.profile_id == "shelly_gen1_3em"]
+        assert len(shelly) == 1
+        assert shelly[0].verified is True
+        assert shelly[0].class_name == "energy_meter"
+
+    def test_shelly_profile_matches_once_across_the_4_grouped_devices(self):
+        """The real fixture's Shelly 3EM is exactly the shape this profile
+        exists for: 4 registry devices, one config_entry_id."""
+        profiles = load_profiles(_REAL_PROFILES_DIR)
+        registry = RegistrySnapshot.from_lists(_FIXTURE["devices"], _FIXTURE["entities"])
+        matches = match_profiles(profiles, "energy_meter", registry)
+        shelly_matches = [m for m in matches if m.profile.profile_id == "shelly_gen1_3em"]
+        assert len(shelly_matches) == 1
+        assert shelly_matches[0].strong is True
+        assert shelly_matches[0].resolved_role_count == 9   # l1..l3 power/voltage/current
+
+    def test_shelly_1_mini_gen3_is_not_matched_by_the_3em_profile(self):
+        """The other real Shelly in the fixture is a plain switch (no power
+        sensor at all) on a different config_entry_id – must never be
+        pulled into the 3EM's group."""
+        profiles = load_profiles(_REAL_PROFILES_DIR)
+        registry = RegistrySnapshot.from_lists(_FIXTURE["devices"], _FIXTURE["entities"])
+        matches = match_profiles(profiles, "energy_meter", registry)
+        shelly_matches = [m for m in matches if m.profile.profile_id == "shelly_gen1_3em"]
+        uids = {e.unique_id for e in shelly_matches[0].entities}
+        assert not any(u and u.startswith("CC8DA2469D80") for u in uids)

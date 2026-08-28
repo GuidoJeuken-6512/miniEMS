@@ -94,7 +94,7 @@
       `;
     }
 
-    function renderResolution(res) {
+    function renderResolution(res, title) {
       if (!res) return '';
       const bindings = res.bindings || {};
       const conflictsByRole = {};
@@ -121,8 +121,13 @@
           `<div class="warn-item">&#9888; ${T.role_unresolved || 'Role unresolved'}: ${esc(role)}</div>`
         ).join('')}</div>` : '';
 
+      const statusColor = {ok: '#2e7d32', degraded: '#e6a817', unresolved: '#c62828'}[res.status] || '#888';
+      const statusLabel = (T['profile_status_' + res.status]) || res.status;
+
       return `
-        <p class="section-title">${T.resolution_section || 'Resolved Roles (inverter)'}</p>
+        <p class="section-title">${title}
+          ${res.status ? `<span style="font-size:0.75rem;font-weight:600;color:${statusColor};margin-left:0.5rem">&#9679; ${esc(statusLabel)}</span>` : ''}
+        </p>
         ${res.matched_device_id ? `<p class="svalue muted" style="font-size:0.9rem;margin-bottom:0.75rem">${T.matched_device || 'Matched device'}: <code>${esc(res.matched_device_id)}</code></p>` : ''}
         ${unresolvedBanner}
         ${rows ? `
@@ -142,7 +147,9 @@
           el.innerHTML = `<div class="warnings-banner"><div class="warn-item">&#9888; ${esc(d.error)}</div></div>`;
           return;
         }
-        el.innerHTML = renderResolution(d.resolution)
+        const resolutions = d.resolutions || {};
+        el.innerHTML = renderResolution(resolutions.inverter, T.resolution_section_inverter || 'Resolved Roles (Inverter)')
+          + renderResolution(resolutions.energy_meter, T.resolution_section_energy_meter || 'Resolved Roles (Energy Meter)')
           + renderEnergyDashboard(d.energy_dashboard || {})
           + renderDevices(d.devices || []);
       } catch(e) {

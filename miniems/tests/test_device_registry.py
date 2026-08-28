@@ -31,6 +31,13 @@ class TestRegistryEntityFromRaw:
         assert entity.device_id is None
         assert entity.platform is None
         assert entity.translation_key is None
+        assert entity.unique_id is None
+
+    def test_unique_id_is_captured(self):
+        entity = RegistryEntity.from_raw({
+            "entity_id": "sensor.x", "unique_id": "MAC-emeter_0-power",
+        })
+        assert entity.unique_id == "MAC-emeter_0-power"
 
 
 class TestRegistryDeviceFromRaw:
@@ -53,6 +60,14 @@ class TestRegistryDeviceFromRaw:
     def test_null_model_is_kept_as_none_not_a_string(self):
         device = RegistryDevice.from_raw({"id": "abc", "manufacturer": "Octopus Energy Germany"})
         assert device.model is None
+
+    def test_config_entry_id_is_captured(self):
+        device = RegistryDevice.from_raw({"id": "abc", "config_entry_id": "entry1"})
+        assert device.config_entry_id == "entry1"
+
+    def test_config_entry_id_missing_defaults_to_none(self):
+        device = RegistryDevice.from_raw({"id": "abc"})
+        assert device.config_entry_id is None
 
 
 class TestFromListsRobustness:
@@ -138,12 +153,53 @@ class TestDevicesMatching:
         assert snap.devices_matching("Deye", ["SG0*LP3"]) == []
 
 
+class TestConfigEntryGrouping:
+    """docs/roadmap/v3.0-geraeteprofile.md, I7 – groups several registry
+    devices sharing one config_entry_id, for integrations (Shelly) that
+    register one physical device as multiple, unlinked registry devices."""
+
+    def test_devices_in_config_entry_returns_the_group(self):
+        snap = RegistrySnapshot.from_lists(
+            [
+                {"id": "d1", "manufacturer": "Shelly", "config_entry_id": "entry1"},
+                {"id": "d2", "manufacturer": "Shelly", "config_entry_id": "entry1"},
+                {"id": "d3", "manufacturer": "Shelly", "config_entry_id": "entry2"},
+            ],
+            [],
+        )
+        ids = {d.device_id for d in snap.devices_in_config_entry("entry1")}
+        assert ids == {"d1", "d2"}
+
+    def test_devices_in_config_entry_none_is_always_empty(self):
+        snap = RegistrySnapshot.from_lists(
+            [{"id": "d1", "manufacturer": "Shelly", "config_entry_id": None}], [],
+        )
+        assert snap.devices_in_config_entry(None) == []
+
+    def test_entities_of_group_pools_and_dedupes(self):
+        snap = RegistrySnapshot.from_lists(
+            [{"id": "d1"}, {"id": "d2"}],
+            [
+                {"entity_id": "sensor.a", "device_id": "d1"},
+                {"entity_id": "sensor.b", "device_id": "d2"},
+            ],
+        )
+        ids = {e.entity_id for e in snap.entities_of_group(["d1", "d2", "d1"])}
+        assert ids == {"sensor.a", "sensor.b"}
+
+    def test_entities_of_group_empty_list_is_empty(self):
+        snap = RegistrySnapshot.from_lists([], [])
+        assert snap.entities_of_group([]) == []
+
+
 class TestRealFixture:
     """Against the redacted live capture – see fixtures/ha_registry_snapshot.json."""
 
     def test_builds_snapshot_from_the_real_payload(self):
         snap = RegistrySnapshot.from_lists(_FIXTURE["devices"], _FIXTURE["entities"])
-        assert len(snap.devices) == 17
+        # 17 from the original capture + 5 Shelly devices added 2026-08-28 (I7):
+        # 1 parent + 3 phase sub-devices for the Gen1 3EM, 1 Shelly 1 Mini Gen3.
+        assert len(snap.devices) == 22
 
     def test_deye_device_matches_by_manufacturer_and_literal_glob_model(self):
         snap = RegistrySnapshot.from_lists(_FIXTURE["devices"], _FIXTURE["entities"])

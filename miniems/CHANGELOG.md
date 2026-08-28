@@ -1,5 +1,70 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.6.0
+
+### Added
+
+- **Geräteprofile (I6, sichtbar): Mapping-Vorschau löst jetzt mehrere
+  Klassen auf, mit einem Ampel-Status.** `/api/devices` liefert
+  `resolutions.<klasse>` statt einer einzelnen `resolution` (inverter UND
+  jetzt auch energy_meter), jede mit einem neuen `status`-Feld
+  (`device_resolver.profile_status()`): `ok` (alles gebunden) / `degraded`
+  (mindestens eine Rolle kam aus mehr als einer Quelle) / `unresolved`
+  (mindestens eine Pflichtrolle fehlt) — dieselbe Drei-Werte-Form wie der
+  bestehende `inverter_write_status`-Sensor. Auf der Devices-Seite als
+  Ampelpunkt neben jeder Klassenüberschrift sichtbar.
+
+  **Bewusst NICHT Teil dieses Schritts** (siehe
+  docs/roadmap/v3.0-geraeteprofile.md, I6): ein echter
+  `sensor.miniems_device_profile_status` in der HA-Integration, und
+  Fail-closed-Schreiben bei unaufgelöster Steuerrolle. Beides würde den
+  Resolver in die EMS-Tick-Schleife verdrahten — heute läuft er nur einmal
+  pro `/api/devices`-Aufruf, ein WS-Registry-Roundtrip alle 30s in der
+  Steuerschleife wäre eine eigene, sicherheitsrelevante Änderung für sich,
+  kein Nebeneffekt dieses Schritts. Bleibt offen für einen eigenen Commit.
+
+- **Geräteprofile (I7): erstes energy_meter-Profil, live gegen echte
+  Shelly-Hardware verifiziert.** Neu: `profiles/energy_meter/
+  shelly_gen1_3em.yaml` (Shelly 3EM, Gen1-Firmware) — Registry-Struktur
+  UND Live-Zustände (Vorzeichen, Einheiten) wurden gegen ein echtes Gerät
+  gelesen, nicht geraten (`verified: true`).
+
+  Zwei Eigenheiten dieser Hardware zwangen zu echten Generalisierungen,
+  keine Shelly-Spezialfälle:
+  - **Kein translation_key.** Jede Entity dieser Integration hat
+    `translation_key=null`. Neuer Fallback-Schlüssel
+    `RoleHint.unique_id_suffix` (Suffix-Vergleich, bewusst nicht `in`/
+    Substring — `"...-power"` ist sonst auch ein Präfix von
+    `"...-powerFactor"` und hätte beide gleichzeitig getroffen).
+  - **Ein physisches Gerät, vier Registry-Geräte.** HA registriert dieses
+    3EM als Eltern-Gerät plus ein Kind-Gerät je Phase, ohne
+    `parent_device_id`-Verknüpfung zwischen ihnen. Neues
+    `DeviceProfile.group_by_config_entry` poolt alle Geräte, die dieselbe
+    `config_entry_id` teilen, zu einem Auflösungs-Kandidaten — verhindert,
+    dass vier identisch aussehende, unentscheidbare Kandidaten den ganzen
+    Verbund unauflösbar machen (`RegistryDevice.config_entry_id`,
+    `RegistryEntity.unique_id`, `RegistrySnapshot.devices_in_config_entry()`/
+    `entities_of_group()`, alle neu).
+
+  9 Rollen gebunden (l1..l3 power/voltage/current), Vorzeichen empirisch
+  verifiziert (negative Leistung korreliert mit dem dominanten
+  Einspeisungs-Zähler). Bewusst ungebunden: `active_power`/
+  `import_energy`/`export_energy` (kein Summen-Sensor auf dieser
+  Gen1-Hardware — eine Summe wäre erfunden, kein Messwert) und
+  `power_factor` (pro Phase vorhanden, Katalog kennt nur eine
+  Klassen-Ebene-Rolle). Alles als Caveats im Profil dokumentiert. Ein
+  zweites, echtes Shelly-Gerät in derselben Instanz (Shelly 1 Mini Gen3)
+  ist ein reiner Schalter ohne Leistungssensor — bestätigt den früher
+  berichteten Fall "die anderen sind nur Schalter", kein energy_meter-
+  Kandidat, kein Profil dafür.
+
+  `tests/fixtures/ha_registry_snapshot.json` um die 5 realen Shelly-Geräte
+  erweitert (bislang 17→22 Geräte), neue Golden-Resolution-Tests
+  (`TestGoldenResolutionEnergyMeter`) reproduzieren die Live-Auflösung
+  exakt. 24 neue Tests insgesamt. 690 Tests grün, Coverage 94%. Live gegen
+  die lokale Testinstanz verifiziert: alle 9 Rollen lösen korrekt gegen
+  die echten Shelly-Entities auf, `status=ok`, keine Fehler im Log.
+
 ## 2.5.0
 
 ### Added

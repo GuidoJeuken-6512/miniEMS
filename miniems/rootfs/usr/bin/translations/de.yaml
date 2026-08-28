@@ -29,11 +29,15 @@ name: Name
 entities: Entities
 no_energy_dashboard: Kein Energie-Dashboard in Home Assistant konfiguriert.
 no_devices: Keine Geräte gefunden.
-resolution_section: Aufgelöste Rollen (Wechselrichter)
+resolution_section_inverter: Aufgelöste Rollen (Wechselrichter)
+resolution_section_energy_meter: Aufgelöste Rollen (Energiezähler)
 matched_device: Erkanntes Gerät
 source: Herkunft
 also_offered_by: auch angeboten von
 role_unresolved: Rolle nicht aufgelöst
+profile_status_ok: ok
+profile_status_degraded: uneindeutig
+profile_status_unresolved: unaufgelöst
 no_resolution: Noch nichts aufgelöst.
 
 # Dashboard – Echtzeit-Leistungskarten
