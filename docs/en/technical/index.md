@@ -41,4 +41,5 @@ This section documents the internal design of miniEMS v1.5.3 for contributors an
 - [Calculations](calculations.md) — all formulas used in the EMS loop
 - [Data Storage](data-storage.md) — config files, SQLite schema, in-memory state
 - [API Reference](api.md) — internal HTTP endpoints
+- [Sensor Staleness](sensor-staleness.md) — how outdated/dead sensors are detected
 - [HA Sensor Reference](sensors.md) — all 28 native Home Assistant sensors

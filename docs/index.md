@@ -45,6 +45,7 @@ revision_date: 2026-08-14
 - [Berechnungen](technical/calculations.md) — alle Formeln im EMS-Loop
 - [Datenspeicherung](technical/data-storage.md) — Konfigurationsdateien, SQLite-Schema, In-Memory-Zustand
 - [API-Referenz](technical/api.md) — interne HTTP-Endpunkte
+- [Sensor-Staleness](technical/sensor-staleness.md) — wie veraltete/tote Sensoren erkannt werden
 - [HA-Sensor-Referenz](technical/sensors.md)
 - [Devcontainer-Supervisor-Patches](technical/devcontainer-supervisor-patches.md)
 
