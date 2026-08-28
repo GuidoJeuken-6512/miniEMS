@@ -17,8 +17,15 @@ _LOGGER = logging.getLogger(__name__)
 CURRENT_VERSION = CONFIG_SCHEMA_VERSION
 
 
-def migrate(data: dict) -> dict:
-    """Migrate config dict to CURRENT_VERSION. Returns updated dict."""
+def migrate(data: dict, *, is_fresh: bool = False) -> dict:
+    """Migrate config dict to CURRENT_VERSION. Returns updated dict.
+
+    `is_fresh` is True only when the caller found no pre-existing config.json
+    at all (a brand new installation) – see config_loader.load_config(). It
+    is threaded through to _v19_to_v20() so device-detection can default to
+    on for new installs but stay off for every upgrade, byte-identical to
+    the pre-v20 behaviour (docs/roadmap/v3.0-geraeteprofile.md, "Migration").
+    """
     if not isinstance(data, dict):
         _LOGGER.error("Config is %s, not an object – ignoring it and using defaults",
                       type(data).__name__)
@@ -96,6 +103,9 @@ def migrate(data: dict) -> dict:
 
     if version < 19:
         data = _v18_to_v19(data)
+
+    if version < 20:
+        data = _v19_to_v20(data, is_fresh)
 
     data["_version"] = CURRENT_VERSION
     return data
@@ -298,6 +308,35 @@ def _v17_to_v18(data: dict) -> dict:
         data["solcast_peak_time_tomorrow_entity"] = "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_morgen"
         _LOGGER.info("Migration v17→v18: set solcast_peak_time_tomorrow_entity = %r",
                      data["solcast_peak_time_tomorrow_entity"])
+    return data
+
+
+def _v19_to_v20(data: dict, is_fresh: bool) -> dict:
+    """v19 → v20: device-detection substrate (docs/roadmap/v3.0-geraeteprofile.md).
+
+    `entity_overrides["<class>.<role>"]` is the new, explicit way to pin a
+    role to an entity – device_resolver.resolve_class() already accepts it
+    as its highest-priority source, alongside the 30 legacy `*_entity`
+    fields (unaffected, unchanged, still read directly). Empty on every
+    migrated config: nothing is inferred here, an override only ever comes
+    from a user setting one.
+
+    `device_detection_enabled` gates whether the resolver is allowed to
+    actually drive runtime config instead of just previewing on /devices
+    (not wired up yet – see the roadmap doc's "Umsetzungsschritte", I6).
+    `is_fresh` is the one deliberate exception to "migrations never change
+    behaviour": upgrading an existing installation must stay byte-identical
+    (`False`), but a brand new install has no legacy entity fields to
+    protect and should see detection on immediately, so it never meets the
+    five wrong Deye defaults this add-on used to ship.
+    """
+    if "entity_overrides" not in data:
+        data["entity_overrides"] = {}
+        _LOGGER.info("Migration v19→v20: set entity_overrides = {}")
+    if "device_detection_enabled" not in data:
+        data["device_detection_enabled"] = is_fresh
+        _LOGGER.info("Migration v19→v20: set device_detection_enabled = %r (fresh install: %s)",
+                     is_fresh, is_fresh)
     return data
 
 

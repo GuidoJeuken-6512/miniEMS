@@ -51,6 +51,19 @@ class TestCoerce:
     def test_none_value_for_string_field_becomes_empty_string(self):
         assert _coerce("pv_power_entity", None) == ""
 
+    def test_dict_field_passthrough(self):
+        assert _coerce("entity_overrides", {"inverter.pv_power": "sensor.x"}) == {
+            "inverter.pv_power": "sensor.x"
+        }
+
+    def test_dict_field_non_dict_value_becomes_empty_dict(self):
+        """Regression guard: without this, a stray non-dict POST value for
+        entity_overrides would fall through to the str(value) branch and
+        corrupt the field (docs/roadmap/v3.0-geraeteprofile.md, 'Migration'
+        – 'Mine im selben Schritt entschärfen')."""
+        assert _coerce("entity_overrides", "not-a-dict") == {}
+        assert _coerce("entity_overrides", None) == {}
+
 
 class TestDashboardAndPages:
     def test_dashboard_renders(self, client):
@@ -133,6 +146,22 @@ class TestApiDevices:
         # The energy-dashboard candidate is still offered -> recorded as a conflict.
         conflict_roles = {c["role"] for c in data["resolution"]["conflicts"]}
         assert "pv_power" in conflict_roles
+
+    def test_resolution_prefers_entity_overrides_over_legacy_field_diff(self, monkeypatch):
+        """entity_overrides (explicit, "<class>.<role>" keyed) is the more
+        deliberate of the two "config" sources and must win when both are
+        set for the same role – docs/roadmap/v3.0-geraeteprofile.md,
+        'Auflösungskette'."""
+        monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", self._fake_snapshot_ok)
+        cfg = Config()
+        cfg.pv_power_entity = "sensor.legacy_override"
+        cfg.entity_overrides = {"inverter.pv_power": "sensor.explicit_override"}
+        app = create_app({}, cfg, "tok", None)
+        r = TestClient(app).get("/api/devices")
+        data = r.json()
+        binding = data["resolution"]["bindings"]["pv_power"]
+        assert binding["entity_id"] == "sensor.explicit_override"
+        assert binding["source"] == "config"
 
     def test_resolution_reports_unresolved_required_control_roles(self, monkeypatch):
         async def _fake(long_lived_token=""):

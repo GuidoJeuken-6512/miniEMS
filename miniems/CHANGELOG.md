@@ -1,5 +1,45 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.5.0
+
+### Added
+
+- **Geräteprofile: Config-Schema v20 – Substrat für die Erkennung.**
+  Zwei neue, additive Felder: `entity_overrides` (`"<klasse>.<rolle>"` →
+  Entity-ID, die höchste-Priorität-Quelle in
+  `device_resolver.resolve_class()`'s Auflösungskette — heute nur über
+  den rohen `config.json`-Editor setzbar, ein Entity-Picker folgt in I6)
+  und `device_detection_enabled` (schaltet noch nichts im Steuerpfad,
+  ist die Vorbereitung dafür).
+
+  **Migration v19→v20 ist bewusst die eine Ausnahme von "Migrationen
+  ändern nie das Verhalten":** `device_detection_enabled` steht bei
+  jedem Update auf bestehenden Installationen auf `false` — byte-identisch
+  zum bisherigen Verhalten —, aber bei einer echten Neuinstallation
+  (kein `config.json` vorhanden) von Anfang an auf `true`, damit neue
+  Nutzer nie die fünf historisch falschen Deye-Standardwerte erben.
+  Das Unterscheidungsmerkmal ist `os.path.exists(CONFIG_FILE)` **vor**
+  dem Laden, nicht die Schema-Version selbst — beide Fälle starten
+  `migrate()` sonst identisch bei Version 0.
+
+  `entity_overrides` ist bei jeder Migration leer: nichts wird hier
+  erraten, ein Override entsteht ausschließlich durch explizites Setzen.
+  Die `/api/devices`-Mapping-Vorschau berücksichtigt es bereits — es
+  gewinnt gegenüber einem legacy `*_entity`-Feld, das lediglich von
+  seinem Standardwert abweicht (beides ist Quelle 1 der Auflösungskette,
+  aber `entity_overrides` ist die bewusstere der beiden Signale).
+
+  `web_server._coerce()` bekommt eine `_DICT_FIELDS`-Ausnahme, damit ein
+  künftiger POST auf `entity_overrides` nicht in den `str(value)`-Fallback
+  läuft und das Feld korrumpiert (der genaue Fehlerfall, den
+  docs/roadmap/v3.0-geraeteprofile.md unter "Migration" vorab benannt hatte).
+
+  10 neue Tests (`test_migration.py`, `test_config_loader.py`,
+  `test_web_server.py`). 665 Tests grün, Coverage 94%. Live gegen die
+  lokale Testinstanz verifiziert: das Update der dort bestehenden
+  `config.json` läuft klaglos durch, `device_detection_enabled` bleibt
+  `false`, keine Fehler im Log.
+
 ## 2.4.1
 
 ### Added

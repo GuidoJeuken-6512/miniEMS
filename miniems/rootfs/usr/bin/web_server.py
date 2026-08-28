@@ -76,8 +76,16 @@ def load_translations(lang: str) -> dict:
 # Config field type map for coercion
 _BOOL_FIELDS = {
     "battery_control_enabled", "battery_control_simulation",
-    "pv_export_priority_enabled",
+    "pv_export_priority_enabled", "device_detection_enabled",
 }
+# Dict-valued fields never have a settings.html form control (no free-text
+# input can represent a dict safely) – but /api/config's merge loop below
+# runs every posted key through _coerce() regardless of source, and without
+# this set a dict value would fall through to the str(value) branch and get
+# silently stringified/corrupted on save. See
+# docs/roadmap/v3.0-geraeteprofile.md, "Migration" – "Mine im selben Schritt
+# entschärfen".
+_DICT_FIELDS = {"entity_overrides"}
 _INT_FIELDS = {
     "battery_min_soc", "battery_max_soc", "pv_surplus_threshold_w",
     "update_interval_sec", "battery_max_charge_current_a", "battery_max_discharge_current_a",
@@ -113,6 +121,8 @@ def _coerce(key: str, value: Any) -> Any:
             return float(value) if value is not None else 0.0
         except (TypeError, ValueError):
             return 0.0
+    if key in _DICT_FIELDS:
+        return value if isinstance(value, dict) else {}
     return str(value) if value is not None else ""
 
 
@@ -235,7 +245,12 @@ def create_app(
         # called anywhere in the control path yet, see
         # docs/roadmap/v3.0-geraeteprofile.md.
         live_config = config if config is not None else Config()
-        overrides = inverter_overrides(live_config, Config())
+        # entity_overrides (explicit, "<class>.<role>" keyed – set via the raw
+        # config.json editor today, an entity-picker later) wins over a
+        # legacy *_entity field that merely differs from its default: both
+        # are resolution source 1, but entity_overrides is the more
+        # deliberate signal of the two.
+        overrides = {**inverter_overrides(live_config, Config()), **(live_config.entity_overrides or {})}
         resolution = resolve_class(
             "inverter",
             catalog=load_role_catalog(),

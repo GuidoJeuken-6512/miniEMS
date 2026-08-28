@@ -1,6 +1,6 @@
 """Config schema migrations – each step and the overall orchestration."""
 from const import CONFIG_SCHEMA_VERSION, FORECAST_MAX_AGE_SEC, PRICE_MAX_AGE_SEC
-from migration import migrate, _v3_to_v4, _v5_to_v6
+from migration import migrate, _v3_to_v4, _v5_to_v6, _v19_to_v20
 
 
 def test_non_dict_input_resets_to_defaults():
@@ -49,6 +49,42 @@ def test_missing_version_defaults_to_zero_and_runs_full_chain():
     assert result["solcast_peak_time_today_entity"] == "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_heute"
     assert result["solcast_peak_time_tomorrow_entity"] == "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_morgen"
     assert result["battery_voltage_entity"] == "sensor.deye8k_battery_voltage"
+    # v19->v20: upgrading a config (is_fresh defaults to False) must never
+    # enable detection on its own – see test_v19_to_v20_* below.
+    assert result["entity_overrides"] == {}
+    assert result["device_detection_enabled"] is False
+
+
+class TestV19ToV20:
+    """docs/roadmap/v3.0-geraeteprofile.md, 'Migration': entity_overrides is
+    always empty (nothing is ever inferred here), device_detection_enabled
+    depends solely on the caller-supplied is_fresh flag – see
+    config_loader.load_config()."""
+
+    def test_upgrade_stays_detection_off(self):
+        data = _v19_to_v20({}, is_fresh=False)
+        assert data["device_detection_enabled"] is False
+        assert data["entity_overrides"] == {}
+
+    def test_fresh_install_turns_detection_on(self):
+        data = _v19_to_v20({}, is_fresh=True)
+        assert data["device_detection_enabled"] is True
+        assert data["entity_overrides"] == {}
+
+    def test_does_not_clobber_an_existing_value(self):
+        data = _v19_to_v20(
+            {"device_detection_enabled": True, "entity_overrides": {"inverter.pv_power": "sensor.x"}},
+            is_fresh=False,
+        )
+        assert data["device_detection_enabled"] is True
+        assert data["entity_overrides"] == {"inverter.pv_power": "sensor.x"}
+
+    def test_migrate_full_chain_threads_is_fresh_through(self):
+        # A brand new install migrating from v0 (empty dict) all the way up
+        # must end with detection on – the one exception to "migrations
+        # never change behaviour", deliberately: see config_loader.py.
+        result = migrate({}, is_fresh=True)
+        assert result["device_detection_enabled"] is True
 
 
 def test_v0_to_v1_renames_gbp_to_eur():

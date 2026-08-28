@@ -126,6 +126,36 @@ class TestLoadConfig:
         cfg = load_config()
         assert cfg.battery_min_soc == 15   # default, no crash
 
+    def test_fresh_install_enables_device_detection(self, _isolated_files):
+        """No config.json at all yet -> migration.py's v19->v20 step sees
+        is_fresh=True -> device_detection_enabled defaults on, so a new
+        install never inherits the five historically-wrong Deye defaults
+        (docs/roadmap/v3.0-geraeteprofile.md, 'Migration')."""
+        cfg = load_config()
+        assert cfg.device_detection_enabled is True
+        assert cfg.entity_overrides == {}
+
+    def test_upgrade_keeps_device_detection_off(self, _isolated_files):
+        """A config.json already exists (even pre-v20, no _version at all) ->
+        not a fresh install -> detection must stay off, byte-identical to
+        pre-v20 behaviour."""
+        config_file, _ = _isolated_files
+        config_file.write_text(json.dumps({"battery_min_soc": 25}))
+        cfg = load_config()
+        assert cfg.device_detection_enabled is False
+        assert cfg.battery_min_soc == 25
+
+    def test_entity_overrides_persists_across_reload(self, _isolated_files):
+        config_file, _ = _isolated_files
+        load_config()   # first run creates config.json (fresh -> detection on)
+        data = json.loads(config_file.read_text())
+        data["entity_overrides"] = {"inverter.pv_power": "sensor.custom_pv"}
+        data["device_detection_enabled"] = False
+        config_file.write_text(json.dumps(data))
+        cfg = load_config()
+        assert cfg.entity_overrides == {"inverter.pv_power": "sensor.custom_pv"}
+        assert cfg.device_detection_enabled is False
+
 
 class TestValidate:
     def test_clamps_charge_current_above_max(self):

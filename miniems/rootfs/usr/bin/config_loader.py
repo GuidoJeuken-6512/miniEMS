@@ -13,7 +13,7 @@ user's settings are never lost even if options.json is reset to defaults.
 import json
 import logging
 import os
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 
 from const import (
     BATTERY_MAX_CURRENT_A,
@@ -168,6 +168,21 @@ class Config:
     # unconfirmed before sensor.miniems_inverter_write_status reports "error"
     # instead of "warning". Provisional default – see const.py.
     inverter_write_stuck_threshold_sec: int = INVERTER_WRITE_STUCK_THRESHOLD_SEC
+    # --- Device detection (docs/roadmap/v3.0-geraeteprofile.md) ---------
+    # Highest-priority resolver override, keyed "<class>.<role>" -> entity_id
+    # (e.g. "inverter.battery_power": "sensor.foo") – see
+    # device_resolver.resolve_class()'s `overrides` parameter. Empty by
+    # default; only ever set explicitly (today via the raw config.json
+    # editor – /devices' entity-picker UI is a later step). Never has a form
+    # field in settings.html, so it can never be corrupted by _coerce()'s
+    # str(value) fallback for unknown keys – see web_server._DICT_FIELDS.
+    entity_overrides: dict[str, str] = field(default_factory=dict)
+    # Gates whether device_resolver is allowed to actually drive runtime
+    # config, vs. today's read-only /devices preview. False on every
+    # upgrade (migration.py's v19->v20 step is byte-identical for existing
+    # installs); True only for a genuinely new install with no config.json
+    # yet, so it never inherits the five historically-wrong Deye defaults.
+    device_detection_enabled: bool = False
 
     @property
     def monitored_entities(self) -> list[str]:
@@ -318,8 +333,14 @@ def load_config() -> Config:
     """Load, merge, migrate and persist configuration."""
     defs = _defaults()
 
+    # Checked before _load_json (which returns {} either way) – the only
+    # signal that distinguishes "genuinely new install" from "an ancient
+    # unversioned config", both of which start migrate() at version 0. See
+    # migration._v19_to_v20()'s device_detection_enabled default.
+    is_fresh = not os.path.exists(CONFIG_FILE)
+
     # Load both sources
-    stored = migrate(_load_json(CONFIG_FILE))
+    stored = migrate(_load_json(CONFIG_FILE), is_fresh=is_fresh)
     options = _load_json(OPTIONS_FILE)
 
     # Carry forward renamed keys that may only exist in options.json
