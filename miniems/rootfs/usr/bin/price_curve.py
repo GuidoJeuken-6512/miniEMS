@@ -127,6 +127,40 @@ class PriceCurve:
         rates = [w.rate_eur_kwh for w in self._windows_between(start, deadline)]
         return min(rates) if rates else None
 
+    def later_window_as_cheap(
+        self, now: datetime, deadline: datetime, charge_duration: timedelta
+    ) -> bool:
+        """Can charging be safely postponed to a later, equally-cheap window?
+
+        `is_cheapest_now()` cannot answer this on its own: two windows at the
+        identical rate (this installation's NIEDRIG at 02-06 *and* 12-16) are
+        both "as cheap as anything before the deadline", so it says yes to
+        both, including the one in the middle of PV production that this
+        method exists to avoid.
+
+        True when a window starting after the one covering `now` ends – but
+        still early enough that charging for `charge_duration` finishes
+        before `deadline` – has a rate no higher than the current window's.
+        Deferring then costs nothing and still meets the deadline. False
+        whenever no such window exists, the calendar has a hole, or there
+        simply is no time left to defer – "don't defer" always just means
+        charging slightly earlier than strictly necessary, so every unclear
+        case resolves that way, not the other.
+        """
+        current = self.window_at(now)
+        if current is None:
+            return False
+        latest_feasible_start = deadline - charge_duration
+        if latest_feasible_start <= now:
+            return False
+        window_end_now = self.window_end(now)
+        if window_end_now is None or window_end_now >= latest_feasible_start:
+            return False
+        cheapest_later = self.cheapest_rate_between(window_end_now, latest_feasible_start)
+        if cheapest_later is None:
+            return False
+        return cheapest_later <= current.rate_eur_kwh
+
     def is_cheapest_now(
         self, moment: datetime, deadline: datetime, tolerance_eur: float = 0.0005
     ) -> bool | None:

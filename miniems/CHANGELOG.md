@@ -1,5 +1,20 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.12
+
+### Added
+
+- **V2 (Energiefahrplan-Roadmap): Fensterwahl gegen den vollen Tarifkalender
+  verdrahtet.** Bislang unbenutztes `PriceCurve`-Modul jetzt aktiv in
+  `_should_grid_charge()`: neue Methode `PriceCurve.later_window_as_cheap()`
+  erkennt, wenn ein **späteres**, gleich teures Fenster noch rechtzeitig vor
+  dem nächsten PV-Peak erreichbar ist, und schiebt das Netzladen dorthin auf
+  – behebt den Fall, dass zwei gleich teure Tarif-Fenster (hier: 02–06 und
+  12–16 Uhr) beide auslösen, obwohl das zweite mitten in der PV-Produktion
+  liegt. Neue `_next_peak_time()` liefert die Frist aus den V3a-Peak-
+  Sensoren. Ohne Tarifkalender, Peak-Zeitpunkt oder Ladeleistungs-Schätzung
+  bleibt das Verhalten unverändert (kein Aufschieben).
+
 ## 2.0.11
 
 ### Added

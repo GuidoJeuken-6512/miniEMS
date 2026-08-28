@@ -416,6 +416,130 @@ class TestShouldGridCharge:
         night = datetime(2026, 8, 27, 23, 0, tzinfo=timezone.utc).astimezone()
         assert ctrl._should_grid_charge(0.05, 5.0, night) is True
 
+    def test_charges_above_threshold_when_no_calendar_to_defer_against(self, make_config, fake_ws, now):
+        """Baseline for the V2 deferral check below: without a tariff
+        calendar (no `timeslots` attribute), behaviour is exactly as before –
+        charges once bat_kwh_free clears the remaining-forecast threshold."""
+        ctrl = make_controller(
+            make_config, fake_ws, electricity_price_entity="sensor.price",
+            cheap_rate_threshold_eur=0.50, grid_charge_min_free_kwh=1.0,
+            pv_charge_margin_factor=1.0, pv_charge_hysteresis_frac=0.0,
+            solcast_remaining_today_entity="sensor.remaining",
+        )
+        fake_ws.values["sensor.price"] = 0.05
+        fake_ws.values["sensor.remaining"] = 1.5   # threshold = 1.5*1.0 + 1.0 = 2.5
+        assert ctrl._should_grid_charge(0.05, 5.0, now) is True   # 5.0 > 2.5
+
+
+_OCTOPUS_TIMESLOTS = {
+    "timeslots": [
+        {
+            "name": "NIEDRIG", "rate": "27.4414",
+            "activation_rules": [
+                {"from_time": "02:00:00", "to_time": "06:00:00"},
+                {"from_time": "12:00:00", "to_time": "16:00:00"},
+            ],
+        },
+        {
+            "name": "STANDARD", "rate": "34.4400",
+            "activation_rules": [
+                {"from_time": "06:00:00", "to_time": "12:00:00"},
+                {"from_time": "16:00:00", "to_time": "18:00:00"},
+                {"from_time": "21:00:00", "to_time": "02:00:00"},
+            ],
+        },
+        {
+            "name": "HOCH", "rate": "39.4400",
+            "activation_rules": [{"from_time": "18:00:00", "to_time": "21:00:00"}],
+        },
+    ],
+}
+
+
+class TestNextPeakTime:
+    def test_todays_peak_when_still_ahead(self, make_config, fake_ws, now):
+        ctrl = make_controller(make_config, fake_ws, solcast_peak_time_today_entity="sensor.pt",
+                                solcast_peak_time_tomorrow_entity="sensor.ptm")
+        fake_ws.datetimes["sensor.pt"] = now + timedelta(hours=1)
+        result = ctrl._next_peak_time(now)
+        assert result == now + timedelta(hours=1)
+
+    def test_falls_back_to_tomorrow_once_todays_peak_has_passed(self, make_config, fake_ws, now):
+        ctrl = make_controller(make_config, fake_ws, solcast_peak_time_today_entity="sensor.pt",
+                                solcast_peak_time_tomorrow_entity="sensor.ptm")
+        fake_ws.datetimes["sensor.pt"] = now - timedelta(hours=1)     # already passed
+        fake_ws.datetimes["sensor.ptm"] = now + timedelta(hours=22)
+        result = ctrl._next_peak_time(now)
+        assert result == now + timedelta(hours=22)
+
+    def test_none_when_both_stale(self, make_config, fake_ws, now):
+        ctrl = make_controller(make_config, fake_ws, solcast_peak_time_today_entity="sensor.pt",
+                                solcast_peak_time_tomorrow_entity="sensor.ptm")
+        fake_ws.datetimes["sensor.pt"] = now + timedelta(hours=1)
+        fake_ws.stale_daily["sensor.pt"] = True
+        fake_ws.datetimes["sensor.ptm"] = now + timedelta(hours=22)
+        fake_ws.stale_daily["sensor.ptm"] = True
+        assert ctrl._next_peak_time(now) is None
+
+    def test_none_when_unconfigured(self, make_config, fake_ws, now):
+        ctrl = make_controller(make_config, fake_ws, solcast_peak_time_today_entity="",
+                                solcast_peak_time_tomorrow_entity="")
+        assert ctrl._next_peak_time(now) is None
+
+
+class TestShouldDeferGridCharge:
+    """V2: 'is this the last cheapest window before the deadline?', via
+    PriceCurve.later_window_as_cheap() – see docs/roadmap/energiefahrplan.md."""
+
+    def _base_kwargs(self):
+        return dict(
+            electricity_price_entity="sensor.price",
+            battery_max_charge_current_a=10,
+            battery_voltage_entity="sensor.voltage",
+            solcast_peak_time_today_entity="sensor.pt",
+            solcast_peak_time_tomorrow_entity="sensor.ptm",
+        )
+
+    def test_no_defer_without_a_tariff_calendar(self, make_config, fake_ws, now):
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs())
+        fake_ws.values["sensor.voltage"] = 50.0
+        fake_ws.datetimes["sensor.ptm"] = now + timedelta(hours=22)
+        assert ctrl._should_defer_grid_charge(1.0, now) is False
+
+    def test_no_defer_without_a_peak_time(self, make_config, fake_ws, now):
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs())
+        fake_ws.attributes["sensor.price"] = _OCTOPUS_TIMESLOTS
+        fake_ws.values["sensor.voltage"] = 50.0
+        assert ctrl._should_defer_grid_charge(1.0, now) is False
+
+    def test_no_defer_without_battery_voltage(self, make_config, fake_ws, now):
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs())
+        fake_ws.attributes["sensor.price"] = _OCTOPUS_TIMESLOTS
+        fake_ws.datetimes["sensor.ptm"] = now + timedelta(hours=22)
+        assert ctrl._should_defer_grid_charge(1.0, now) is False
+
+    def test_defers_afternoon_niedrig_to_tonights_niedrig(self, make_config, fake_ws):
+        # 15:30, in the 12-16 NIEDRIG window. Today's own peak has already
+        # passed -> deadline is tomorrow's peak, ~21.5h out -> tonight's
+        # 02-06 NIEDRIG window fits and is equally cheap -> defer.
+        now = datetime(2026, 8, 15, 15, 30, tzinfo=timezone.utc)
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs())
+        fake_ws.attributes["sensor.price"] = _OCTOPUS_TIMESLOTS
+        fake_ws.values["sensor.voltage"] = 50.0   # charge_kw = 10*50/1000 = 0.5
+        fake_ws.datetimes["sensor.pt"] = now - timedelta(hours=2, minutes=30)   # 13:00, passed
+        fake_ws.datetimes["sensor.ptm"] = now + timedelta(hours=21, minutes=30)  # tomorrow 13:00
+        assert ctrl._should_defer_grid_charge(1.0, now) is True   # bat_kwh_free=1.0 -> T=2h
+
+    def test_does_not_defer_when_deadline_leaves_no_slack(self, make_config, fake_ws):
+        # Same window, but the next peak is imminent (today, still ahead but
+        # only 45 min out) -> not enough slack to defer, charge now.
+        now = datetime(2026, 8, 15, 15, 30, tzinfo=timezone.utc)
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs())
+        fake_ws.attributes["sensor.price"] = _OCTOPUS_TIMESLOTS
+        fake_ws.values["sensor.voltage"] = 50.0
+        fake_ws.datetimes["sensor.pt"] = now + timedelta(minutes=45)
+        assert ctrl._should_defer_grid_charge(1.0, now) is False
+
 
 class TestForecastRemainingKwh:
     def test_none_without_solcast_client(self, make_config, fake_ws):

@@ -17,7 +17,7 @@ revision_date: 2026-08-28
     | Schritt 1 — Attribut-Zugriff | ✅ umgesetzt in v2.0.4 |
     | Config-Feld `battery_voltage_entity` | ✅ umgesetzt (Config-Schema v19) — Voraussetzung für V1 und V3a, noch von keiner Entscheidung gelesen |
     | V1 — Ladeleistung strecken | offen; braucht die Frist aus V2 |
-    | V2 — PriceCurve | Modul gebaut und getestet; Fensterwahl bewusst nicht verdrahtet |
+    | V2 — PriceCurve | ✅ Fensterwahl verdrahtet (v2.0.12, `later_window_as_cheap()`) |
     | V3 — Export-Halt auf den echten PV-Peak-Zeitpunkt | V3a ✅ umgesetzt (v2.0.10, Konfigurationswert als `P_charge_kw`); V3b (volle Kurve) offen |
     | **Gelernte Ladeleistung** — SoC-gebuckerte Historie statt Konfigurationswert | ✅ umgesetzt (v2.0.11) |
     | V4 — Wirtschaftlichkeits-Gate | ✅ umgesetzt in v2.0.4 |
@@ -160,22 +160,29 @@ Eine `PriceCurve`-Abstraktion, die aus der Preis-Entity die Vorschau zieht, in d
 
 Damit wird aus „Preis unter Schwelle" die Frage „ist dies das günstigste Fenster, bevor die Energie gebraucht wird?". Das schließt das 12–16-Uhr-Fenster von selbst aus, weil bis dahin PV liefert.
 
-!!! note "Warum die Fensterwahl noch nicht verdrahtet ist"
-    `PriceCurve` beantwortet „ist jetzt so günstig wie irgendetwas vor der Frist?"
-    (`is_cheapest_now`). Für das eigentliche Ziel — **nicht** im Fenster 12–16 Uhr
-    laden, weil dann die PV liefert — reicht das nicht: 02–06 und 12–16 haben
-    **denselben** Satz (27,4414 ct). „Am günstigsten" trifft auf beide zu.
+!!! success "Fensterwahl verdrahtet in v2.0.12"
+    `PriceCurve.is_cheapest_now()` beantwortet nur „ist jetzt so günstig wie
+    irgendetwas vor der Frist?" — dafür reicht es nicht, dass 02–06 und
+    12–16 **denselben** Satz tragen (27,4414 ct): „Am günstigsten" trifft auf
+    beide zu, also musste die eigentliche Frage eine andere sein: „ist dies
+    das **letzte** günstigste Fenster vor der Frist?"
 
-    Nötig wäre „ist dies das **letzte** günstigste Fenster vor der Frist?", also ein
-    bewusstes Aufschieben auf das spätere gleich teure Fenster. Aufschieben ist aber
-    nur zulässig, wenn der Akku im späteren Fenster noch vollständig gefüllt werden
-    kann — sonst spart man einen Cent und verliert eine Ladung. Diese
-    Zulässigkeitsprüfung ist der offene Teil — der Energiefahrplan weiter unten
-    beantwortet sie über `deadline` je `ChargeTask`.
+    Neue Methode `PriceCurve.later_window_as_cheap(now, deadline,
+    charge_duration)`: sucht ab dem Ende des aktuellen Fensters bis
+    `deadline − charge_duration` (dem spätesten noch machbaren Start) nach
+    einem Fenster, das höchstens so teuer ist wie das aktuelle. Findet sie
+    eines, ist Aufschieben kostenlos und fristsicher zugleich —
+    `EMSController._should_grid_charge()` lädt dann nicht sofort.
+    `charge_duration` kommt aus `_charge_power_kw()` (V3a/gelernte
+    Ladeleistung), `deadline` aus der neuen `_next_peak_time()` — dem
+    nächsten anstehenden Solcast-Peak-Zeitpunkt (heute, falls der noch
+    bevorsteht, sonst morgen). Genau die Zulässigkeitsprüfung, die vorher
+    fehlte: eine `deadline` gab es erst seit V3a.
 
-    Das Modul ist deshalb fertig, getestet und ungenutzt. Eine halb durchdachte
-    Regel in den Steuerpfad einer echten Batterie zu hängen, wäre der falsche
-    Kompromiss.
+    Fällt in jedem unklaren Fall auf „nicht aufschieben" zurück (kein
+    Tarifkalender, kein Peak-Zeitpunkt, keine Ladeleistung bekannt) — ein
+    verpasstes Aufschieben kostet höchstens ein paar Cent, ein zu Unrecht
+    aufgeschobener Ladevorgang könnte den Akku leer lassen.
 
 ### V3 — Export-Halt auf den echten PV-Peak-Zeitpunkt statt hartkodierter Stunde
 
@@ -649,7 +656,7 @@ Aktualisiert sich mit dem stündlichen Trigger oben, nicht mit jedem 30-s-Tick �
 |---|---|---|---|
 | 1 | ✅ **Attribut-Zugriff** in `ha_ws_client` (`get_state_attribute()`) — **umgesetzt in v2.0.4** | klein | Freischalter |
 | 2 | **V1 Peak-Strecken** — kostenneutral, unmittelbar netzdienlich | mittel | hoch |
-| 3 | **V2 PriceCurve** — Modul gebaut und getestet in v2.0.4; Fensterwahl noch nicht verdrahtet | mittel | hoch |
+| 3 | ✅ **V2 PriceCurve** — Fensterwahl verdrahtet — **umgesetzt in v2.0.12** | mittel | hoch |
 | 4 | ✅ **V4 Wirtschaftlichkeits-Gate** — **umgesetzt in v2.0.4** | klein | mittel |
 | 5 | ✅ **V3a Peak-Sensoren** ersetzt `pv_charge_backstop_hour` — **umgesetzt in v2.0.10** | klein–mittel | hoch |
 | 5b | ✅ **Gelernte Ladeleistung** — SoC-gebuckerte Historie statt Konfigurationswert für `P_charge_kw` — **umgesetzt in v2.0.11** | mittel | hoch, macht V3a/Energiefahrplan-Deadlines belastbar |
@@ -693,7 +700,8 @@ gegen `PriceCurve`/`EMSController`/`ChargeTask` direkt dorthin. Ergänzend weite
 Smoke-Tests via `docker exec` im Add-on-Container für alles mit echtem HA-/Wechselrichter-Zugriff.
 
 1. **Tarifkalender-Parsing** gegen die echten `activation_rules` der Produktivanlage: Die abgeleitete 24-h-Kurve muss NIEDRIG 02–06/12–16, HOCH 18–21, STANDARD sonst ergeben — inklusive des über Mitternacht laufenden Fensters 21–02.
-2. **Fensterwahl:** Simulierter Tick um 13:00 Uhr bei NIEDRIG **und** guter PV-Prognose darf **nicht** grid-charge auslösen. Um 03:00 Uhr bei leerem Akku muss es auslösen.
+2. ✅ **Fensterwahl:** Simulierter Tick um 13:00 Uhr bei NIEDRIG **und** guter PV-Prognose darf **nicht** grid-charge auslösen. Um 03:00 Uhr bei leerem Akku muss es auslösen. Getestet:
+   `test_price_curve.py::TestLaterWindowAsCheap`, `test_ems_controller.py::TestShouldDeferGridCharge`.
 3. **Peak-Strecken:** Bei Bedarf *E* und Fensterrest *h* muss der gesetzte Strom ≈ `E/h/U` sein und über die Fensterdauer monoton nachgeführt werden.
 4. **Selbstkorrektur:** Fenster künstlich verkürzen → der berechnete Strom muss ansteigen, bis er an `max` klemmt; danach Warnung statt stiller Unterdeckung.
 5. **Wirtschaftlichkeits-Gate:** Mit `avg_discharge_tariff` unter dem Bezugspreis darf nicht geladen werden.

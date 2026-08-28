@@ -15,6 +15,7 @@ from const import (
     EMSMode,
 )
 from event_log import EventLog, LogEntry
+from price_curve import PriceCurve
 
 if TYPE_CHECKING:
     from config_loader import Config
@@ -690,7 +691,57 @@ class EMSController:
             threshold *= 1.0 - hyst
         else:
             threshold *= 1.0 + hyst
-        return bat_kwh_free > threshold
+        if bat_kwh_free <= threshold:
+            return False
+
+        # V2 (docs/roadmap/energiefahrplan.md): this is the branch the 12-16
+        # Uhr NIEDRIG window falls into on a mediocre-PV day – forecast not
+        # yet exhausted, price cheap, but PV is objectively running right
+        # now. Defer if a later, equally-cheap window still leaves enough
+        # time to finish before the next PV peak.
+        return not self._should_defer_grid_charge(bat_kwh_free, now)
+
+    def _should_defer_grid_charge(self, bat_kwh_free: float, now: datetime) -> bool:
+        """Is postponing this grid charge to a later, equally-cheap window safe?
+
+        False (never defer) whenever the tariff calendar, the deadline, or
+        the charge duration cannot be determined – deferring on a guess
+        could strand the battery empty; not deferring only ever means
+        charging somewhat earlier than strictly necessary.
+        """
+        curve = PriceCurve.from_entity(self._ws, self._cfg.electricity_price_entity)
+        if curve is None:
+            return False
+        deadline = self._next_peak_time(now)
+        if deadline is None:
+            return False
+        charge_kw = self._charge_power_kw()
+        if charge_kw is None or charge_kw <= 0:
+            return False
+        t_needed_h = bat_kwh_free / charge_kw
+        return curve.later_window_as_cheap(now, deadline, timedelta(hours=t_needed_h))
+
+    def _next_peak_time(self, now: datetime) -> datetime | None:
+        """The next upcoming Solcast peak-power time – today's if still
+        ahead, else tomorrow's. None when neither is usable (same
+        is_stale_daily() freshness check as V3a).
+
+        The "deadline" this feeds is deliberately the *next* peak, not
+        always tomorrow's: charging that is triggered at 02:00 must still be
+        measured against today's own peak, a few hours away, not against a
+        peak more than a day out.
+        """
+        cfg = self._cfg
+        for entity in (cfg.solcast_peak_time_today_entity, cfg.solcast_peak_time_tomorrow_entity):
+            if not entity or self._is_stale_daily(entity):
+                continue
+            peak = self._ws.get_state_datetime(entity)
+            if peak is None:
+                continue
+            peak_local = peak.astimezone(now.tzinfo)
+            if peak_local > now:
+                return peak_local
+        return None
 
     def _forecast_remaining_kwh(self) -> float | None:
         """Remaining PV forecast for today – None when missing, stale or absurd."""

@@ -1,5 +1,5 @@
 """PriceCurve: tariff preview built from a price entity's timeslots attribute."""
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 import pytest
 
@@ -192,3 +192,50 @@ class TestIsCheapestNow:
         ]}
         curve = PriceCurve.from_entity(_AttrWS(data), "sensor.price")
         assert curve.is_cheapest_now(_dt(10, 0), _dt(20, 0)) is None
+
+
+class TestLaterWindowAsCheap:
+    """V2's actual fix for the 12-16 Uhr problem is_cheapest_now() can't
+    solve: two equally-cheap windows, one of which overlaps PV production."""
+
+    @pytest.fixture
+    def curve(self):
+        return PriceCurve.from_entity(_AttrWS(_octopus_timeslots()), "sensor.price")
+
+    def test_afternoon_niedrig_defers_to_tonights_niedrig(self, curve):
+        # 15:30, still in the 12-16 NIEDRIG window; deadline is tomorrow's PV
+        # peak (~13:00, well over a day out) -> tonight's 02-06 NIEDRIG window
+        # fits comfortably and is equally cheap -> defer.
+        now = _dt(15, 30, day=15)
+        deadline = _dt(13, 0, day=16)
+        assert curve.later_window_as_cheap(now, deadline, timedelta(hours=2)) is True
+
+    def test_night_niedrig_does_not_defer_to_a_pricier_window(self, curve):
+        # 02:30, in tonight's NIEDRIG window; deadline is *today's* own peak
+        # (13:00) -> the only window before the deadline is 06-12 STANDARD,
+        # pricier than NIEDRIG -> do not defer, charge now.
+        now = _dt(2, 30, day=15)
+        deadline = _dt(13, 0, day=15)
+        assert curve.later_window_as_cheap(now, deadline, timedelta(hours=2)) is False
+
+    def test_no_deferral_when_deadline_leaves_no_slack(self, curve):
+        # Deadline only 30 minutes out, but 2h still needed to charge ->
+        # latest_feasible_start is already in the past relative to now.
+        now = _dt(12, 30, day=15)
+        deadline = _dt(13, 0, day=15)
+        assert curve.later_window_as_cheap(now, deadline, timedelta(hours=2)) is False
+
+    def test_false_outside_any_window(self):
+        data = {"timeslots": [
+            {"name": "X", "rate": "10.0",
+             "activation_rules": [{"from_time": "01:00", "to_time": "02:00"}]},
+        ]}
+        curve = PriceCurve.from_entity(_AttrWS(data), "sensor.price")
+        assert curve.later_window_as_cheap(_dt(10, 0), _dt(20, 0), timedelta(hours=1)) is False
+
+    def test_false_when_calendar_has_a_hole_before_the_deadline(self, curve):
+        # Deadline right at the end of the current window, no later window at
+        # all is reachable before it.
+        now = _dt(13, 0, day=15)   # NIEDRIG 12-16
+        deadline = _dt(16, 0, day=15)   # window_end(now) itself
+        assert curve.later_window_as_cheap(now, deadline, timedelta(hours=0)) is False
