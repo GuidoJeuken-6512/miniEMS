@@ -91,6 +91,9 @@ def migrate(data: dict) -> dict:
     if version < 17:
         data = _v16_to_v17(data)
 
+    if version < 18:
+        data = _v17_to_v18(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -274,6 +277,24 @@ def _v11_to_v12(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v11→v12: set %s = %r", key, default)
+    return data
+
+
+def _v17_to_v18(data: dict) -> dict:
+    """v17 → v18: Solcast peak-power-time entities, today and tomorrow.
+
+    Same write policy as solcast_today/tomorrow_entity (once per day, on
+    fetch/date-change) – needed for an upcoming feature, staleness is checked
+    by date the same way (is_stale_daily()), not by age.
+    """
+    if "solcast_peak_time_today_entity" not in data:
+        data["solcast_peak_time_today_entity"] = "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_heute"
+        _LOGGER.info("Migration v17→v18: set solcast_peak_time_today_entity = %r",
+                     data["solcast_peak_time_today_entity"])
+    if "solcast_peak_time_tomorrow_entity" not in data:
+        data["solcast_peak_time_tomorrow_entity"] = "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_morgen"
+        _LOGGER.info("Migration v17→v18: set solcast_peak_time_tomorrow_entity = %r",
+                     data["solcast_peak_time_tomorrow_entity"])
     return data
 
 

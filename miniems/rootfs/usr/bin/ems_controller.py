@@ -776,6 +776,22 @@ class EMSController:
                     f"Sensor stale: {label} – no update today ({entity})"
                 )
 
+        # Same once-per-day write policy as today/tomorrow above, but the state
+        # itself is a timestamp (peak-power time of day), not a number –
+        # get_state_value() ends in float(raw) and would call a healthy sensor
+        # "unavailable". get_state_datetime() is the presence check that
+        # actually parses these; staleness is still by date, same as above.
+        for entity, label in ((cfg.solcast_peak_time_today_entity, "Solcast peak time today"),
+                              (cfg.solcast_peak_time_tomorrow_entity, "Solcast peak time tomorrow")):
+            if not entity:
+                continue
+            if ws.get_state_datetime(entity) is None:
+                warnings.append(f"Sensor unavailable: {label} ({entity})")
+            elif self._is_stale_daily(entity):
+                warnings.append(
+                    f"Sensor stale: {label} – no update today ({entity})"
+                )
+
         # Forecast *data* age – independent of how often HA rewrites the sensors.
         if self._solcast_data_stale():
             age_h = (self._solcast_data_age_sec() or 0) / 3600

@@ -72,6 +72,12 @@ class Config:
     # `available`, their timestamps keep advancing, and nothing else reveals that
     # the numbers are days old. Leave empty to skip the freshness check.
     solcast_last_fetch_entity: str = "sensor.solcast_pv_forecast_zeitpunkt_letzter_api_abruf"
+    # Time of day the forecast expects peak PV power, today/tomorrow. Same
+    # SensorUpdatePolicy.DEFAULT write behaviour as solcast_today/tomorrow_entity
+    # (written once per day, on fetch/date-change) – staleness is checked the
+    # same way: by date, not by age (see is_stale_daily()).
+    solcast_peak_time_today_entity: str = "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_heute"
+    solcast_peak_time_tomorrow_entity: str = "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_morgen"
     # Grid charge control via switch + discharge power entity (Phase 6)
     grid_charge_switch_entity: str = "switch.deye8k_battery_grid_charging"
     battery_discharging_current_entity: str = "number.deye8k_battery_max_discharging_current"
@@ -174,6 +180,8 @@ class Config:
                 self.solcast_tomorrow_entity,
                 self.solcast_remaining_today_entity,
                 self.solcast_last_fetch_entity,
+                self.solcast_peak_time_today_entity,
+                self.solcast_peak_time_tomorrow_entity,
             ]
             if e
         ]
