@@ -14,7 +14,7 @@ Dieser Abschnitt dokumentiert das interne Design von miniEMS v1.5.3 für Entwick
 | `const.py` | Gemeinsame Konstanten: `EMSMode`-Enum, Schema-Version, API-URLs |
 | `config_loader.py` | Lädt und führt Konfiguration zusammen; führt Migration durch; stellt `Config`-Dataclass bereit |
 | `migration.py` | Schema-Versionsmigrationen für `config.json` (v0 → v10) |
-| `ha_ws_client.py` | Ruft HA-Entity-Zustände per REST ab; verwaltet Token-Fallback |
+| `ha_state_client.py` | Ruft HA-Entity-Zustände per REST ab; verwaltet Token-Fallback |
 | `ems_controller.py` | Bestimmt den Betriebsmodus; verbindet alle Subsysteme pro Tick |
 | `cost_optimizer.py` | Akkumuliert täglich/wöchentlich Energiekosten und Einsparungen; erkennt Ausfallzeiten |
 | `consumption_model.py` | Sagt Last aus dem Verlauf vorher; temperaturbasierter Fallback |

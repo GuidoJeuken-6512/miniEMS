@@ -77,7 +77,7 @@ The patched file is stored in the repo as `supervisor_firewall_patch.py` and cop
 **Symptom**
 
 ```
-WARNING ha_ws_client – REST error [502]: Bad Gateway
+WARNING ha_state_client – REST error [502]: Bad Gateway
 
 DEBUG [supervisor.homeassistant.api] Error on call http://localhost/api/core/state:
   Cannot connect to unix socket /run/os/core.sock ssl:False [No such file or directory]

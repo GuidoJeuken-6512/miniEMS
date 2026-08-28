@@ -14,8 +14,15 @@ _LOGGER = logging.getLogger(__name__)
 StateCallback = Callable[[str, dict[str, Any]], Awaitable[None]]
 
 
-class HAWebSocketClient:
+class HAStateClient:
     """Fetches entity states from HA Core via Supervisor REST proxy.
+
+    Named after what it does (poll entity *state*), not the transport –
+    renamed from HAWebSocketClient in v2.0.16, which was a misnomer: this is
+    plain REST polling of GET /states, no websocket involved. The name
+    freed up on purpose ahead of a real WebSocket client
+    (ws://hassio/homeassistant/websocket) for the device-registry/
+    energy-dashboard work – see docs/roadmap/v3.0-geraeteprofile.md.
 
     Authentication order:
     1. SUPERVISOR_TOKEN environment variable (automatic, no config needed)

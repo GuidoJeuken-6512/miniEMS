@@ -10,7 +10,7 @@ decision — and why a single age threshold is not enough.
 ## Mechanism
 
 ```
-HAWebSocketClient._parse_ts(state)
+HAStateClient._parse_ts(state)
   → prefers state["last_updated"], falls back to state["last_changed"]
   → stored in _state_ts[entity_id]
 
@@ -39,7 +39,7 @@ Two further constants cover special cases that "age" alone cannot solve (see bel
 `get_state_value(entity_id)` returns `None` for `unavailable`/`unknown`/`""` and
 otherwise does `float(raw)` — for timestamp-valued sensors (an ISO date as the state)
 this always returns `None`, even for a healthy sensor. That is what
-`get_state_datetime()` (`ha_ws_client.py:73`) exists for — it parses `raw` as an ISO
+`get_state_datetime()` (`ha_state_client.py:73`) exists for — it parses `raw` as an ISO
 timestamp instead of a number.
 
 ## Two signals that do *not* work as an age/liveness proxy
@@ -129,7 +129,7 @@ either case. Raising the threshold merely postpones the problem, it does not sol
 ### a–c: age check (`is_stale`)
 
 `EMSController._is_stale(entity_id, max_age_sec)` (`ems_controller.py:587`) delegates to
-`HAWebSocketClient.is_stale()`. Used for power sensors, the Solcast remaining-today
+`HAStateClient.is_stale()`. Used for power sensors, the Solcast remaining-today
 forecast, and the electricity price.
 
 `PRICE_MAX_AGE_SEC = 21,720` rather than a round number: the tariff is purely
@@ -140,7 +140,7 @@ degrading detection time.
 
 ### d: date check (`is_stale_daily`) instead of an age check
 
-`HAWebSocketClient.is_stale_daily(entity_id, grace_sec)` (`ha_ws_client.py:122`) asks
+`HAStateClient.is_stale_daily(entity_id, grace_sec)` (`ha_state_client.py:122`) asks
 "was it written today?" instead of "how old is it?". For class (d) this is answerable
 exactly, because the Solcast integration is guaranteed to write on every date rollover
 (`coordinator.py`):

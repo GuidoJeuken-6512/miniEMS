@@ -8,7 +8,7 @@ revision_date: 2026-08-19
 
 ```mermaid
 flowchart TB
-    WS["HAWebSocketClient<br/>(REST-Poll alle 15s)"] --> EC
+    WS["HAStateClient<br/>(REST-Poll alle 15s)"] --> EC
     WEATHER["WeatherClient<br/>weather.get_forecasts, 30 min Cache"] --> EC
 
     subgraph EC["EMSController – EMS-Loop, alle 30s"]
@@ -36,7 +36,7 @@ flowchart TB
     end
 ```
 
-`InverterController` und `HAWebSocketClient` sprechen beide direkt mit `HA Core API`; die `sensor.miniems_*`-Entities entstehen **nicht** durch einen Push aus dem Add-on, sondern werden von der Custom Integration per HTTP-Pull aus `/api/status` erzeugt (Details siehe Abschnitt „Sensor-Veröffentlichung" weiter unten).
+`InverterController` und `HAStateClient` sprechen beide direkt mit `HA Core API`; die `sensor.miniems_*`-Entities entstehen **nicht** durch einen Push aus dem Add-on, sondern werden von der Custom Integration per HTTP-Pull aus `/api/status` erzeugt (Details siehe Abschnitt „Sensor-Veröffentlichung" weiter unten).
 
 ## Asyncio-Task-Graph
 
@@ -73,7 +73,7 @@ EMSController.update()
 ```
 
 !!! note "SensorValidator läuft nicht auf dem Entscheidungspfad"
-    `SensorValidator.validate()` wird von `CostOptimizer.record_tick()` aufgerufen, nicht direkt von `EMSController.update()`. Ein verworfener Leistungs-Spike beeinflusst also nur die Energie-/Kostenbuchhaltung — die Moduls-Entscheidung (`_decide`) arbeitet immer mit den ungefilterten Rohwerten aus `HAWebSocketClient` und verlässt sich stattdessen auf eigene Staleness-Prüfungen (siehe [Berechnungen](calculations.md)).
+    `SensorValidator.validate()` wird von `CostOptimizer.record_tick()` aufgerufen, nicht direkt von `EMSController.update()`. Ein verworfener Leistungs-Spike beeinflusst also nur die Energie-/Kostenbuchhaltung — die Moduls-Entscheidung (`_decide`) arbeitet immer mit den ungefilterten Rohwerten aus `HAStateClient` und verlässt sich stattdessen auf eigene Staleness-Prüfungen (siehe [Berechnungen](calculations.md)).
 
 ## Authentifizierungsablauf
 
@@ -87,7 +87,7 @@ long_lived_token  ──▶  http://hassio/homeassistant/api
     Fehler loggen, in 10 s erneut versuchen
 ```
 
-Sowohl `HAWebSocketClient` (Lesezugriffe) als auch `InverterController`
+Sowohl `HAStateClient` (Lesezugriffe) als auch `InverterController`
 (Schreibzugriffe) implementieren diesen Fallback unabhängig voneinander,
 sodass jeder zur Laufzeit den Token wechseln kann.
 

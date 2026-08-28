@@ -16,7 +16,7 @@ accepted, not that the inverter applied it – some Deye/Solarman bridges only
 reflect a written number/switch on their next poll, which can lag by many
 minutes, and a call can also silently target a since-renamed entity and do
 nothing at all. Every write is therefore re-checked against the *real* state
-HAWebSocketClient already caches, every tick, and re-sent until it matches
+HAStateClient already caches, every tick, and re-sent until it matches
 (see INVERTER_WRITE_CONFIRM_TIMEOUT_SEC in const.py – one EMS tick, so a
 stuck write is retried continuously rather than assumed done).
 
@@ -42,7 +42,7 @@ from const import (
 
 if TYPE_CHECKING:
     from config_loader import Config
-    from ha_ws_client import HAWebSocketClient
+    from ha_state_client import HAStateClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class InverterController:
         config: "Config",
         supervisor_token: str,
         long_lived_token: str = "",
-        ws_client: "HAWebSocketClient | None" = None,
+        ws_client: "HAStateClient | None" = None,
     ) -> None:
         self._cfg = config
         self._sup_token = supervisor_token

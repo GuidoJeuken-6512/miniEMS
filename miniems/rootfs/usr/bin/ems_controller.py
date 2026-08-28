@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from consumption_model import ConsumptionModel, Prediction
     from cost_optimizer import CostOptimizer
     from event_log import EventLog
-    from ha_ws_client import HAWebSocketClient
+    from ha_state_client import HAStateClient
     from inverter_controller import InverterController
     from solcast_client import SolcastClient
 
@@ -46,7 +46,7 @@ class EMSController:
     def __init__(
         self,
         config: "Config",
-        ws_client: "HAWebSocketClient",
+        ws_client: "HAStateClient",
         cost_optimizer: "CostOptimizer",
         inverter: "InverterController | None" = None,
         consumption_model: "ConsumptionModel | None" = None,

@@ -8,7 +8,7 @@ revision_date: 2026-08-19
 
 ```mermaid
 flowchart TB
-    WS["HAWebSocketClient<br/>(REST poll every 15s)"] --> EC
+    WS["HAStateClient<br/>(REST poll every 15s)"] --> EC
     WEATHER["WeatherClient<br/>weather.get_forecasts, 30 min cache"] --> EC
 
     subgraph EC["EMSController – EMS loop, every 30s"]
@@ -36,7 +36,7 @@ flowchart TB
     end
 ```
 
-`InverterController` and `HAWebSocketClient` both talk directly to the `HA Core API`; the `sensor.miniems_*` entities are **not** pushed from the add-on — they are pulled by the Custom Integration via HTTP from `/api/status` (see "Sensor Publishing" below).
+`InverterController` and `HAStateClient` both talk directly to the `HA Core API`; the `sensor.miniems_*` entities are **not** pushed from the add-on — they are pulled by the Custom Integration via HTTP from `/api/status` (see "Sensor Publishing" below).
 
 ## Asyncio Task Graph
 
@@ -72,7 +72,7 @@ EMSController.update()
 ```
 
 !!! note "SensorValidator is not on the decision path"
-    `SensorValidator.validate()` is called from `CostOptimizer.record_tick()`, not directly from `EMSController.update()`. A rejected power spike only affects energy/cost accounting — the mode decision (`_decide`) always works on the raw, unfiltered values from `HAWebSocketClient` and relies on its own staleness checks instead (see [Calculations](calculations.md)).
+    `SensorValidator.validate()` is called from `CostOptimizer.record_tick()`, not directly from `EMSController.update()`. A rejected power spike only affects energy/cost accounting — the mode decision (`_decide`) always works on the raw, unfiltered values from `HAStateClient` and relies on its own staleness checks instead (see [Calculations](calculations.md)).
 
 ## Authentication Flow
 
@@ -86,7 +86,7 @@ long_lived_token  ──▶  http://hassio/homeassistant/api
     Log error, retry in 10 s
 ```
 
-Both `HAWebSocketClient` (reads) and `InverterController` (writes) implement
+Both `HAStateClient` (reads) and `InverterController` (writes) implement
 this fallback independently so each can switch tokens at runtime.
 
 `SUPERVISOR_TOKEN` is also used by:

@@ -1,6 +1,6 @@
 """Solcast PV forecast accessor for miniEMS.
 
-Reads Solcast sensor states from the HA state cache (via HAWebSocketClient)
+Reads Solcast sensor states from the HA state cache (via HAStateClient)
 and exposes three scalar values used by the EMS grid-charge decision logic.
 
 None is returned when an entity is unconfigured or unavailable – callers must
@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from config_loader import Config
-    from ha_ws_client import HAWebSocketClient
+    from ha_state_client import HAStateClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 class SolcastClient:
     """Reads Solcast HA entities from the WebSocket state cache."""
 
-    def __init__(self, config: "Config", ws_client: "HAWebSocketClient") -> None:
+    def __init__(self, config: "Config", ws_client: "HAStateClient") -> None:
         self._cfg = config
         self._ws = ws_client
 

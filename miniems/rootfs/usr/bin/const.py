@@ -8,7 +8,7 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "2.0.15"
+VERSION = "2.0.16"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
 CONFIG_SCHEMA_VERSION = 19
@@ -31,7 +31,7 @@ HA_SERVICES_URL     = f"{HA_API_BASE}/services"
 SUPERVISOR_RESTART_URL = "http://supervisor/addons/self/restart"
 
 # ── Polling / timing (seconds) ────────────────────────────────────────────────
-HA_POLL_INTERVAL_SEC  = 15   # how often ha_ws_client refreshes HA states
+HA_POLL_INTERVAL_SEC  = 15   # how often ha_state_client refreshes HA states
 HA_RETRY_INTERVAL_SEC = 10   # retry delay after a failed poll / 401
 
 # ── Sensor staleness limits (seconds) ─────────────────────────────────────────
@@ -52,7 +52,7 @@ PRICE_MAX_AGE_SEC    = 21720   # 6 h + 2 min. A time-of-use tariff is written on
 # Grace period for once-per-day values (Solcast daily forecast totals). The
 # source rewrites them within ~5 min of local midnight; until then a timestamp
 # from yesterday is legitimate. 15 min gives that margin without letting a truly
-# stopped integration hide. Used by HAWebSocketClient.is_stale_daily(), which
+# stopped integration hide. Used by HAStateClient.is_stale_daily(), which
 # asks "was it written today?" instead of "how old is it?" – see
 # docs/roadmap/sensor-staleness.md for why no age threshold can be right here.
 DAILY_VALUE_GRACE_SEC = 900

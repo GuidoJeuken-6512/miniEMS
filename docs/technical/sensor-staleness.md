@@ -10,7 +10,7 @@ zu dienen — und warum dafür **kein** einzelner Alters-Schwellwert reicht.
 ## Mechanik
 
 ```
-HAWebSocketClient._parse_ts(state)
+HAStateClient._parse_ts(state)
   → bevorzugt state["last_updated"], sonst state["last_changed"]
   → gespeichert in _state_ts[entity_id]
 
@@ -40,7 +40,7 @@ Zwei weitere Konstanten decken Sonderfälle ab, die mit „Alter" allein nicht l
 `get_state_value(entity_id)` liefert `None` für `unavailable`/`unknown`/`""` und macht
 sonst `float(raw)` — für Zeitstempel-Sensoren (ISO-Datum als Zustand) liefert das immer
 `None`, selbst wenn der Sensor gesund ist. Dafür existiert `get_state_datetime()`
-(`ha_ws_client.py:73`), das `raw` als ISO-Zeitstempel parst statt als Zahl.
+(`ha_state_client.py:73`), das `raw` als ISO-Zeitstempel parst statt als Zahl.
 
 ## Zwei Signale, die *nicht* als Alters-/Lebenszeichen taugen
 
@@ -132,7 +132,7 @@ Schwellwert verschiebt das Problem nur, er löst es nicht.
 ### a–c: Alters-Prüfung (`is_stale`)
 
 `EMSController._is_stale(entity_id, max_age_sec)` (`ems_controller.py:587`) delegiert an
-`HAWebSocketClient.is_stale()`. Verwendet für Leistungssensoren, die Solcast-Restprognose
+`HAStateClient.is_stale()`. Verwendet für Leistungssensoren, die Solcast-Restprognose
 und den Strompreis.
 
 `PRICE_MAX_AGE_SEC = 21 720` statt eines runden Werts: Der Tarif ist rein zeitgesteuert,
@@ -143,7 +143,7 @@ Erkennungszeit unnötig zu verschlechtern.
 
 ### d: Datums-Prüfung (`is_stale_daily`) statt Alters-Prüfung
 
-`HAWebSocketClient.is_stale_daily(entity_id, grace_sec)` (`ha_ws_client.py:122`) fragt
+`HAStateClient.is_stale_daily(entity_id, grace_sec)` (`ha_state_client.py:122`) fragt
 „wurde heute geschrieben?" statt „wie alt ist der Wert?". Das ist für Klasse (d) exakt
 beantwortbar, weil die Solcast-Integration bei jedem Datumswechsel garantiert schreibt
 (`coordinator.py`):

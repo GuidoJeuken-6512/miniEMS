@@ -16,7 +16,7 @@ from consumption_model import ConsumptionModel
 from cost_optimizer import CostOptimizer
 from ems_controller import EMSController
 from event_log import EventLog
-from ha_ws_client import HAWebSocketClient
+from ha_state_client import HAStateClient
 from integration_installer import install_integration
 from inverter_controller import InverterController
 from solcast_client import SolcastClient
@@ -87,7 +87,7 @@ async def main() -> None:
     cost_optimizer = CostOptimizer(cfg, store)
     await cost_optimizer.restore_today()
 
-    ws_client = HAWebSocketClient(cfg.monitored_entities, long_lived_token=cfg.long_lived_token)
+    ws_client = HAStateClient(cfg.monitored_entities, long_lived_token=cfg.long_lived_token)
 
     inverter = InverterController(cfg, supervisor_token, cfg.long_lived_token, ws_client)
     if cfg.battery_control_enabled:

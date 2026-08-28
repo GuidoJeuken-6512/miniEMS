@@ -25,7 +25,7 @@ from datetime import date, datetime, time, timedelta
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ha_ws_client import HAWebSocketClient
+    from ha_state_client import HAStateClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class PriceCurve:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_entity(cls, ws: "HAWebSocketClient", entity_id: str) -> "PriceCurve | None":
+    def from_entity(cls, ws: "HAStateClient", entity_id: str) -> "PriceCurve | None":
         """Build from a price entity, or None when it carries no calendar."""
         if not entity_id:
             return None

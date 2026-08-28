@@ -29,12 +29,12 @@ def make_config():
 
 
 class FakeWS:
-    """Minimal stand-in for HAWebSocketClient's read-only interface.
+    """Minimal stand-in for HAStateClient's read-only interface.
 
     Exercises the same contract real callers rely on (get_state_value,
     get_state_datetime, get_state_attribute, is_stale, is_stale_daily) without
     any HTTP – the network/parsing side of the real client is covered
-    separately in test_ha_ws_client.py.
+    separately in test_ha_state_client.py.
     """
 
     def __init__(self) -> None:

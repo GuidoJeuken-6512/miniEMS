@@ -69,7 +69,7 @@ Ergebnis vorweg: Die wertvollsten Verbesserungen brauchen **keinen Solver**. Sie
 ### Der zentrale Befund
 
 !!! success "Schritt 1 umgesetzt in v2.0.4"
-    `HAWebSocketClient.get_state_attribute(entity_id, attribute)` existiert seit v2.0.4.
+    `HAStateClient.get_state_attribute(entity_id, attribute)` existiert seit v2.0.4.
     Der Befund unten beschreibt den Zustand **davor** und bleibt als Begründung stehen.
     Genutzt wird der Zugriff bisher von keiner Entscheidung — das ist Sache von V2/V3.
 
@@ -81,7 +81,7 @@ Ergebnis vorweg: Die wertvollsten Verbesserungen brauchen **keinen Solver**. Sie
     konnte ein Akku nahe dem Auslösepunkt pendeln. Jetzt gilt dasselbe Band in
     beiden Pfaden.
 
-**miniEMS liest nirgends Entity-Attribute.** `grep -rn '\["attributes"\]' *.py` findet **null** Treffer. `HAWebSocketClient` cacht in `_state_cache[eid]` das vollständige State-Dict, aber der einzige Zugriffspfad ist `get_state_value()` → `float(state)`. Damit bleibt ungenutzt:
+**miniEMS liest nirgends Entity-Attribute.** `grep -rn '\["attributes"\]' *.py` findet **null** Treffer. `HAStateClient` cacht in `_state_cache[eid]` das vollständige State-Dict, aber der einzige Zugriffspfad ist `get_state_value()` → `float(state)`. Damit bleibt ungenutzt:
 
 | Daten in HA (live geprüft) | liegt in | heute genutzt |
 |---|---|---|
@@ -707,7 +707,7 @@ Aktualisiert sich mit dem stündlichen Trigger oben, nicht mit jedem 30-s-Tick �
 
 | Schritt | Inhalt | Aufwand | Nutzen |
 |---|---|---|---|
-| 1 | ✅ **Attribut-Zugriff** in `ha_ws_client` (`get_state_attribute()`) — **umgesetzt in v2.0.4** | klein | Freischalter |
+| 1 | ✅ **Attribut-Zugriff** in `ha_state_client` (`get_state_attribute()`) — **umgesetzt in v2.0.4** | klein | Freischalter |
 | 2 | ✅ **V1 Peak-Strecken** — kostenneutral, unmittelbar netzdienlich — **umgesetzt in v2.0.13** | mittel | hoch |
 | 3 | ✅ **V2 PriceCurve** — Fensterwahl verdrahtet — **umgesetzt in v2.0.12** | mittel | hoch |
 | 4 | ✅ **V4 Wirtschaftlichkeits-Gate** — **umgesetzt in v2.0.4** | klein | mittel |
@@ -727,7 +727,7 @@ damit ein Rückfall auf das heutige Verhalten jederzeit möglich bleibt.
 
 ## Betroffene Dateien
 
-- ✅ `ha_ws_client.py` — `get_state_attribute()` neben `get_state_value()` (v2.0.4, vorbestehend).
+- ✅ `ha_state_client.py` — `get_state_attribute()` neben `get_state_value()` (v2.0.4, vorbestehend).
 - 🟡 `price_curve.py` — `windows_before()` ✅ neu (v2.0.14); Marktpreis-Parsing (`rates[]`/`unit_rate_forecast[]`) und `from_config(windows)` weiterhin offen.
 - `pv_curve.py` *(neu, optional)* oder Erweiterung von `solcast_client.py` — `detailedForecast` als Zeitreihe (nur für V3b). Offen.
 - `charge_task.py` *(neu)* — `ChargeTask`-Dataclass, Prioritätswarteschlange. Offen — `energy_plan.py` (s. u.) deckt die `deficit_kwh`-Berechnung bereits für die Batterie ab, ohne die Mehrgeräte-Abstraktion.

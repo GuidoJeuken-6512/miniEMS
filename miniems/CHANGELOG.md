@@ -1,5 +1,17 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.16
+
+### Changed
+
+- **`ha_ws_client.py`/`HAWebSocketClient` umbenannt zu `ha_state_client.py`/
+  `HAStateClient`.** Reine Namensänderung, kein Verhalten geändert — die
+  Klasse war schon immer ein REST-Poller (`GET /states` alle 15 s), nie ein
+  echter WebSocket-Client; der alte Name war irreführend. Macht den Namen
+  frei für einen kommenden echten WebSocket-Client
+  (`ws://hassio/homeassistant/websocket`) für Geräte-Registry und
+  Energie-Dashboard (siehe `docs/roadmap/v3.0-geraeteprofile.md`).
+
 ## 2.0.15
 
 ### Bug Fixes
