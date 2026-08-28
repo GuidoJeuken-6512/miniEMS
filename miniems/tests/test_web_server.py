@@ -77,6 +77,75 @@ class TestDashboardAndPages:
         r = client.get("/options-json")
         assert r.status_code == 200
 
+    def test_devices_page_renders(self, client):
+        r = client.get("/devices")
+        assert r.status_code == 200
+
+
+class TestApiDevices:
+    async def _fake_snapshot_ok(self, long_lived_token=""):
+        return (
+            {"energy_sources": [
+                {"type": "solar", "stat_rate": "sensor.pv_power"},
+                {"type": "battery", "power_config": {"stat_rate": "sensor.batt_power"},
+                 "stat_soc": "sensor.batt_soc", "capacity": 10.0},
+            ]},
+            [{"id": "dev1", "manufacturer": "Deye", "model": "SG0*LP3", "name": "deye8k"}],
+            [
+                {"entity_id": "sensor.pv_power", "device_id": "dev1"},
+                {"entity_id": "sensor.batt_power", "device_id": "dev1"},
+            ],
+        )
+
+    def test_returns_parsed_energy_dashboard_and_devices(self, client, monkeypatch):
+        monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", self._fake_snapshot_ok)
+        r = client.get("/api/devices")
+        data = r.json()
+        assert "error" not in data
+        assert data["energy_dashboard"]["candidates"]["pv_power"] == "sensor.pv_power"
+        assert data["energy_dashboard"]["candidates"]["battery_power"] == "sensor.batt_power"
+        assert data["energy_dashboard"]["signs"]["pv_power"] == {"mode": "unsigned", "positive": None}
+        assert data["energy_dashboard"]["battery_capacity_kwh"] == 10.0
+        assert len(data["devices"]) == 1
+        assert data["devices"][0]["manufacturer"] == "Deye"
+        assert data["devices"][0]["model"] == "SG0*LP3"
+        assert data["devices"][0]["entity_count"] == 2
+
+    def test_ws_error_yields_error_field_not_a_5xx(self, client, monkeypatch):
+        import ha_ws_api
+
+        async def _raise(long_lived_token=""):
+            raise ha_ws_api.HAWebSocketError("no token available")
+
+        monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", _raise)
+        r = client.get("/api/devices")
+        assert r.status_code == 200
+        assert "error" in r.json()
+
+    def test_passes_configured_long_lived_token(self, monkeypatch):
+        seen = {}
+
+        async def _fake(long_lived_token=""):
+            seen["token"] = long_lived_token
+            return {}, [], []
+
+        monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", _fake)
+        cfg = Config()
+        cfg.long_lived_token = "my-llt"
+        app = create_app({}, cfg, "tok", None)
+        TestClient(app).get("/api/devices")
+        assert seen["token"] == "my-llt"
+
+    def test_no_energy_sources_yields_empty_candidates(self, client, monkeypatch):
+        async def _fake(long_lived_token=""):
+            return {}, [], []
+
+        monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", _fake)
+        r = client.get("/api/devices")
+        data = r.json()
+        assert data["energy_dashboard"]["candidates"] == {}
+        assert data["devices"] == []
+
 
 class TestApiStatus:
     def test_returns_shared_status_dict(self):

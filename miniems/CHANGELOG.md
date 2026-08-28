@@ -1,5 +1,40 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.1.0
+
+### Added
+
+- **Geräteprofile-Grundlage (I2): Zugriff auf HA-Geräte-Registry und
+  Energie-Dashboard.** Die HA-Geräte-Registry, Entity-Registry und die
+  Energie-Dashboard-Einstellungen haben keinen REST-Endpunkt — nur
+  WebSocket. Neues Modul `ha_ws_api.py`: kurzlebige, einmalige
+  WS-Abfragen (`energy/get_prefs`, `config/device_registry/list`,
+  `config/entity_registry/list`) über `ws://hassio/homeassistant/websocket`,
+  mit demselben SUPERVISOR_TOKEN → Long-Lived-Token-Fallback wie der
+  bestehende REST-Pfad. Kein Dauerbetrieb, kein Abo — bleibt getrennt vom
+  30-s-EMS-Tick, der weiterhin `ha_state_client.py` (REST) nutzt.
+
+  Neue reine Parser-Module: `energy_dashboard.py` (Energie-Dashboard →
+  Rollen-Kandidaten inkl. Vorzeichenkonvention, verlustfrei aus HAs eigenem
+  `PowerConfig`-Schema übernommen) und `device_registry.py` (indizierte
+  Sicht auf Geräte-/Entity-Registry, inkl. Fallback von `device_class` auf
+  `original_device_class` und bewusst **kein** Glob-Matching auf `model`,
+  da HA dort teils literale Glob-Strings, teils Firmware-Versionen
+  einträgt).
+
+  Neue read-only Seite **Devices** im Ingress-Dashboard (`/devices`,
+  `/api/devices`): zeigt, was HA über Energie-Dashboard und Geräte-Registry
+  weiß. Rein informativ — nichts davon fließt in die Steuerung ein, siehe
+  `docs/roadmap/v3.0-geraeteprofile.md`.
+
+  Live gegen die lokale Testinstanz verifiziert (aus dem gebauten
+  Container heraus, über die eigene Ingress-Route): `/api/devices` liefert
+  die echten Rollen-Kandidaten (`pv_power`, `battery_power`,
+  `battery_soc`, `grid_power`, `price`), korrekte Vorzeichen
+  (`battery_power` signed/discharge, `grid_power` signed/import),
+  `battery_capacity_kwh: 25.0` und alle 17 Geräte der Registry, inkl. des
+  Deye-Wechselrichters mit 201 Entities.
+
 ## 2.0.16
 
 ### Changed

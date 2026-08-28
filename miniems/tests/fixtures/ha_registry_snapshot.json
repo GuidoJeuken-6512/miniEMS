@@ -1,0 +1,1053 @@
+{
+  "_source": "Redacted live capture from local devcontainer test HA instance, 2026-08-28. Trimmed from 17 devices/748 entities to a representative slice covering the real gotchas found during exploration: Deye's model is a literal glob string ('SG0*LP3'), Lambda's model is a firmware version, Octopus/OpenWeather have model=null. This test instance has no duplicate Deye device (unlike the production system referenced in docs/roadmap/v3.0-geraeteprofile.md).",
+  "energy_prefs": {
+    "energy_sources": [
+      {
+        "type": "solar",
+        "stat_energy_from": "sensor.deye8k_total_production",
+        "config_entry_solar_forecast": [
+          "01KJZFSN2332GF60FXGGTJMDCH"
+        ],
+        "stat_rate": "sensor.deye8k_power"
+      },
+      {
+        "type": "battery",
+        "stat_energy_from": "sensor.deye8k_total_battery_discharge",
+        "stat_energy_to": "sensor.deye8k_total_battery_charge",
+        "power_config": {
+          "stat_rate": "sensor.deye8k_battery_power"
+        },
+        "stat_soc": "sensor.deye8k_battery",
+        "capacity": 25.0,
+        "stat_rate": "sensor.deye8k_battery_power"
+      },
+      {
+        "type": "grid",
+        "stat_energy_from": "sensor.deye8k_today_energy_import",
+        "stat_energy_to": "sensor.deye8k_today_energy_export",
+        "stat_cost": null,
+        "stat_compensation": null,
+        "entity_energy_price": "sensor.octopus_a_10fc0646_electricity_price",
+        "number_energy_price": null,
+        "entity_energy_price_export": null,
+        "number_energy_price_export": 0.079,
+        "cost_adjustment_day": 0.0,
+        "power_config": {
+          "stat_rate": "sensor.deye8k_grid_power"
+        },
+        "stat_rate": "sensor.deye8k_grid_power"
+      }
+    ],
+    "device_consumption": [],
+    "device_consumption_water": []
+  },
+  "devices": [
+    {
+      "config_entries": [
+        "01KJR4MHVQG0WP1NZ37JY8A58Q"
+      ],
+      "config_entries_subentries": {
+        "01KJR4MHVQG0WP1NZ37JY8A58Q": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": "service",
+      "hw_version": null,
+      "id": "3d35aa5b593fc8be85312279b3a15dde",
+      "manufacturer": null,
+      "model": null,
+      "model_id": null,
+      "name_by_user": null,
+      "name": "Sun",
+      "parent_device_id": null,
+      "sw_version": null
+    },
+    {
+      "config_entries": [
+        "01KJR4MJ52NBC6FF58MF716NWC"
+      ],
+      "config_entries_subentries": {
+        "01KJR4MJ52NBC6FF58MF716NWC": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": "service",
+      "hw_version": null,
+      "id": "c3515db818da30384f358d21954503f3",
+      "manufacturer": "Home Assistant",
+      "model": "Home Assistant Core",
+      "model_id": null,
+      "name_by_user": null,
+      "name": "Home Assistant Core",
+      "parent_device_id": null,
+      "sw_version": "2026.9.0.dev202608140259"
+    },
+    {
+      "config_entries": [
+        "01KJR4MJ52NBC6FF58MF716NWC"
+      ],
+      "config_entries_subentries": {
+        "01KJR4MJ52NBC6FF58MF716NWC": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": "service",
+      "hw_version": null,
+      "id": "b4d5e63a878efd5fbcdcc56cbaa50102",
+      "manufacturer": "Home Assistant",
+      "model": "Home Assistant Supervisor",
+      "model_id": null,
+      "name_by_user": null,
+      "name": "Home Assistant Supervisor",
+      "parent_device_id": null,
+      "sw_version": "2026.08.1.dev2702"
+    },
+    {
+      "config_entries": [
+        "01KJR4MJ52NBC6FF58MF716NWC"
+      ],
+      "config_entries_subentries": {
+        "01KJR4MJ52NBC6FF58MF716NWC": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": "service",
+      "hw_version": null,
+      "id": "2cc98d983c29feb575fb113928fa8209",
+      "manufacturer": "Home Assistant",
+      "model": "Home Assistant Host",
+      "model_id": null,
+      "name_by_user": null,
+      "name": "Home Assistant Host",
+      "parent_device_id": null,
+      "sw_version": null
+    },
+    {
+      "config_entries": [
+        "01KJR4MJ5B503TG4AS2MKDXZ71"
+      ],
+      "config_entries_subentries": {
+        "01KJR4MJ5B503TG4AS2MKDXZ71": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": "service",
+      "hw_version": null,
+      "id": "7d1775842d2ce2fd067f17d94b463d75",
+      "manufacturer": "Home Assistant",
+      "model": "Home Assistant Backup",
+      "model_id": null,
+      "name_by_user": null,
+      "name": "Backup",
+      "parent_device_id": null,
+      "sw_version": "2026.9.0.dev202608140259"
+    },
+    {
+      "config_entries": [
+        "01KJR4P6XZGS8VKX8EPWB1J57G"
+      ],
+      "config_entries_subentries": {
+        "01KJR4P6XZGS8VKX8EPWB1J57G": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": "service",
+      "hw_version": null,
+      "id": "42c805bce41570b4bc971135a42207b3",
+      "manufacturer": "Google",
+      "model": "Google Translate TTS",
+      "model_id": null,
+      "name_by_user": null,
+      "name": "Google Übersetzer en com",
+      "parent_device_id": null,
+      "sw_version": null
+    },
+    {
+      "config_entries": [
+        "01KJR4QF59ZWTJGWH5M6XJR7FK"
+      ],
+      "config_entries_subentries": {
+        "01KJR4QF59ZWTJGWH5M6XJR7FK": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": null,
+      "hw_version": null,
+      "id": "117f826e9f65444e206da7a4946b4e54",
+      "manufacturer": "Deye",
+      "model": "SG0*LP3",
+      "model_id": null,
+      "name_by_user": null,
+      "name": "deye8k",
+      "parent_device_id": null,
+      "sw_version": null
+    },
+    {
+      "config_entries": [
+        "01KJSNEQ7M16VFZ2R944RPGMNZ"
+      ],
+      "config_entries_subentries": {
+        "01KJSNEQ7M16VFZ2R944RPGMNZ": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": "service",
+      "hw_version": null,
+      "id": "462e951ecb201b6af677d943e6f518de",
+      "manufacturer": "Octopus Energy Germany",
+      "model": null,
+      "model_id": null,
+      "name_by_user": null,
+      "name": "Octopus Energy Germany (A-10FC0646)",
+      "parent_device_id": null,
+      "sw_version": null
+    },
+    {
+      "config_entries": [
+        "01KJYVCZDCY5Y6E7VXGP47F154"
+      ],
+      "config_entries_subentries": {
+        "01KJYVCZDCY5Y6E7VXGP47F154": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": "service",
+      "hw_version": null,
+      "id": "9cc7d037abba18e3f80f0da6c24a811f",
+      "manufacturer": "OpenWeather",
+      "model": null,
+      "model_id": null,
+      "name_by_user": null,
+      "name": "OpenWeatherMap",
+      "parent_device_id": null,
+      "sw_version": null
+    },
+    {
+      "config_entries": [
+        "01KJZ2F6AH72ENS751KHVBAZRD"
+      ],
+      "config_entries_subentries": {
+        "01KJZ2F6AH72ENS751KHVBAZRD": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": null,
+      "hw_version": null,
+      "id": "19f40b39bbe44f268bbaa6120a21b327",
+      "manufacturer": "Lambda",
+      "model": "V0.0.8-3K",
+      "model_id": null,
+      "name_by_user": null,
+      "name": "EU08L",
+      "parent_device_id": null,
+      "sw_version": "V0.0.8-3K"
+    },
+    {
+      "config_entries": [
+        "01KJZ2F6AH72ENS751KHVBAZRD"
+      ],
+      "config_entries_subentries": {
+        "01KJZ2F6AH72ENS751KHVBAZRD": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": null,
+      "hw_version": null,
+      "id": "a7936b479efcd5e0ce64213329e55773",
+      "manufacturer": "Lambda",
+      "model": "V0.0.8-3K",
+      "model_id": null,
+      "name_by_user": null,
+      "name": "EU08L - Boiler1",
+      "parent_device_id": null,
+      "sw_version": "V0.0.8-3K"
+    },
+    {
+      "config_entries": [
+        "01KJZ2F6AH72ENS751KHVBAZRD"
+      ],
+      "config_entries_subentries": {
+        "01KJZ2F6AH72ENS751KHVBAZRD": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": null,
+      "hw_version": null,
+      "id": "4d6841bd2cb38ea5b521d09f88ab154e",
+      "manufacturer": "Lambda",
+      "model": "V0.0.8-3K",
+      "model_id": null,
+      "name_by_user": null,
+      "name": "EU08L - HC1",
+      "parent_device_id": null,
+      "sw_version": "V0.0.8-3K"
+    },
+    {
+      "config_entries": [
+        "01KJZ2F6AH72ENS751KHVBAZRD"
+      ],
+      "config_entries_subentries": {
+        "01KJZ2F6AH72ENS751KHVBAZRD": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": null,
+      "hw_version": null,
+      "id": "c6891098e8df42d03cbc39510d10077f",
+      "manufacturer": "Lambda",
+      "model": "V0.0.8-3K",
+      "model_id": null,
+      "name_by_user": null,
+      "name": "EU08L - HP1",
+      "parent_device_id": null,
+      "sw_version": "V0.0.8-3K"
+    },
+    {
+      "config_entries": [
+        "01KJZFSN2332GF60FXGGTJMDCH"
+      ],
+      "config_entries_subentries": {
+        "01KJZFSN2332GF60FXGGTJMDCH": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": "service",
+      "hw_version": null,
+      "id": "9ec82387d3dd24a21e422727d07014a9",
+      "manufacturer": "BJReplay",
+      "model": "Solcast PV Forecast",
+      "model_id": null,
+      "name_by_user": null,
+      "name": "Solcast PV Forecast",
+      "parent_device_id": null,
+      "sw_version": "4.6.1"
+    },
+    {
+      "config_entries": [
+        "01KNJ19SJQQD4QKQ9Y5340FGJK"
+      ],
+      "config_entries_subentries": {
+        "01KNJ19SJQQD4QKQ9Y5340FGJK": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": null,
+      "hw_version": null,
+      "id": "633c82eafef9c400a7c2428a7d97aeb3",
+      "manufacturer": "miniEMS Addon",
+      "model": null,
+      "model_id": null,
+      "name_by_user": null,
+      "name": "miniEMS",
+      "parent_device_id": null,
+      "sw_version": null
+    },
+    {
+      "config_entries": [
+        "01KJR4MJ52NBC6FF58MF716NWC"
+      ],
+      "config_entries_subentries": {
+        "01KJR4MJ52NBC6FF58MF716NWC": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": "service",
+      "hw_version": null,
+      "id": "00a049c3cb953a495ebd2ccd18db6597",
+      "manufacturer": "Local apps",
+      "model": "Home Assistant App",
+      "model_id": null,
+      "name_by_user": null,
+      "name": "miniEMS",
+      "parent_device_id": null,
+      "sw_version": "2.0.8"
+    },
+    {
+      "config_entries": [
+        "01M1292XG4CCT0FMXHBXYWDFSD"
+      ],
+      "config_entries_subentries": {
+        "01M1292XG4CCT0FMXHBXYWDFSD": [
+          null
+        ]
+      },
+      "disabled_by": null,
+      "entry_type": null,
+      "hw_version": null,
+      "id": "43bf9004fbbd6246d93bbd88390ff9cd",
+      "manufacturer": "Home Assistant",
+      "model": "Solar EV Charging Controller",
+      "model_id": null,
+      "name_by_user": null,
+      "name": "SEM",
+      "parent_device_id": null,
+      "sw_version": "2.0.0-beta.18"
+    }
+  ],
+  "entities": [
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_today_battery_life_cycles",
+      "name": null,
+      "original_name": "Today Battery Life Cycles",
+      "platform": "solarman",
+      "translation_key": "today_battery_life_cycles"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_total_battery_life_cycles",
+      "name": null,
+      "original_name": "Total Battery Life Cycles",
+      "platform": "solarman",
+      "translation_key": "total_battery_life_cycles"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_battery_soh",
+      "name": null,
+      "original_name": "Battery SOH",
+      "platform": "solarman",
+      "translation_key": "battery_soh"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_battery_capacity",
+      "name": null,
+      "original_name": "Battery Capacity",
+      "platform": "solarman",
+      "translation_key": "battery_capacity"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_battery_state",
+      "name": null,
+      "original_name": "Battery State",
+      "platform": "solarman",
+      "translation_key": "battery_state"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_today_battery_charge",
+      "name": null,
+      "original_name": "Today Battery Charge",
+      "platform": "solarman",
+      "translation_key": "today_battery_charge"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_today_battery_discharge",
+      "name": null,
+      "original_name": "Today Battery Discharge",
+      "platform": "solarman",
+      "translation_key": "today_battery_discharge"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_total_battery_charge",
+      "name": null,
+      "original_name": "Total Battery Charge",
+      "platform": "solarman",
+      "translation_key": "total_battery_charge"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_total_battery_discharge",
+      "name": null,
+      "original_name": "Total Battery Discharge",
+      "platform": "solarman",
+      "translation_key": "total_battery_discharge"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_today_energy_import",
+      "name": null,
+      "original_name": "Today Energy Import",
+      "platform": "solarman",
+      "translation_key": "today_energy_import"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_today_energy_export",
+      "name": null,
+      "original_name": "Today Energy Export",
+      "platform": "solarman",
+      "translation_key": "today_energy_export"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_total_energy_import",
+      "name": null,
+      "original_name": "Total Energy Import",
+      "platform": "solarman",
+      "translation_key": "total_energy_import"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_total_energy_export",
+      "name": null,
+      "original_name": "Total Energy Export",
+      "platform": "solarman",
+      "translation_key": "total_energy_export"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_today_production",
+      "name": null,
+      "original_name": "Today Production",
+      "platform": "solarman",
+      "translation_key": "today_production"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_today_losses",
+      "name": null,
+      "original_name": "Today Losses",
+      "platform": "solarman",
+      "translation_key": "today_losses"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_battery_temperature",
+      "name": null,
+      "original_name": "Battery Temperature",
+      "platform": "solarman",
+      "translation_key": "battery_temperature"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_battery_voltage",
+      "name": null,
+      "original_name": "Battery Voltage",
+      "platform": "solarman",
+      "translation_key": "battery_voltage"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_battery",
+      "name": null,
+      "original_name": "Battery",
+      "platform": "solarman",
+      "translation_key": "battery"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_battery_power",
+      "name": null,
+      "original_name": "Battery Power",
+      "platform": "solarman",
+      "translation_key": "battery_power"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_battery_current",
+      "name": null,
+      "original_name": "Battery Current",
+      "platform": "solarman",
+      "translation_key": "battery_current"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_load_power",
+      "name": null,
+      "original_name": "Load Power",
+      "platform": "solarman",
+      "translation_key": "load_power"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_pv_power",
+      "name": null,
+      "original_name": "PV Power",
+      "platform": "solarman",
+      "translation_key": "pv_power"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_grid_power",
+      "name": null,
+      "original_name": "Grid Power",
+      "platform": "solarman",
+      "translation_key": "grid_power"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "sensor.deye8k_power_losses",
+      "name": null,
+      "original_name": "Power losses",
+      "platform": "solarman",
+      "translation_key": "power_losses"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "binary_sensor.deye8k_battery_alarm",
+      "name": null,
+      "original_name": "Battery Alarm",
+      "platform": "solarman",
+      "translation_key": "battery_alarm"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "binary_sensor.deye8k_battery_fault",
+      "name": null,
+      "original_name": "Battery Fault",
+      "platform": "solarman",
+      "translation_key": "battery_fault"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "switch.deye8k_battery_wake_up",
+      "name": null,
+      "original_name": "Battery Wake Up",
+      "platform": "solarman",
+      "translation_key": "battery_wake_up"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "switch.deye8k_battery_generator_charging",
+      "name": null,
+      "original_name": "Battery Generator Charging",
+      "platform": "solarman",
+      "translation_key": "battery_generator_charging"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "switch.deye8k_battery_grid_charging",
+      "name": null,
+      "original_name": "Battery Grid Charging",
+      "platform": "solarman",
+      "translation_key": "battery_grid_charging"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_equalization",
+      "name": null,
+      "original_name": "Battery Equalization",
+      "platform": "solarman",
+      "translation_key": "battery_equalization"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_absorption",
+      "name": null,
+      "original_name": "Battery Absorption",
+      "platform": "solarman",
+      "translation_key": "battery_absorption"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_float",
+      "name": null,
+      "original_name": "Battery Float",
+      "platform": "solarman",
+      "translation_key": "battery_float"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_capacity",
+      "name": null,
+      "original_name": "Battery Capacity",
+      "platform": "solarman",
+      "translation_key": "battery_capacity"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_empty",
+      "name": null,
+      "original_name": "Battery Empty",
+      "platform": "solarman",
+      "translation_key": "battery_empty"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_equalization_cycle",
+      "name": null,
+      "original_name": "Battery Equalization Cycle",
+      "platform": "solarman",
+      "translation_key": "battery_equalization_cycle"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_equalization_time",
+      "name": null,
+      "original_name": "Battery Equalization Time",
+      "platform": "solarman",
+      "translation_key": "battery_equalization_time"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_temperature_compensation",
+      "name": null,
+      "original_name": "Battery Temperature Compensation",
+      "platform": "solarman",
+      "translation_key": "battery_temperature_compensation"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_max_charging_current",
+      "name": null,
+      "original_name": "Battery Max Charging Current",
+      "platform": "solarman",
+      "translation_key": "battery_max_charging_current"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_max_discharging_current",
+      "name": null,
+      "original_name": "Battery Max Discharging Current",
+      "platform": "solarman",
+      "translation_key": "battery_max_discharging_current"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_resistance",
+      "name": null,
+      "original_name": "Battery Resistance",
+      "platform": "solarman",
+      "translation_key": "battery_resistance"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_charging_efficiency",
+      "name": null,
+      "original_name": "Battery Charging efficiency",
+      "platform": "solarman",
+      "translation_key": "battery_charging_efficiency"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_shutdown_soc",
+      "name": null,
+      "original_name": "Battery Shutdown SOC",
+      "platform": "solarman",
+      "translation_key": "battery_shutdown_soc"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_restart_soc",
+      "name": null,
+      "original_name": "Battery Restart SOC",
+      "platform": "solarman",
+      "translation_key": "battery_restart_soc"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_low_soc",
+      "name": null,
+      "original_name": "Battery Low SOC",
+      "platform": "solarman",
+      "translation_key": "battery_low_soc"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_shutdown_voltage",
+      "name": null,
+      "original_name": "Battery Shutdown Voltage",
+      "platform": "solarman",
+      "translation_key": "battery_shutdown_voltage"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_restart_voltage",
+      "name": null,
+      "original_name": "Battery Restart Voltage",
+      "platform": "solarman",
+      "translation_key": "battery_restart_voltage"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_low_voltage",
+      "name": null,
+      "original_name": "Battery Low Voltage",
+      "platform": "solarman",
+      "translation_key": "battery_low_voltage"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_generator_charging_start_voltage",
+      "name": null,
+      "original_name": "Battery Generator Charging Start Voltage",
+      "platform": "solarman",
+      "translation_key": "battery_generator_charging_start_voltage"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_generator_charging_start",
+      "name": null,
+      "original_name": "Battery Generator Charging Start",
+      "platform": "solarman",
+      "translation_key": "battery_generator_charging_start"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_generator_charging_current",
+      "name": null,
+      "original_name": "Battery Generator Charging Current",
+      "platform": "solarman",
+      "translation_key": "battery_generator_charging_current"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_grid_charging_start_voltage",
+      "name": null,
+      "original_name": "Battery Grid Charging Start Voltage",
+      "platform": "solarman",
+      "translation_key": "battery_grid_charging_start_voltage"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_grid_charging_start",
+      "name": null,
+      "original_name": "Battery Grid Charging Start",
+      "platform": "solarman",
+      "translation_key": "battery_grid_charging_start"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_battery_grid_charging_current",
+      "name": null,
+      "original_name": "Battery Grid Charging Current",
+      "platform": "solarman",
+      "translation_key": "battery_grid_charging_current"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_pv_power",
+      "name": null,
+      "original_name": "PV Power",
+      "platform": "solarman",
+      "translation_key": "pv_power"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "number.deye8k_grid_power_factor",
+      "name": null,
+      "original_name": "Grid Power Factor",
+      "platform": "solarman",
+      "translation_key": "grid_power_factor"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "select.deye8k_battery_control_mode",
+      "name": null,
+      "original_name": "Battery Control Mode",
+      "platform": "solarman",
+      "translation_key": "battery_control_mode"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "select.deye8k_battery_operation_mode",
+      "name": null,
+      "original_name": "Battery Operation Mode",
+      "platform": "solarman",
+      "translation_key": "battery_operation_mode"
+    },
+    {
+      "device_id": "117f826e9f65444e206da7a4946b4e54",
+      "entity_id": "select.deye8k_battery_bms_type",
+      "name": null,
+      "original_name": "Battery BMS Type",
+      "platform": "solarman",
+      "translation_key": "battery_bms_type"
+    },
+    {
+      "device_id": "19f40b39bbe44f268bbaa6120a21b327",
+      "entity_id": "sensor.eu08l_ambient_error_number",
+      "name": null,
+      "original_name": "Außenfehler Nummer",
+      "platform": "lambda_heat_pumps",
+      "translation_key": null
+    },
+    {
+      "device_id": "19f40b39bbe44f268bbaa6120a21b327",
+      "entity_id": "sensor.eu08l_ambient_operating_state",
+      "name": null,
+      "original_name": "Außenbetriebsstatus",
+      "platform": "lambda_heat_pumps",
+      "translation_key": null
+    },
+    {
+      "device_id": "19f40b39bbe44f268bbaa6120a21b327",
+      "entity_id": "sensor.eu08l_ambient_temperature",
+      "name": null,
+      "original_name": "Außentemperatur",
+      "platform": "lambda_heat_pumps",
+      "translation_key": null
+    },
+    {
+      "device_id": "19f40b39bbe44f268bbaa6120a21b327",
+      "entity_id": "sensor.eu08l_ambient_temperature_1h",
+      "name": null,
+      "original_name": "Außentemperatur 1h",
+      "platform": "lambda_heat_pumps",
+      "translation_key": null
+    },
+    {
+      "device_id": "19f40b39bbe44f268bbaa6120a21b327",
+      "entity_id": "sensor.eu08l_ambient_temperature_calculated",
+      "name": null,
+      "original_name": "Außentemperatur Berechnet",
+      "platform": "lambda_heat_pumps",
+      "translation_key": null
+    },
+    {
+      "device_id": "462e951ecb201b6af677d943e6f518de",
+      "entity_id": "sensor.octopus_a_10fc0646_electricity_price",
+      "name": null,
+      "original_name": "Octopus A-10FC0646 Electricity Price",
+      "platform": "octopus_germany",
+      "translation_key": null
+    },
+    {
+      "device_id": "462e951ecb201b6af677d943e6f518de",
+      "entity_id": "sensor.octopus_a_10fc0646_electricity_latest_reading",
+      "name": null,
+      "original_name": "Octopus A-10FC0646 Electricity Latest Reading",
+      "platform": "octopus_germany",
+      "translation_key": null
+    },
+    {
+      "device_id": "462e951ecb201b6af677d943e6f518de",
+      "entity_id": "sensor.previous_accumulative_consumption_electricity_1lgz0081200775_a_10fc0646",
+      "name": null,
+      "original_name": "Previous Accumulative Consumption Electricity (1LGZ0081200775/A-10FC0646)",
+      "platform": "octopus_germany",
+      "translation_key": null
+    },
+    {
+      "device_id": "462e951ecb201b6af677d943e6f518de",
+      "entity_id": "sensor.octopus_a_10fc0646_electricity_balance",
+      "name": null,
+      "original_name": "Octopus A-10FC0646 Electricity Balance",
+      "platform": "octopus_germany",
+      "translation_key": null
+    },
+    {
+      "device_id": "9cc7d037abba18e3f80f0da6c24a811f",
+      "entity_id": "sensor.openweathermap_wetter",
+      "name": null,
+      "original_name": "Wetter",
+      "platform": "openweathermap",
+      "translation_key": "weather"
+    },
+    {
+      "device_id": "9cc7d037abba18e3f80f0da6c24a811f",
+      "entity_id": "sensor.openweathermap_taupunkt_temperatur",
+      "name": null,
+      "original_name": "Taupunkt-Temperatur",
+      "platform": "openweathermap",
+      "translation_key": "dew_point"
+    },
+    {
+      "device_id": "9cc7d037abba18e3f80f0da6c24a811f",
+      "entity_id": "sensor.openweathermap_temperatur",
+      "name": null,
+      "original_name": "Temperatur",
+      "platform": "openweathermap",
+      "translation_key": null
+    },
+    {
+      "device_id": "9cc7d037abba18e3f80f0da6c24a811f",
+      "entity_id": "sensor.openweathermap_gefuhlte_temperatur",
+      "name": null,
+      "original_name": "Gefühlte Temperatur",
+      "platform": "openweathermap",
+      "translation_key": "feels_like_temperature"
+    },
+    {
+      "device_id": "9ec82387d3dd24a21e422727d07014a9",
+      "entity_id": "select.solcast_pv_forecast_verwenden_sie_das_prognosefeld",
+      "name": null,
+      "original_name": "Verwenden Sie das Prognosefeld",
+      "platform": "solcast_solar",
+      "translation_key": "estimate_mode"
+    },
+    {
+      "device_id": "9ec82387d3dd24a21e422727d07014a9",
+      "entity_id": "sensor.solcast_pv_forecast_verwendete_api_abrufe",
+      "name": null,
+      "original_name": "Verwendete API-Abrufe",
+      "platform": "solcast_solar",
+      "translation_key": "api_counter"
+    },
+    {
+      "device_id": "9ec82387d3dd24a21e422727d07014a9",
+      "entity_id": "sensor.solcast_pv_forecast_max_api_abrufe",
+      "name": null,
+      "original_name": "max. API-Abrufe",
+      "platform": "solcast_solar",
+      "translation_key": "api_limit"
+    },
+    {
+      "device_id": "9ec82387d3dd24a21e422727d07014a9",
+      "entity_id": "sensor.solcast_pv_forecast_dampfung",
+      "name": null,
+      "original_name": "Dämpfung",
+      "platform": "solcast_solar",
+      "translation_key": "dampen"
+    },
+    {
+      "device_id": "633c82eafef9c400a7c2428a7d97aeb3",
+      "entity_id": "sensor.miniems_mode",
+      "name": null,
+      "original_name": "Betriebsmodus",
+      "platform": "miniems",
+      "translation_key": "mode"
+    },
+    {
+      "device_id": "633c82eafef9c400a7c2428a7d97aeb3",
+      "entity_id": "sensor.miniems_today_grid_cost",
+      "name": null,
+      "original_name": "Heutige Netzkosten",
+      "platform": "miniems",
+      "translation_key": "today_grid_cost"
+    },
+    {
+      "device_id": "633c82eafef9c400a7c2428a7d97aeb3",
+      "entity_id": "sensor.miniems_today_pv_savings_2",
+      "name": null,
+      "original_name": "Heutige PV-Einsparung",
+      "platform": "miniems",
+      "translation_key": "today_pv_savings"
+    },
+    {
+      "device_id": null,
+      "entity_id": "person.panzta67",
+      "name": null,
+      "original_name": "panzta67",
+      "platform": "person",
+      "translation_key": null
+    },
+    {
+      "device_id": null,
+      "entity_id": "todo.einkaufsliste",
+      "name": null,
+      "original_name": "Einkaufsliste",
+      "platform": "shopping_list",
+      "translation_key": "shopping_list"
+    },
+    {
+      "device_id": null,
+      "entity_id": "binary_sensor.mosquitto_broker_aktiv",
+      "name": null,
+      "original_name": "Aktiv",
+      "platform": "hassio",
+      "translation_key": "state"
+    }
+  ]
+}

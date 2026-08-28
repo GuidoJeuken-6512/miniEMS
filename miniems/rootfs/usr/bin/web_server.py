@@ -19,7 +19,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import const
+import ha_ws_api
 from const import CONFIG_FILE, OPTIONS_FILE, SUPERVISOR_RESTART_URL
+from device_registry import RegistrySnapshot
+from energy_dashboard import parse_energy_prefs
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -182,6 +185,54 @@ def create_app(
             return JSONResponse({"rows": [], "error": "Store not available"})
         rows = await store.query_all_days()
         return JSONResponse({"rows": rows})
+
+    # ── Devices (read-only preview, see docs/roadmap/v3.0-geraeteprofile.md) ──
+
+    @app.get("/devices", response_class=HTMLResponse)
+    async def devices_page(request: Request) -> HTMLResponse:
+        lang = await get_ha_language(request)
+        translations = load_translations(lang)
+        return _TEMPLATES.TemplateResponse(
+            request, "devices.html", {"version": const.VERSION, "translations": translations, "lang": lang}
+        )
+
+    @app.get("/api/devices")
+    async def api_devices() -> JSONResponse:
+        """What HA's energy dashboard and device/entity registry know –
+        purely informational, nothing here feeds the control path yet.
+        Degrades to an `error` field rather than a 5xx: the WS registry
+        query is a nice-to-have preview, not something a dashboard visit
+        should ever fail on.
+        """
+        llt = getattr(config, "long_lived_token", "") if config is not None else ""
+        try:
+            prefs, raw_devices, raw_entities = await ha_ws_api.get_registry_snapshot(llt)
+        except ha_ws_api.HAWebSocketError as exc:
+            return JSONResponse({"error": f"Could not query Home Assistant: {exc}"})
+
+        energy_map = parse_energy_prefs(prefs)
+        snapshot = RegistrySnapshot.from_lists(raw_devices, raw_entities)
+
+        devices = [
+            {
+                "manufacturer": device.manufacturer,
+                "model": device.model,
+                "name": device.name,
+                "entity_count": len(snapshot.entities_of(device.device_id)),
+            }
+            for device in snapshot.devices.values()
+        ]
+        devices.sort(key=lambda d: (d["manufacturer"] or "", d["name"] or ""))
+
+        return JSONResponse({
+            "energy_dashboard": {
+                "candidates": energy_map.candidates,
+                "signs": {k: {"mode": v.mode, "positive": v.positive} for k, v in energy_map.signs.items()},
+                "split_candidates": energy_map.split_candidates,
+                "battery_capacity_kwh": energy_map.battery_capacity_kwh,
+            },
+            "devices": devices,
+        })
 
     @app.get("/api/config")
     async def api_config() -> dict[str, Any]:

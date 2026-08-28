@@ -8,7 +8,7 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "2.0.16"
+VERSION = "2.1.0"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
 CONFIG_SCHEMA_VERSION = 19
@@ -29,10 +29,17 @@ HA_API_BASE         = "http://hassio/homeassistant/api"
 HA_STATES_URL       = f"{HA_API_BASE}/states"
 HA_SERVICES_URL     = f"{HA_API_BASE}/services"
 SUPERVISOR_RESTART_URL = "http://supervisor/addons/self/restart"
+# Registry data (device/entity registry, energy-dashboard prefs) has no REST
+# endpoint – WebSocket-only. Verified reachable from the add-on container with
+# SUPERVISOR_TOKEN, no extra permission beyond the existing homeassistant_api:
+# true in config.yaml. Used only for one-shot queries (ha_ws_api.py), never
+# for the per-tick state poll – that stays ha_state_client.py's REST job.
+HA_WEBSOCKET_URL = "ws://hassio/homeassistant/websocket"
 
 # ── Polling / timing (seconds) ────────────────────────────────────────────────
 HA_POLL_INTERVAL_SEC  = 15   # how often ha_state_client refreshes HA states
 HA_RETRY_INTERVAL_SEC = 10   # retry delay after a failed poll / 401
+HA_WS_QUERY_TIMEOUT_SEC = 15   # one-shot WS query (ha_ws_api.py) – connect+auth+response
 
 # ── Sensor staleness limits (seconds) ─────────────────────────────────────────
 # HA only advances last_updated when a value actually changes, so these must be

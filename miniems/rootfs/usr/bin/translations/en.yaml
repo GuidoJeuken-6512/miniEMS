@@ -5,14 +5,30 @@ ui_log: miniEMS Log
 ui_config_json: config.json Editor
 ui_options_json: options.json Editor
 ui_database: Database – daily_stats
+ui_devices: Devices
 tab_dashboard: Dashboard
 tab_settings: Settings
 tab_log: Log
 tab_config_json: config.json
 tab_options_json: options.json
 tab_database: Database
+tab_devices: Devices
 refresh_hint: Auto-refreshes every 5 seconds
 footer: miniEMS v
+
+# Devices page (read-only preview of the energy dashboard + device registry)
+devices_hint: Read-only preview of what Home Assistant knows about your devices – the energy dashboard and the device/entity registry. Nothing on this page is used for control yet, see docs/roadmap/v3.0-geraeteprofile.md.
+energy_dashboard_section: Energy Dashboard (energy/get_prefs)
+device_registry_section: Device Registry
+role: Role
+entity: Entity
+sign: Sign
+manufacturer: Manufacturer
+model: Model
+name: Name
+entities: Entities
+no_energy_dashboard: No energy dashboard configured in Home Assistant.
+no_devices: No devices found.
 
 # Dashboard – live power cards
 pv_power: PV Power
