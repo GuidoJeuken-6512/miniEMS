@@ -16,7 +16,7 @@ revision_date: 2026-08-28
     |---|---|
     | Schritt 1 — Attribut-Zugriff | ✅ umgesetzt in v2.0.4 |
     | Config-Feld `battery_voltage_entity` | ✅ umgesetzt (Config-Schema v19) — Voraussetzung für V1 und V3a, noch von keiner Entscheidung gelesen |
-    | V1 — Ladeleistung strecken | offen; braucht die Frist aus V2 |
+    | V1 — Ladeleistung strecken | ✅ umgesetzt (v2.0.13) |
     | V2 — PriceCurve | ✅ Fensterwahl verdrahtet (v2.0.12, `later_window_as_cheap()`) |
     | V3 — Export-Halt auf den echten PV-Peak-Zeitpunkt | V3a ✅ umgesetzt (v2.0.10, Konfigurationswert als `P_charge_kw`); V3b (volle Kurve) offen |
     | **Gelernte Ladeleistung** — SoC-gebuckerte Historie statt Konfigurationswert | ✅ umgesetzt (v2.0.11) |
@@ -149,6 +149,25 @@ I_soll = clamp(P_soll / Batteriespannung, 0, max aus Entity-Attribut)
 ```
 
 Das ist selbstkorrigierend: Wird das Fenster unterbrochen oder die Last höher, zieht die nächste Iteration nach. Kein Solver, kein Zustand. Die Batteriespannung liegt als `sensor.deye8k_battery_voltage` vor; ein Sicherheitspuffer (Ziel: fertig bei ~80 % der Fensterlänge) fängt Störungen ab.
+
+!!! success "Umgesetzt in v2.0.13"
+    Neue Methode `EMSController._grid_charge_current_a(bat_kwh_free, now)`,
+    aufgerufen in `update()` genau dann, wenn der committe Modus
+    `GRID_CHARGING` ist, jeden Tick neu berechnet (kein gespeicherter
+    Fahrplan). `verbleibende_Fensterzeit` kommt aus
+    `PriceCurve.window_end(now)` — demselben Modul, das V2 verdrahtet hat —
+    mit dem 80-%-Sicherheitspuffer aus dem Vorschlag oben. Das Ergebnis geht
+    als neuer optionaler Parameter `grid_charge_current_a` an
+    `InverterController.apply_mode()`; `None` (jeder andere Modus, jeder
+    Aufrufer ohne den Parameter) erhält unverändert Volllast.
+
+    **Eine Vereinfachung gegenüber dem Vorschlag:** `max aus Entity-Attribut`
+    (das reale `max` des `number`-Entities, statt des hartkodierten
+    Konfigurationswerts) ist **nicht** umgesetzt — das ist derselbe
+    Attribut-Zugriff, den [v3.0 – Geräteprofile](v3.0-geraeteprofile.md)
+    ohnehin vorhat (Berührungspunkt-Hinweis weiter unten). Geklemmt wird
+    stattdessen weiterhin gegen `battery_max_charge_current_a`, den
+    heutigen, bekannt sicheren Deckel.
 
 ### V2 — Tarifkalender lesen statt Schwellwert (Fensterwahl)
 
@@ -655,7 +674,7 @@ Aktualisiert sich mit dem stündlichen Trigger oben, nicht mit jedem 30-s-Tick �
 | Schritt | Inhalt | Aufwand | Nutzen |
 |---|---|---|---|
 | 1 | ✅ **Attribut-Zugriff** in `ha_ws_client` (`get_state_attribute()`) — **umgesetzt in v2.0.4** | klein | Freischalter |
-| 2 | **V1 Peak-Strecken** — kostenneutral, unmittelbar netzdienlich | mittel | hoch |
+| 2 | ✅ **V1 Peak-Strecken** — kostenneutral, unmittelbar netzdienlich — **umgesetzt in v2.0.13** | mittel | hoch |
 | 3 | ✅ **V2 PriceCurve** — Fensterwahl verdrahtet — **umgesetzt in v2.0.12** | mittel | hoch |
 | 4 | ✅ **V4 Wirtschaftlichkeits-Gate** — **umgesetzt in v2.0.4** | klein | mittel |
 | 5 | ✅ **V3a Peak-Sensoren** ersetzt `pv_charge_backstop_hour` — **umgesetzt in v2.0.10** | klein–mittel | hoch |
@@ -702,8 +721,12 @@ Smoke-Tests via `docker exec` im Add-on-Container für alles mit echtem HA-/Wech
 1. **Tarifkalender-Parsing** gegen die echten `activation_rules` der Produktivanlage: Die abgeleitete 24-h-Kurve muss NIEDRIG 02–06/12–16, HOCH 18–21, STANDARD sonst ergeben — inklusive des über Mitternacht laufenden Fensters 21–02.
 2. ✅ **Fensterwahl:** Simulierter Tick um 13:00 Uhr bei NIEDRIG **und** guter PV-Prognose darf **nicht** grid-charge auslösen. Um 03:00 Uhr bei leerem Akku muss es auslösen. Getestet:
    `test_price_curve.py::TestLaterWindowAsCheap`, `test_ems_controller.py::TestShouldDeferGridCharge`.
-3. **Peak-Strecken:** Bei Bedarf *E* und Fensterrest *h* muss der gesetzte Strom ≈ `E/h/U` sein und über die Fensterdauer monoton nachgeführt werden.
-4. **Selbstkorrektur:** Fenster künstlich verkürzen → der berechnete Strom muss ansteigen, bis er an `max` klemmt; danach Warnung statt stiller Unterdeckung.
+3. ✅ **Peak-Strecken:** Bei Bedarf *E* und Fensterrest *h* muss der gesetzte Strom ≈ `E/h/U` sein und über die Fensterdauer monoton nachgeführt werden. Getestet:
+   `test_ems_controller.py::TestGridChargeCurrentA::test_stretches_current_across_remaining_window`.
+4. 🟡 **Selbstkorrektur:** Fenster künstlich verkürzen → der berechnete Strom muss ansteigen, bis er an `max` klemmt (getestet:
+   `test_clamps_to_configured_max`); die zweite Hälfte — **Warnung statt stiller Unterdeckung**, sobald geklemmt wird — ist **nicht**
+   umgesetzt. `_grid_charge_current_a()` klemmt heute still auf `battery_max_charge_current_a`, ohne das im Dashboard sichtbar zu
+   machen. Offen, siehe unten.
 5. **Wirtschaftlichkeits-Gate:** Mit `avg_discharge_tariff` unter dem Bezugspreis darf nicht geladen werden.
 6. ✅ **V3a Deadline-Fallback:** `peak_time_today` künstlich so spät setzen, dass `T_needed_h` nicht mehr bis zur Deadline passt → `actual_start` muss auf `latest_start` zurückfallen. Getestet:
    `test_deadline_binds_when_peak_leaves_too_little_time` (`test_ems_controller.py`).
@@ -731,3 +754,5 @@ Smoke-Tests via `docker exec` im Add-on-Container für alles mit echtem HA-/Wech
 4. **PV-Überschuss-Arbitrierung zwischen Batterie und EV:** Die Prioritätswarteschlange oben ist für Preisfenster spezifiziert; wie sie sich auf gleichzeitigen PV-Überschuss (Export-Halt-Situation) überträgt, ist noch nicht durchdacht.
 5. **Retention von `battery_charge_capability_history`:** Feste Anzahl Tage wie bei `event_log_retention_days` (Standard 30), oder unbegrenzt wachsen lassen (drei Zeilen pro Tag sind vernachlässigbar klein)? Eine physikalische Grenze ändert sich kaum, ältere Daten schaden also nicht — spricht eher für „unbegrenzt", aber das widerspräche dem bestehenden Retention-Muster im Projekt.
 6. **`MIN_SAMPLES_PER_DAY`/`MIN_DAYS`-Werte:** Noch nicht empirisch hergeleitet (anders als z. B. `SOLCAST_DATA_MAX_AGE_SEC`, das aus gemessenen Abrufraten stammt) — sollten vor der Umsetzung anhand realer `GRID_CHARGING`-Häufigkeit auf der Produktivanlage bemessen werden, nicht geraten.
+7. **V1-Klemm-Warnung fehlt:** `_grid_charge_current_a()` klemmt still auf `battery_max_charge_current_a`, wenn das Fenster zu kurz für die benötigte Energie ist (stille Unterdeckung) — Verifikationspunkt 4 verlangt stattdessen eine sichtbare Warnung. Kandidat: eine neue Zeile in `_build_sensor_warnings()`, ausgelöst wenn der geklemmte Wert unter dem rechnerisch nötigen `I_soll` liegt.
+8. **`max aus Entity-Attribut` in V1 nicht genutzt:** Geklemmt wird gegen `battery_max_charge_current_a` (Konfigurationswert), nicht gegen das reale `max`-Attribut des `number`-Entities — das ist derselbe Attribut-Zugriff, den [v3.0 – Geräteprofile](v3.0-geraeteprofile.md) für die Geräteseite ohnehin vorsieht; beide sollten ihn gemeinsam nutzen, sobald einer der beiden ihn baut.

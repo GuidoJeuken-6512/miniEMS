@@ -49,6 +49,21 @@ class TestSimulationMode:
         assert ctrl.discharge_current_limit_a == 0
 
     @pytest.mark.asyncio
+    async def test_grid_charging_current_override_is_used(self, make_config, ws):
+        """V1 (docs/roadmap/energiefahrplan.md): EMSController can request a
+        stretched current instead of full blast."""
+        ctrl = make_ctrl(make_config, ws, simulation=True)
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_current_a=42)
+        assert ctrl.charge_current_target_a == 42
+        assert ctrl.charge_current_limit_a == 42
+
+    @pytest.mark.asyncio
+    async def test_grid_charging_none_override_keeps_full_current(self, make_config, ws):
+        ctrl = make_ctrl(make_config, ws, simulation=True)
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_current_a=None)
+        assert ctrl.charge_current_target_a == 185
+
+    @pytest.mark.asyncio
     async def test_pv_charging_sets_expected_targets(self, make_config, ws):
         ctrl = make_ctrl(make_config, ws, simulation=True)
         await ctrl.apply_mode(EMSMode.PV_CHARGING)

@@ -1,5 +1,24 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.13
+
+### Added
+
+- **V1 (Energiefahrplan-Roadmap): Ladeleistung über das Preisfenster
+  gestreckt statt Volllast.** `EMSController._grid_charge_current_a()`
+  berechnet jeden Tick neu `P_soll = benötigte_Restenergie /
+  verbleibende_Fensterzeit` (mit 80 % Sicherheitspuffer) und daraus
+  `I_soll = P_soll / Batteriespannung`, geklemmt auf
+  `battery_max_charge_current_a`. Innerhalb eines Fensters mit konstantem
+  Preis ist das kostenneutral – 4 kW für 1 h kostet dasselbe wie 1 kW für
+  4 h – vermeidet aber die Lastspitze einer Volllast-Ladung.
+  `InverterController.apply_mode()` erhält dafür einen neuen optionalen
+  Parameter `grid_charge_current_a`; ohne Tarifkalender oder
+  `battery_voltage` bleibt das Verhalten unverändert (Volllast). Bekannte
+  Lücke: kein Warnhinweis, wenn das Fenster für die nötige Energie zu kurz
+  ist und der Strom auf das Maximum geklemmt wird (siehe Roadmap, „Offene
+  Fragen").
+
 ## 2.0.12
 
 ### Added

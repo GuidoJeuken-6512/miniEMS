@@ -2,11 +2,21 @@
 from datetime import datetime, timezone
 
 import pytest
+from freezegun import freeze_time
 
 from const import EMSMode
 from consumption_model import Prediction
 from ems_controller import EMSController
 from solcast_client import SolcastClient
+
+_NIEDRIG_0206_TIMESLOTS = {
+    "timeslots": [
+        {"name": "NIEDRIG", "rate": "27.4414",
+         "activation_rules": [{"from_time": "02:00:00", "to_time": "06:00:00"}]},
+        {"name": "STANDARD", "rate": "34.4400",
+         "activation_rules": [{"from_time": "06:00:00", "to_time": "02:00:00"}]},
+    ],
+}
 
 
 class FakeOptimizer:
@@ -47,6 +57,7 @@ class FakeOptimizer:
 class FakeInverter:
     def __init__(self) -> None:
         self.applied_modes: list[EMSMode] = []
+        self.last_grid_charge_current_a = None
         self.simulation = True
         self.write_errors = 0
         self.write_unconfirmed = 0
@@ -60,8 +71,9 @@ class FakeInverter:
             {"channel": "test", "target": 1, "outcome": "confirmed", "latency_sec": 1.0},
         ]
 
-    async def apply_mode(self, mode):
+    async def apply_mode(self, mode, grid_charge_current_a=None):
         self.applied_modes.append(mode)
+        self.last_grid_charge_current_a = grid_charge_current_a
 
     def pop_write_events(self):
         events, self._events = self._events, []
@@ -132,6 +144,33 @@ async def test_update_applies_inverter_mode(make_config, fake_ws):
     })
     await ctrl.update()
     assert len(inverter.applied_modes) == 1
+
+
+@pytest.mark.asyncio
+async def test_update_wires_stretched_grid_charge_current_to_inverter(make_config, fake_ws):
+    """V1 (docs/roadmap/energiefahrplan.md): end-to-end, update() must pass a
+    stretched (not full-blast) current to the inverter when a tariff
+    calendar and battery_voltage are available."""
+    ctrl, optimizer, inverter, model = build_controller(
+        make_config, fake_ws, mode_dwell_sec=0,
+        cheap_rate_threshold_eur=0.5, grid_charge_dark_start_hour=21,
+        grid_charge_dark_end_hour=6, battery_max_charge_current_a=100,
+        battery_max_soc=90, battery_voltage_entity="sensor.voltage",
+    )
+    fake_ws.values.update({
+        "sensor.pv": 0.0, "sensor.load": 0.0, "sensor.grid": 0.0,
+        "sensor.soc": 50.0, "sensor.batp": 0.0, "sensor.price": 0.05,
+        "sensor.voltage": 50.0,
+    })
+    fake_ws.attributes["sensor.price"] = _NIEDRIG_0206_TIMESLOTS
+    # A naive freeze: datetime.now().astimezone() attaches the local tzinfo
+    # to this exact wall-clock time without any UTC conversion, so the
+    # resulting hour (3) is deterministic regardless of the host's timezone.
+    with freeze_time("2026-08-15 03:00:00"):
+        result = await ctrl.update()
+    assert result["mode"] == EMSMode.GRID_CHARGING.value
+    assert inverter.last_grid_charge_current_a is not None
+    assert 0 < inverter.last_grid_charge_current_a < 100   # stretched, not full blast
 
 
 @pytest.mark.asyncio

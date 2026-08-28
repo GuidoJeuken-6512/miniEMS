@@ -162,11 +162,16 @@ class InverterController:
         events, self._pending_events = self._pending_events, []
         return events
 
-    async def apply_mode(self, mode: EMSMode) -> None:
+    async def apply_mode(self, mode: EMSMode, grid_charge_current_a: int | None = None) -> None:
         """Apply inverter settings for the given EMS mode.
 
         Every mode states all three settings explicitly, so the resulting
         inverter state does not depend on which mode preceded it.
+
+        `grid_charge_current_a` overrides the GRID_CHARGING charge current
+        (EMSController._grid_charge_current_a() – V1 "Ladeleistung
+        strecken"); None (all other modes, and any caller that doesn't pass
+        it) keeps the original full-current behaviour.
         """
         if not self._cfg.battery_control_enabled:
             return
@@ -179,7 +184,11 @@ class InverterController:
                 # Charge from the grid at the cheap rate; block discharging so
                 # the energy just bought is not immediately used up again.
                 await self._set_grid_charge(True, sim)
-                await self._set_charge_current(cfg.battery_max_charge_current_a, sim)
+                charge_a = (
+                    grid_charge_current_a if grid_charge_current_a is not None
+                    else cfg.battery_max_charge_current_a
+                )
+                await self._set_charge_current(charge_a, sim)
                 await self._set_discharge_current(0, sim)
 
             case EMSMode.PV_CHARGING:

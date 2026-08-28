@@ -152,8 +152,9 @@ class EMSController:
         else:
             self._learned_charge_kw = None
 
+        now = datetime.now().astimezone()
         prev_mode = self._mode
-        self._mode = self._determine_mode(pv_w, load_w, bat_soc, price, bat_kwh_free)
+        self._mode = self._determine_mode(pv_w, load_w, bat_soc, price, bat_kwh_free, now)
 
         today = date.today()
 
@@ -208,7 +209,11 @@ class EMSController:
 
         # Apply inverter control (simulation or real)
         if self._inverter:
-            await self._inverter.apply_mode(self._mode)
+            grid_charge_current_a = (
+                self._grid_charge_current_a(bat_kwh_free, now)
+                if self._mode is EMSMode.GRID_CHARGING else None
+            )
+            await self._inverter.apply_mode(self._mode, grid_charge_current_a)
             # Persist write-confirm lifecycle events durably (SQLite survives
             # restarts and days; the add-on's own log buffer does not) – see
             # InverterController.pop_write_events().
@@ -700,6 +705,51 @@ class EMSController:
         # now. Defer if a later, equally-cheap window still leaves enough
         # time to finish before the next PV peak.
         return not self._should_defer_grid_charge(bat_kwh_free, now)
+
+    def _grid_charge_current_a(self, bat_kwh_free: float | None, now: datetime) -> int:
+        """V1: stretch the grid-charge current across the remaining price
+        window instead of always requesting full current.
+
+        docs/roadmap/energiefahrplan.md, V1 ("Ladeleistung strecken"): within
+        a window of constant price, spreading the same energy over more time
+        is cost-neutral – a pure tie-break that also avoids the load spike a
+        full-current charge creates. Recomputed fresh every tick rather than
+        planned once: if the window is cut short or bat_kwh_free jumps, the
+        very next tick already corrects for it – no separate state that
+        could go stale.
+
+        Falls back to battery_max_charge_current_a (today's behaviour, and
+        always safe) whenever the window end or battery_voltage cannot be
+        determined.
+        """
+        cfg = self._cfg
+        fallback = cfg.battery_max_charge_current_a
+        if bat_kwh_free is None or bat_kwh_free <= 0:
+            return fallback
+
+        curve = PriceCurve.from_entity(self._ws, cfg.electricity_price_entity)
+        if curve is None:
+            return fallback
+        window_end = curve.window_end(now)
+        if window_end is None:
+            return fallback
+
+        # Target finishing at ~80% of the remaining window, not 100%: a
+        # safety margin against the window ending slightly early or the
+        # inverter taking a tick or two to apply the new current.
+        remaining_h = (window_end - now).total_seconds() / 3600.0 * 0.8
+        if remaining_h <= 0:
+            return fallback
+
+        if not cfg.battery_voltage_entity:
+            return fallback
+        voltage = self._ws.get_state_value(cfg.battery_voltage_entity)
+        if voltage is None or voltage <= 0:
+            return fallback
+
+        p_soll_kw = bat_kwh_free / remaining_h
+        i_soll_a = p_soll_kw * 1000.0 / voltage
+        return max(0, min(fallback, round(i_soll_a)))
 
     def _should_defer_grid_charge(self, bat_kwh_free: float, now: datetime) -> bool:
         """Is postponing this grid charge to a later, equally-cheap window safe?
