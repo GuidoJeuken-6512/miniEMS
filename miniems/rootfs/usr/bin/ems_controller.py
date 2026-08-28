@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
+from battery_capability import BatteryCapabilityTracker
 from battery_model import BatteryModel
 from const import (
     DAILY_VALUE_GRACE_SEC,
@@ -48,6 +49,7 @@ class EMSController:
         consumption_model: "ConsumptionModel | None" = None,
         solcast: "SolcastClient | None" = None,
         event_log: "EventLog | None" = None,
+        capability: "BatteryCapabilityTracker | None" = None,
     ) -> None:
         self._cfg = config
         self._ws = ws_client
@@ -56,6 +58,7 @@ class EMSController:
         self._model = consumption_model
         self._solcast = solcast
         self._event_log = event_log if event_log is not None else EventLog()
+        self._capability = capability if capability is not None else BatteryCapabilityTracker(None)
         self._battery_model = BatteryModel(config)
         self._mode: EMSMode = EMSMode.IDLE
         self._prediction: "Prediction | None" = None
@@ -72,6 +75,13 @@ class EMSController:
         # History-derived value of a stored kWh; refreshed once per tick from the
         # optimizer (which memoises it per day). None until history exists.
         self._discharge_tariff: float | None = None
+        # Learned SoC-bucketed charge power (kW); refreshed once per tick from
+        # self._capability (async), then read synchronously by
+        # _charge_power_kw() inside the (sync) decision path. None until the
+        # lookup has run at least once, or when it fell back to the
+        # config-derived estimate itself.
+        self._learned_charge_kw: float | None = None
+        self._last_capability_rollover: date | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -132,8 +142,29 @@ class EMSController:
         # query once a day rather than once a tick.
         self._discharge_tariff = await self._optimizer.avg_discharge_tariff_eur_kwh()
 
+        # Same reason: _should_hold_for_peak_time() (called from the sync
+        # _decide() path) needs the learned-or-config charge power, but the
+        # history lookup is async – refresh it here, once per tick.
+        config_charge_kw = self._config_charge_power_kw()
+        if config_charge_kw is not None and bat_soc is not None:
+            self._learned_charge_kw = await self._capability.charge_power_kw(bat_soc, config_charge_kw)
+        else:
+            self._learned_charge_kw = None
+
         prev_mode = self._mode
         self._mode = self._determine_mode(pv_w, load_w, bat_soc, price, bat_kwh_free)
+
+        today = date.today()
+
+        # Gelernte Ladeleistung: record this tick against the *committed*
+        # mode (post-debounce), then persist and roll the previous day into
+        # permanent history once, right after local midnight – same trigger
+        # as the event-log cleanup below. See battery_capability.py.
+        self._capability.record_tick(self._mode, bat_soc, bat_w or 0.0)
+        await self._capability.flush_to_db()
+        if self._last_capability_rollover is not None and self._last_capability_rollover != today:
+            await self._capability.rollover_day(self._last_capability_rollover)
+        self._last_capability_rollover = today
 
         # Log mode changes to event log
         if self._mode != prev_mode:
@@ -170,7 +201,6 @@ class EMSController:
             self._last_price = price
 
         # Daily event log cleanup
-        today = date.today()
         if self._last_event_log_cleanup != today:
             await self._event_log.cleanup_old_entries(cfg.event_log_retention_days)
             self._last_event_log_cleanup = today
@@ -545,13 +575,24 @@ class EMSController:
     def _charge_power_kw(self) -> float | None:
         """Assumed charging power, for T_needed_h = bat_kwh_free / charge_kw.
 
-        Config-derived for now (current × voltage); the SoC-bucketed learned
-        value from history (docs/roadmap/energiefahrplan.md, "Gelernte
-        Ladeleistung") replaces this in a later step.
+        The SoC-bucketed learned value from history takes precedence
+        whenever enough qualifying history exists (refreshed once per tick
+        into self._learned_charge_kw – see update() and
+        battery_capability.py, "Gelernte Ladeleistung"); otherwise the
+        config-derived current × voltage estimate.
 
-        None when battery_voltage is unavailable – callers then fall back to
-        the older, voltage-independent remaining-forecast estimate instead of
-        guessing a voltage.
+        None when neither is available (battery_voltage unavailable, and no
+        learned value either) – callers then fall back to the older,
+        voltage-independent remaining-forecast estimate instead of guessing.
+        """
+        if self._learned_charge_kw is not None:
+            return self._learned_charge_kw
+        return self._config_charge_power_kw()
+
+    def _config_charge_power_kw(self) -> float | None:
+        """Config-derived charging power: current × voltage.
+
+        None when battery_voltage is unavailable.
         """
         cfg = self._cfg
         if not cfg.battery_voltage_entity:

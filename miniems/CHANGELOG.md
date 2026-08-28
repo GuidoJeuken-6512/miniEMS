@@ -1,5 +1,21 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.11
+
+### Added
+
+- **Gelernte Ladeleistung (Energiefahrplan-Roadmap):** neues Modul
+  `battery_capability.py` lernt die tatsächliche Batterie-Ladeleistung aus
+  der Historie statt sie aus `battery_max_charge_current_a × Spannung`
+  anzunehmen – eine BMS-Drosselung (beobachtet: 65 A BMS-Limit gegen 185 A
+  Konfiguration) unterschätzt sonst die benötigte Ladezeit in V3a. Nur
+  `GRID_CHARGING`-Ticks fließen ein (unzensierte Beobachtung, da der
+  Netzanschluss dort nie der Flaschenhals ist), SoC-gebuckert (`low`/`mid`/
+  `high` auf absoluten Grenzen, nicht relativ zu `battery_min_soc`/
+  `battery_max_soc`). Zwei neue Tabellen (`battery_charge_capability_today`/
+  `_history`); fällt auf den Konfigurationswert zurück, solange ein Bucket
+  keine ausreichende Historie hat.
+
 ## 2.0.10
 
 ### Added

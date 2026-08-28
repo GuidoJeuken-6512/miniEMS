@@ -8,7 +8,7 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "2.0.10"
+VERSION = "2.0.11"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
 CONFIG_SCHEMA_VERSION = 19
@@ -107,6 +107,20 @@ INVERTER_WRITE_ERROR_WINDOW_SEC = 3600   # 1 h
 # event_log (entry_type="write_confirm") exist specifically to replace this
 # guess with real, multi-day latency data – revisit once that exists.
 INVERTER_WRITE_STUCK_THRESHOLD_SEC = 1800   # 30 min – provisional, see above
+
+# ── Gelernte Ladeleistung (battery_capability.py) ─────────────────────────────
+# SoC-bucketed history of GRID_CHARGING throughput, replacing
+# battery_max_charge_current_a x voltage with an observed value once enough
+# history exists – see docs/roadmap/energiefahrplan.md, "Gelernte
+# Ladeleistung statt Konfigurationswert".
+#
+# Provisional, like INVERTER_WRITE_STUCK_THRESHOLD_SEC above: not yet derived
+# from real GRID_CHARGING frequency on a production installation (open
+# question in the roadmap doc) – revisit once event_log/write-confirm data
+# gives a real distribution to size these against.
+BATTERY_CAPABILITY_MIN_SAMPLES_PER_DAY = 6   # ~3 min of GRID_CHARGING at a 30s tick
+BATTERY_CAPABILITY_MIN_DAYS = 3              # qualifying days needed before trusting history
+BATTERY_CAPABILITY_LOOKBACK_DAYS = 14
 
 # ── Custom integration installer ──────────────────────────────────────────────
 from pathlib import Path

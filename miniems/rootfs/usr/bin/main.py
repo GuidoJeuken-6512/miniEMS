@@ -10,6 +10,7 @@ import aiohttp
 import uvicorn
 
 import const
+from battery_capability import BatteryCapabilityTracker
 from config_loader import load_config
 from consumption_model import ConsumptionModel
 from cost_optimizer import CostOptimizer
@@ -101,11 +102,13 @@ async def main() -> None:
     solcast_client = SolcastClient(cfg, ws_client)
     event_log = EventLog(max_entries=100, store=store)
     await event_log.restore_from_db()
+    capability = BatteryCapabilityTracker(store)
 
     controller = EMSController(
         cfg, ws_client, cost_optimizer, inverter, consumption_model,
         solcast=solcast_client,
         event_log=event_log,
+        capability=capability,
     )
     app = create_app(status_store, cfg, supervisor_token, store)
 

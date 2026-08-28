@@ -173,3 +173,61 @@ async def test_operations_on_unopened_store_return_empty_not_raise():
         "timestamp": "x", "entry_type": "mode_change", "state": "on",
         "battery_kwh_freetochange": 0, "battery_kwh_useable": 0,
     })   # no-op, no raise
+    await s.upsert_capability_today(date.today(), "mid", 1000.0, 5)   # no-op, no raise
+    await s.rollover_capability_day(date.today(), 3)                 # no-op, no raise
+    assert await s.query_capability_history("mid", 14, 3) == []
+
+
+class TestBatteryCapabilityTables:
+    """battery_charge_capability_today / _history – see battery_capability.py."""
+
+    @pytest.mark.asyncio
+    async def test_upsert_then_overwrite_today(self, db):
+        today = date.today()
+        await db.upsert_capability_today(today, "mid", 1000.0, 3)
+        await db.upsert_capability_today(today, "mid", 1500.0, 7)   # same key -> overwrite
+        history = await db.query_capability_history("mid", 14, 1)
+        assert history == []   # today's row never counts as history on its own
+
+    @pytest.mark.asyncio
+    async def test_rollover_copies_qualifying_bucket_into_history(self, db):
+        yesterday = date.today() - timedelta(days=1)
+        await db.upsert_capability_today(yesterday, "mid", 1200.0, 10)
+        await db.rollover_capability_day(yesterday, min_samples=6)
+        history = await db.query_capability_history("mid", 14, 1)
+        assert history == [1200.0]
+
+    @pytest.mark.asyncio
+    async def test_rollover_drops_buckets_below_min_samples(self, db):
+        yesterday = date.today() - timedelta(days=1)
+        await db.upsert_capability_today(yesterday, "high", 900.0, 2)   # too few samples
+        await db.rollover_capability_day(yesterday, min_samples=6)
+        assert await db.query_capability_history("high", 14, 1) == []
+
+    @pytest.mark.asyncio
+    async def test_rollover_clears_the_temporary_row(self, db):
+        yesterday = date.today() - timedelta(days=1)
+        await db.upsert_capability_today(yesterday, "mid", 1200.0, 10)
+        await db.rollover_capability_day(yesterday, min_samples=6)
+        # A second rollover of the same (now-empty) day must not re-add it.
+        await db.rollover_capability_day(yesterday, min_samples=6)
+        history = await db.query_capability_history("mid", 14, 1)
+        assert history == [1200.0]
+
+    @pytest.mark.asyncio
+    async def test_query_history_filters_by_bucket_and_lookback(self, db):
+        old = date.today() - timedelta(days=20)
+        recent = date.today() - timedelta(days=2)
+        await db.upsert_capability_today(old, "mid", 500.0, 10)
+        await db.rollover_capability_day(old, min_samples=1)
+        await db.upsert_capability_today(recent, "mid", 800.0, 10)
+        await db.rollover_capability_day(recent, min_samples=1)
+        history = await db.query_capability_history("mid", lookback_days=14, min_samples=1)
+        assert history == [800.0]   # the 20-day-old row falls outside the lookback
+
+    @pytest.mark.asyncio
+    async def test_query_history_ignores_other_buckets(self, db):
+        yesterday = date.today() - timedelta(days=1)
+        await db.upsert_capability_today(yesterday, "low", 200.0, 10)
+        await db.rollover_capability_day(yesterday, min_samples=1)
+        assert await db.query_capability_history("mid", 14, 1) == []

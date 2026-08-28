@@ -19,7 +19,7 @@ revision_date: 2026-08-28
     | V1 — Ladeleistung strecken | offen; braucht die Frist aus V2 |
     | V2 — PriceCurve | Modul gebaut und getestet; Fensterwahl bewusst nicht verdrahtet |
     | V3 — Export-Halt auf den echten PV-Peak-Zeitpunkt | V3a ✅ umgesetzt (v2.0.10, Konfigurationswert als `P_charge_kw`); V3b (volle Kurve) offen |
-    | **Gelernte Ladeleistung** — SoC-gebuckerte Historie statt Konfigurationswert | offen |
+    | **Gelernte Ladeleistung** — SoC-gebuckerte Historie statt Konfigurationswert | ✅ umgesetzt (v2.0.11) |
     | V4 — Wirtschaftlichkeits-Gate | ✅ umgesetzt in v2.0.4 |
     | V5 — Zweistufigkeit als Prinzip | offen |
     | **Energiefahrplan** — Tagesbilanz statt Einzelchecks | offen, dieses Dokument |
@@ -226,6 +226,22 @@ Konfigurationswert als angenommene Ladeleistung. Der folgende Abschnitt ersetzt 
 einen belastbareren Wert.
 
 #### Gelernte Ladeleistung statt Konfigurationswert
+
+!!! success "Umgesetzt in v2.0.11"
+    Neues Modul `battery_capability.py` (`BatteryCapabilityTracker`,
+    `soc_bucket_for()`) plus zwei Tabellen in `store.py`, genau wie unten
+    beschrieben. `EMSController.update()` ruft `record_tick()` jeden Tick mit
+    dem **committen** (nicht dem rohen) Modus auf, `flush_to_db()` jeden Tick,
+    `rollover_day()` einmal beim Tageswechsel — derselbe Erkennungsmechanismus
+    (`date.today()`-Vergleich) wie beim Event-Log-Cleanup. Der Lookup läuft
+    async einmal pro Tick vor der (synchronen) Modus-Entscheidung und wird in
+    `self._learned_charge_kw` zwischengespeichert; `_charge_power_kw()`
+    (V3a) liest daraus, mit Rückfall auf `_config_charge_power_kw()`
+    (Konfigurationswert), falls die Historie noch keinen brauchbaren Wert
+    liefert. `MIN_SAMPLES_PER_DAY`/`MIN_DAYS`/`LOOKBACK_DAYS` liegen als
+    `BATTERY_CAPABILITY_*`-Konstanten in `const.py` — weiterhin nicht
+    empirisch hergeleitet (offene Frage unten), sondern geschätzt wie
+    `INVERTER_WRITE_STUCK_THRESHOLD_SEC`.
 
 !!! danger "Warum der Konfigurationswert allein nicht reicht"
     `battery_max_charge_current_a` (Standard 185 A) ist, was miniEMS dem Wechselrichter
@@ -636,7 +652,7 @@ Aktualisiert sich mit dem stündlichen Trigger oben, nicht mit jedem 30-s-Tick �
 | 3 | **V2 PriceCurve** — Modul gebaut und getestet in v2.0.4; Fensterwahl noch nicht verdrahtet | mittel | hoch |
 | 4 | ✅ **V4 Wirtschaftlichkeits-Gate** — **umgesetzt in v2.0.4** | klein | mittel |
 | 5 | ✅ **V3a Peak-Sensoren** ersetzt `pv_charge_backstop_hour` — **umgesetzt in v2.0.10** | klein–mittel | hoch |
-| 5b | **Gelernte Ladeleistung** — SoC-gebuckerte Historie statt Konfigurationswert für `P_charge_kw` | mittel | hoch, macht V3a/Energiefahrplan-Deadlines belastbar |
+| 5b | ✅ **Gelernte Ladeleistung** — SoC-gebuckerte Historie statt Konfigurationswert für `P_charge_kw` — **umgesetzt in v2.0.11** | mittel | hoch, macht V3a/Energiefahrplan-Deadlines belastbar |
 | 6 | **Energiefahrplan** — `deficit_kwh` proaktiv + Fensterwahl, stündlicher Trigger | mittel | hoch |
 | 7 | **`ChargeTask`-Abstraktion** — Batterie als erster/einziger Task, Struktur für weitere | klein | Freischalter für EV |
 | 8 | **Preisquelle a) Day-Ahead** — `rates[]`/`unit_rate_forecast[]` parsen | mittel | hoch, sobald Nutzer Tibber/aWATTar haben |
@@ -687,10 +703,15 @@ Smoke-Tests via `docker exec` im Add-on-Container für alles mit echtem HA-/Wech
 8. **`ChargeTask`-Priorität:** Zwei synthetische Tasks mit überlappendem billigstem Fenster und identischer Deadline → der Task mit `charge_priority` gewinnt die Fensterkapazität zuerst, der andere weicht auf das nächstbillige Fenster aus.
 9. **Prioritätsschalter-Sync:** GUI-Änderung muss sich im HA-Switch-Zustand spiegeln und umgekehrt, ohne Add-on-Neustart.
 10. **EV-Hülle No-Op:** Bei `ev_charger_enabled = False` darf kein `ChargeTask` für `ev_charger` erzeugt werden und das Dashboard darf keinen aktiven EV-Fahrplan zeigen.
-11. **Censoring-Filter der Ladeleistungs-Historie:** Synthetische `PV_CHARGING`-Ticks mit hoher `battery_power` dürfen `battery_charge_capability_today` **nicht** verändern — nur `GRID_CHARGING`-Ticks zählen.
-12. **SoC-Bucket-Zuordnung:** Ticks bei SoC 10 %/11 %/89 %/90 % müssen exakt in `low`/`mid`/`mid`/`high` einsortiert werden (Grenzfälle).
-13. **Bucket-Fallback:** Ein Bucket ohne ausreichende Historie (z. B. `high` bei `battery_max_soc = 95`) muss `P_charge_kw` auf den Konfigurationswert zurückfallen lassen, nicht auf einen benachbarten Bucket.
-14. **Tagesabschluss-Übertrag:** Nach dem lokalen Mitternachts-Schnitt muss die gestrige Zeile in `battery_charge_capability_history` stehen und `battery_charge_capability_today` für den neuen Tag bei 0 beginnen.
+11. ✅ **Censoring-Filter der Ladeleistungs-Historie:** Synthetische `PV_CHARGING`-Ticks mit hoher `battery_power` dürfen `battery_charge_capability_today` **nicht** verändern — nur `GRID_CHARGING`-Ticks zählen. Getestet:
+    `test_battery_capability.py::TestRecordTick::test_ignores_non_grid_charging_ticks`.
+12. ✅ **SoC-Bucket-Zuordnung:** Ticks bei SoC 10 %/11 %/89 %/90 % müssen exakt in `low`/`mid`/`mid`/`high` einsortiert werden (Grenzfälle). Getestet:
+    `TestSocBucketFor::test_boundary_values_from_the_roadmap_doc`.
+13. ✅ **Bucket-Fallback:** Ein Bucket ohne ausreichende Historie (z. B. `high` bei `battery_max_soc = 95`) muss `P_charge_kw` auf den Konfigurationswert zurückfallen lassen, nicht auf einen benachbarten Bucket. Getestet:
+    `TestFlushAndRolloverWithStore::test_charge_power_kw_falls_back_for_empty_bucket`.
+14. ✅ **Tagesabschluss-Übertrag:** Nach dem lokalen Mitternachts-Schnitt muss die gestrige Zeile in `battery_charge_capability_history` stehen und `battery_charge_capability_today` für den neuen Tag bei 0 beginnen. Getestet:
+    `test_store.py::TestBatteryCapabilityTables::test_rollover_copies_qualifying_bucket_into_history` und
+    `test_ems_controller_update.py::TestUpdateBatteryCapabilityWiring::test_rolls_over_once_the_date_changes`.
 15. **Regressionen:** Die Fixes aus v2.0.1/2.0.2 (Tomorrow-Forecast-Fallback, Confirm/Retry, SoC-Lebenszeichen über `battery_power`) müssen unverändert grün bleiben.
 16. **Abschaltbarkeit:** Alle neuen Stufen aus → Entscheidungen identisch zum heutigen Stand.
 

@@ -314,3 +314,140 @@ async def test_update_flushes_optimizer_to_db(make_config, fake_ws):
     await ctrl.update()
     assert optimizer.flushed == 1
     assert len(optimizer.recorded_ticks) == 1
+
+
+class FakeCapability:
+    """Double for BatteryCapabilityTracker – records what update() sends it."""
+
+    def __init__(self, learned_kw: float | None = None) -> None:
+        self.learned_kw = learned_kw
+        self.recorded: list[tuple] = []
+        self.flushed = 0
+        self.rolled_over: list = []
+
+    def record_tick(self, mode, soc, battery_power_w):
+        self.recorded.append((mode, soc, battery_power_w))
+
+    async def flush_to_db(self):
+        self.flushed += 1
+
+    async def rollover_day(self, ended_day):
+        self.rolled_over.append(ended_day)
+
+    async def charge_power_kw(self, soc, fallback_kw):
+        return self.learned_kw if self.learned_kw is not None else fallback_kw
+
+
+class TestUpdateBatteryCapabilityWiring:
+    """update() feeds the SoC-bucketed learned-charge-power tracker every
+    tick, against the *committed* mode – see battery_capability.py."""
+
+    def _build(self, make_config, fake_ws, capability, **overrides):
+        defaults = dict(
+            pv_power_entity="sensor.pv", load_power_entity="sensor.load",
+            grid_power_entity="sensor.grid", battery_soc_entity="sensor.soc",
+            battery_power_entity="sensor.batp", electricity_price_entity="sensor.price",
+            battery_capacity_entity="", battery_state_entity="",
+            feed_in_energy_entity="", grid_import_energy_entity="", load_consumption_entity="",
+            grid_import_total_entity="", feed_in_total_entity="", load_consumption_total_entity="",
+            battery_charge_entity="", battery_discharge_entity="",
+            today_production_entity="", today_losses_entity="",
+        )
+        defaults.update(overrides)
+        cfg = make_config(**defaults)
+        optimizer = FakeOptimizer()
+        ctrl = EMSController(cfg, fake_ws, optimizer, capability=capability)
+        ctrl._solcast = SolcastClient(cfg, fake_ws)
+        fake_ws.stale[cfg.battery_power_entity] = False
+        fake_ws.stale[cfg.pv_power_entity] = False
+        fake_ws.stale[cfg.load_power_entity] = False
+        return ctrl
+
+    @pytest.mark.asyncio
+    async def test_records_tick_with_committed_mode_and_soc(self, make_config, fake_ws):
+        capability = FakeCapability()
+        ctrl = self._build(make_config, fake_ws, capability)
+        fake_ws.values.update({
+            "sensor.pv": 0.0, "sensor.load": 0.0, "sensor.grid": 0.0,
+            "sensor.soc": 50.0, "sensor.batp": -3000.0, "sensor.price": 0.30,
+        })
+        result = await ctrl.update()
+        assert len(capability.recorded) == 1
+        mode, soc, power_w = capability.recorded[0]
+        assert mode.value == result["mode"]
+        assert soc == 50.0
+        assert power_w == -3000.0
+
+    @pytest.mark.asyncio
+    async def test_flushes_capability_every_tick(self, make_config, fake_ws):
+        capability = FakeCapability()
+        ctrl = self._build(make_config, fake_ws, capability)
+        fake_ws.values.update({
+            "sensor.pv": 0.0, "sensor.load": 0.0, "sensor.grid": 0.0,
+            "sensor.soc": 50.0, "sensor.batp": 0.0, "sensor.price": 0.30,
+        })
+        await ctrl.update()
+        assert capability.flushed == 1
+
+    @pytest.mark.asyncio
+    async def test_no_rollover_on_first_tick(self, make_config, fake_ws):
+        """No previous day to roll over yet on the very first tick after startup."""
+        capability = FakeCapability()
+        ctrl = self._build(make_config, fake_ws, capability)
+        fake_ws.values.update({
+            "sensor.pv": 0.0, "sensor.load": 0.0, "sensor.grid": 0.0,
+            "sensor.soc": 50.0, "sensor.batp": 0.0, "sensor.price": 0.30,
+        })
+        await ctrl.update()
+        assert capability.rolled_over == []
+
+    @pytest.mark.asyncio
+    async def test_rolls_over_once_the_date_changes(self, make_config, fake_ws, monkeypatch):
+        import ems_controller as ems_controller_module
+        from datetime import date, timedelta
+
+        capability = FakeCapability()
+        ctrl = self._build(make_config, fake_ws, capability)
+        fake_ws.values.update({
+            "sensor.pv": 0.0, "sensor.load": 0.0, "sensor.grid": 0.0,
+            "sensor.soc": 50.0, "sensor.batp": 0.0, "sensor.price": 0.30,
+        })
+        yesterday = date.today() - timedelta(days=1)
+
+        class _FakeDate(date):
+            @classmethod
+            def today(cls):
+                return yesterday
+
+        monkeypatch.setattr(ems_controller_module, "date", _FakeDate)
+        await ctrl.update()   # runs "yesterday" -> just records _last_capability_rollover
+        assert capability.rolled_over == []
+
+        monkeypatch.setattr(ems_controller_module, "date", date)   # back to the real today
+        await ctrl.update()
+        assert capability.rolled_over == [yesterday]
+
+    @pytest.mark.asyncio
+    async def test_learned_charge_kw_is_refreshed_from_capability(self, make_config, fake_ws):
+        capability = FakeCapability(learned_kw=3.3)
+        ctrl = self._build(make_config, fake_ws, capability, battery_voltage_entity="sensor.voltage")
+        fake_ws.values.update({
+            "sensor.pv": 0.0, "sensor.load": 0.0, "sensor.grid": 0.0,
+            "sensor.soc": 50.0, "sensor.batp": 0.0, "sensor.price": 0.30,
+            "sensor.voltage": 50.0,
+        })
+        await ctrl.update()
+        assert ctrl._learned_charge_kw == 3.3
+        assert ctrl._charge_power_kw() == 3.3
+
+    @pytest.mark.asyncio
+    async def test_learned_charge_kw_none_without_soc(self, make_config, fake_ws):
+        capability = FakeCapability(learned_kw=3.3)
+        ctrl = self._build(make_config, fake_ws, capability, battery_voltage_entity="sensor.voltage")
+        fake_ws.values.update({
+            "sensor.pv": 0.0, "sensor.load": 0.0, "sensor.grid": 0.0,
+            "sensor.soc": None, "sensor.batp": 0.0, "sensor.price": 0.30,
+            "sensor.voltage": 50.0,
+        })
+        await ctrl.update()
+        assert ctrl._learned_charge_kw is None
