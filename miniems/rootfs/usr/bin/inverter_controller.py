@@ -72,11 +72,13 @@ class InverterController:
         self._active_token = supervisor_token
         self._ws = ws_client
         self._channels = WriteChannelSet(["charge", "discharge", "grid"])
-        # V1 (docs/roadmap/energiefahrplan.md): tracks the charge-current
-        # entity's live max across ticks, so a momentarily unavailable
+        # docs/roadmap/v3.0-geraeteprofile.md, "Die Watt-Abstraktion": tracks
+        # each actuator's live max across ticks, so a momentarily unavailable
         # attribute read never silently drops the ceiling – see
-        # device_control.LiveLimitsCache.
+        # device_control.LiveLimitsCache. Charge and discharge are tracked
+        # independently (a BMS may impose different limits per direction).
         self._charge_limits_cache = LiveLimitsCache()
+        self._discharge_limits_cache = LiveLimitsCache()
         # Reported to dashboard/sensors
         self.charge_current_limit_a: int | None = None       # confirmed
         self.discharge_current_limit_a: int | None = None    # confirmed
@@ -169,47 +171,52 @@ class InverterController:
                 await self._set_grid_charge(True, sim)
                 charge_a = self._resolve_grid_charge_current_a(grid_charge_power_w)
                 await self._set_charge_current(charge_a, sim)
-                await self._set_discharge_current(0, sim)
+                await self._set_discharge_current(self._resolve_discharge_current_a(0), sim)
 
             case EMSMode.PV_CHARGING:
                 await self._set_grid_charge(False, sim)
-                await self._set_charge_current(cfg.battery_max_charge_current_a, sim)
-                await self._set_discharge_current(cfg.battery_max_discharge_current_a, sim)
+                await self._set_charge_current(
+                    self._resolve_charge_current_a(cfg.battery_max_charge_current_a), sim)
+                await self._set_discharge_current(
+                    self._resolve_discharge_current_a(cfg.battery_max_discharge_current_a), sim)
 
             case EMSMode.EXPORT_SURPLUS:
                 # Grid-friendly hold: block charging so the surplus goes to the
                 # grid. Discharging stays at full so a passing cloud is covered
                 # from the battery instead of by importing from the grid.
                 await self._set_grid_charge(False, sim)
-                await self._set_charge_current(cfg.export_hold_charge_current_a, sim)
-                await self._set_discharge_current(cfg.battery_max_discharge_current_a, sim)
+                await self._set_charge_current(
+                    self._resolve_charge_current_a(cfg.export_hold_charge_current_a), sim)
+                await self._set_discharge_current(
+                    self._resolve_discharge_current_a(cfg.battery_max_discharge_current_a), sim)
 
             case EMSMode.PROTECT_BATTERY:
                 # SoC below minimum: no grid charge, no discharging.
                 await self._set_grid_charge(False, sim)
-                await self._set_charge_current(cfg.battery_max_charge_current_a, sim)
-                await self._set_discharge_current(0, sim)
+                await self._set_charge_current(
+                    self._resolve_charge_current_a(cfg.battery_max_charge_current_a), sim)
+                await self._set_discharge_current(self._resolve_discharge_current_a(0), sim)
 
             case EMSMode.IDLE:
                 # Normal self-use operation
                 await self._set_grid_charge(False, sim)
-                await self._set_charge_current(cfg.battery_max_charge_current_a, sim)
-                await self._set_discharge_current(cfg.battery_max_discharge_current_a, sim)
+                await self._set_charge_current(
+                    self._resolve_charge_current_a(cfg.battery_max_charge_current_a), sim)
+                await self._set_discharge_current(
+                    self._resolve_discharge_current_a(cfg.battery_max_discharge_current_a), sim)
 
     def _resolve_grid_charge_current_a(self, grid_charge_power_w: float | None) -> int:
         """V1: the Watt target from EMSController._grid_charge_power_w(),
-        converted to the charge-current entity's native amps and clamped to
-        its live min/max/step.
+        converted to the charge-current entity's native amps – the clamp to
+        live min/max/step and the configured cap is then
+        `_resolve_charge_current_a()`'s job, same as every other mode's
+        charge target.
 
         `battery_voltage_entity` is read here – nowhere else in the control
         path – per docs/roadmap/v3.0-geraeteprofile.md, "Die
         Watt-Abstraktion": if it's unavailable, `to_actuator_value()` falls
         back to a fixed assumed voltage (48 V, a mid-range LFP pack voltage)
-        rather than blocking the write. `battery_max_charge_current_a`
-        remains a hard outer ceiling regardless of what the entity's live
-        `max` attribute reports – a live max can only ever *tighten* the
-        effective limit (e.g. a BMS-imposed cap below the configured value),
-        never loosen it beyond what the user configured.
+        rather than blocking the write.
 
         `None` (V1 couldn't compute a precise target – no price calendar, no
         window, or bat_kwh_free is zero/unknown) resolves to the actuator's
@@ -217,33 +224,63 @@ class InverterController:
         to `battery_max_charge_current_a` did.
         """
         cfg = self._cfg
-        configured_max = cfg.battery_max_charge_current_a
-        entity = cfg.inverter_charge_current_entity
+        if grid_charge_power_w is None:
+            return self._resolve_charge_current_a(cfg.battery_max_charge_current_a)
 
         control = ActuatorControl(
             quantity="power", domain="number", actuator_unit="A", via="dc_current",
             voltage_fallback_v=48.0,
-            fallback_limits={"min": 0, "max": configured_max, "step": 1},
         )
+        voltage = (
+            self._ws.get_state_value(cfg.battery_voltage_entity)
+            if self._ws and cfg.battery_voltage_entity else None
+        )
+        raw_a = to_actuator_value(grid_charge_power_w, control, voltage_v=voltage)
+        return self._resolve_charge_current_a(round(raw_a))
 
-        if grid_charge_power_w is None:
-            raw_a = float(configured_max)
-        else:
-            voltage = (
-                self._ws.get_state_value(cfg.battery_voltage_entity)
-                if self._ws and cfg.battery_voltage_entity else None
-            )
-            raw_a = to_actuator_value(grid_charge_power_w, control, voltage_v=voltage)
+    def _resolve_charge_current_a(self, requested_a: int) -> int:
+        """Clamp a charge-current target (already in amps – every mode's
+        `charge` target is either the configured max, an explicit hold
+        value, 0, or – only for GRID_CHARGING – a Watts-derived value
+        already converted by `_resolve_grid_charge_current_a()`) to the
+        charge-current entity's live min/max/step.
+
+        `battery_max_charge_current_a` remains a hard outer ceiling
+        regardless of what the entity's live `max` attribute reports – a
+        live max can only ever *tighten* the effective limit (e.g. a
+        BMS-imposed cap below the configured value), never loosen it beyond
+        what the user configured.
+        """
+        cfg = self._cfg
+        configured_max = cfg.battery_max_charge_current_a
+        entity = cfg.inverter_charge_current_entity
+        control = ActuatorControl(fallback_limits={"min": 0, "max": configured_max, "step": 1})
 
         live_min = self._ws.get_state_attribute(entity, "min") if self._ws and entity else None
         live_max = self._ws.get_state_attribute(entity, "max") if self._ws and entity else None
         live_step = self._ws.get_state_attribute(entity, "step") if self._ws and entity else None
         limits = self._charge_limits_cache.resolve(entity, live_min, live_max, live_step, control)
-        # The user's configured cap always wins as the outer bound – a live
-        # max may only tighten it, never loosen it.
         limits = ActuatorLimits(min=limits.min, max=min(limits.max, configured_max), step=limits.step)
 
-        return int(clamp_to_limits(raw_a, limits))
+        return int(clamp_to_limits(requested_a, limits))
+
+    def _resolve_discharge_current_a(self, requested_a: int) -> int:
+        """The discharge-side equivalent of `_resolve_charge_current_a()` –
+        same live min/max/step clamping, same "configured value is a hard
+        outer ceiling" rule, its own `LiveLimitsCache` instance (a discharge
+        BMS limit is tracked independently of the charge one)."""
+        cfg = self._cfg
+        configured_max = cfg.battery_max_discharge_current_a
+        entity = cfg.battery_discharging_current_entity
+        control = ActuatorControl(fallback_limits={"min": 0, "max": configured_max, "step": 1})
+
+        live_min = self._ws.get_state_attribute(entity, "min") if self._ws and entity else None
+        live_max = self._ws.get_state_attribute(entity, "max") if self._ws and entity else None
+        live_step = self._ws.get_state_attribute(entity, "step") if self._ws and entity else None
+        limits = self._discharge_limits_cache.resolve(entity, live_min, live_max, live_step, control)
+        limits = ActuatorLimits(min=limits.min, max=min(limits.max, configured_max), step=limits.step)
+
+        return int(clamp_to_limits(requested_a, limits))
 
     async def restore_safe_defaults(self) -> None:
         """Leave the inverter in a safe state on shutdown.

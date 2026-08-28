@@ -132,6 +132,60 @@ class TestSimulationMode:
         assert ctrl.discharge_current_target_a == 185
 
     @pytest.mark.asyncio
+    async def test_pv_charging_respects_a_live_charge_max_below_configured(self, make_config, ws):
+        """I5b: live min/max/step clamping now applies to every mode's
+        charge target, not only GRID_CHARGING's - a BMS-imposed charge
+        limit must be respected during PV_CHARGING too."""
+        ws.attributes["number.charge_current"] = {"min": 0, "max": 65, "step": 1}
+        ctrl = make_ctrl(make_config, ws, simulation=True)
+        await ctrl.apply_mode(EMSMode.PV_CHARGING)
+        assert ctrl.charge_current_target_a == 65
+
+    @pytest.mark.asyncio
+    async def test_pv_charging_respects_a_live_discharge_max_below_configured(self, make_config, ws):
+        """I5b: the discharge side gets the same treatment, via its own
+        LiveLimitsCache - independent of the charge entity's."""
+        ws.attributes["number.discharge_current"] = {"min": 0, "max": 65, "step": 1}
+        ctrl = make_ctrl(make_config, ws, simulation=True)
+        await ctrl.apply_mode(EMSMode.PV_CHARGING)
+        assert ctrl.discharge_current_target_a == 65
+        assert ctrl.charge_current_target_a == 185   # charge side unaffected
+
+    @pytest.mark.asyncio
+    async def test_discharge_live_max_above_configured_cap_does_not_loosen_it(self, make_config, ws):
+        ws.attributes["number.discharge_current"] = {"min": 0, "max": 350, "step": 1}
+        ctrl = make_ctrl(make_config, ws, simulation=True)
+        await ctrl.apply_mode(EMSMode.IDLE)
+        assert ctrl.discharge_current_target_a == 185
+
+    @pytest.mark.asyncio
+    async def test_export_surplus_hold_is_clamped_too(self, make_config, ws):
+        """export_hold_charge_current_a (typically 0, "block charging") also
+        goes through the same clamp - a live min above 0 would raise it, but
+        the common case (min=0) leaves it unchanged."""
+        ws.attributes["number.charge_current"] = {"min": 0, "max": 65, "step": 1}
+        ctrl = make_ctrl(make_config, ws, simulation=True, export_hold_charge_current_a=0)
+        await ctrl.apply_mode(EMSMode.EXPORT_SURPLUS)
+        assert ctrl.charge_current_target_a == 0
+
+    @pytest.mark.asyncio
+    async def test_discharge_limits_cache_is_independent_of_charge_cache(self, make_config, ws):
+        """A momentarily unavailable discharge max must not be affected by
+        (or affect) the charge entity's cached ceiling."""
+        ws.attributes["number.charge_current"] = {"min": 0, "max": 65, "step": 1}
+        ws.attributes["number.discharge_current"] = {"min": 0, "max": 100, "step": 1}
+        ctrl = make_ctrl(make_config, ws, simulation=True)
+        await ctrl.apply_mode(EMSMode.IDLE)
+        assert ctrl.charge_current_target_a == 65
+        assert ctrl.discharge_current_target_a == 100
+        # Now the discharge max goes briefly unavailable - must hold at 100,
+        # not fall back to the 185 configured default.
+        ws.attributes["number.discharge_current"] = {"min": 0, "max": None, "step": 1}
+        await ctrl.apply_mode(EMSMode.IDLE)
+        assert ctrl.discharge_current_target_a == 100
+        assert ctrl.charge_current_target_a == 65   # unaffected by the discharge cache
+
+    @pytest.mark.asyncio
     async def test_disabled_battery_control_is_a_noop(self, make_config, ws):
         cfg = make_config(battery_control_enabled=False)
         ctrl = InverterController(cfg, supervisor_token="t", ws_client=ws)

@@ -1,5 +1,30 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.4.1
+
+### Added
+
+- **Geräteprofile (I5b): Live-`min`/`max`/`step`-Klemmung jetzt auf jedem
+  Schreibvorgang, nicht nur beim Netzladen.** v2.4.0 klemmte nur den
+  GRID_CHARGING-Ladestrom gegen die live gemeldeten Grenzen der
+  Lade-Entity. Neue `InverterController._resolve_charge_current_a()`/
+  `_resolve_discharge_current_a()` wenden dieselbe Disziplin jetzt auf
+  **jeden** Modus und **beide** Richtungen an — ein vom BMS gemeldetes
+  Lade- *oder* Entladelimit unter dem konfigurierten Wert wird jetzt in
+  jedem Modus respektiert, nicht nur während des Netzladens. Entlade- und
+  Lade-Grenzen werden mit getrennten `LiveLimitsCache`-Instanzen verfolgt
+  (ein BMS kann pro Richtung unterschiedliche Limits melden).
+  `battery_max_charge_current_a`/`battery_max_discharge_current_a`
+  bleiben dabei weiterhin die harte äußere Grenze.
+
+  Live gegen die lokale Testinstanz mit echten Daten verifiziert: sowohl
+  die Lade- als auch die Entlade-Entity melden `max=350` (Hardware-Limit),
+  die konfigurierten 185 A bleiben in beiden Richtungen korrekt die
+  wirksame Grenze — keine Verhaltensänderung für die Produktivanlage,
+  wo der konfigurierte Wert bereits unter dem Hardware-Maximum liegt.
+
+  9 neue Tests in `test_inverter_controller.py`. 655 Tests grün, Coverage 94%.
+
 ## 2.4.0
 
 ### Added
