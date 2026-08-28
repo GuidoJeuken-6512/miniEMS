@@ -187,8 +187,10 @@ Einheitlichkeit, keine Fehlerbehebung.
 
 ## Verifikation
 
-Kein Test-Verzeichnis im Projekt; Vorgehen wie bewährt (Smoke-Tests via `docker exec` im
-Add-on-Container, danach Rebuild und Live-Beobachtung).
+Seit v2.0.8 existiert `miniems/tests/` (Pytest, `--cov` ≥ 90 %) — die Delta-Fälle unten
+eignen sich gut als Unit-Tests gegen `CostOptimizer._delta_from_total()` direkt, ohne
+Add-on-Neustart. Ergänzend weiterhin Smoke-Tests via `docker exec` im Add-on-Container,
+danach Rebuild und Live-Beobachtung für alles, was echten Wechselrichter-Zugriff braucht.
 
 1. **Delta-Grundfall:** Anker gesetzt, Total steigt um 0,3 kWh ⇒ `today_kwh` steigt um
    exakt 0,3 kWh — unabhängig davon, was der `today_*`-Sensor gerade zeigt.
