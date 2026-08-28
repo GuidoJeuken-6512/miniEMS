@@ -8,12 +8,14 @@ from battery_capability import BatteryCapabilityTracker
 from battery_model import BatteryModel
 from const import (
     DAILY_VALUE_GRACE_SEC,
+    ENERGY_PLAN_RECOMPUTE_SEC,
     FORECAST_MAX_AGE_SEC,
     PRICE_MAX_AGE_SEC,
     SENSOR_MAX_AGE_SEC,
     SOLCAST_DATA_MAX_AGE_SEC,
     EMSMode,
 )
+from energy_plan import EnergyPlan, compute_energy_plan
 from event_log import EventLog, LogEntry
 from price_curve import PriceCurve
 
@@ -83,6 +85,10 @@ class EMSController:
         # config-derived estimate itself.
         self._learned_charge_kw: float | None = None
         self._last_capability_rollover: date | None = None
+        # Der Energiefahrplan – recomputed at most every ENERGY_PLAN_RECOMPUTE_SEC,
+        # display-only (see energy_plan.py). None until the first tick has run.
+        self._energy_plan: "EnergyPlan | None" = None
+        self._last_energy_plan_at: datetime | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -167,6 +173,8 @@ class EMSController:
         if self._last_capability_rollover is not None and self._last_capability_rollover != today:
             await self._capability.rollover_day(self._last_capability_rollover)
         self._last_capability_rollover = today
+
+        self._update_energy_plan(bat_kwh_free, now)
 
         # Log mode changes to event log
         if self._mode != prev_mode:
@@ -412,6 +420,25 @@ class EMSController:
             result["temp_today_c"] = self._prediction.temp_today_c
             result["temp_tomorrow_c"] = self._prediction.temp_tomorrow_c
         result["remaining_load_kwh"] = self._remaining_load_kwh
+
+        if self._energy_plan is not None:
+            plan = self._energy_plan
+            result["energy_plan"] = {
+                "computed_at": plan.computed_at.isoformat(),
+                "deficit_kwh": round(plan.deficit_kwh, 3) if plan.deficit_kwh is not None else None,
+                "feasible": plan.feasible,
+                "reason": plan.reason,
+                "estimated_cost_eur": round(plan.estimated_cost_eur, 4),
+                "windows": [
+                    {
+                        "start": w.start.isoformat(),
+                        "end": w.end.isoformat(),
+                        "rate_eur_kwh": round(w.rate_eur_kwh, 4),
+                        "energy_kwh": round(w.energy_kwh, 3),
+                    }
+                    for w in plan.windows
+                ],
+            }
         return result
 
     # ------------------------------------------------------------------
@@ -750,6 +777,54 @@ class EMSController:
         p_soll_kw = bat_kwh_free / remaining_h
         i_soll_a = p_soll_kw * 1000.0 / voltage
         return max(0, min(fallback, round(i_soll_a)))
+
+    def _plan_deadline(self, now: datetime) -> datetime:
+        """When the battery must be full again by, for the Energiefahrplan.
+
+        Tomorrow's PV peak (V3a) when available, else tomorrow's dark-window
+        end as an absolute datetime – matches the doc's "deadline = V3as
+        peak_time_tomorrow (oder, ohne V3a, grid_charge_dark_end_hour)".
+        Unlike _next_peak_time() (which picks whichever of today's/
+        tomorrow's peak is soonest, for the live grid-charge decision), this
+        is always about *tomorrow* specifically – the plan is a tomorrow-
+        deficit calculation by definition.
+        """
+        cfg = self._cfg
+        entity = cfg.solcast_peak_time_tomorrow_entity
+        if entity and not self._is_stale_daily(entity):
+            peak = self._ws.get_state_datetime(entity)
+            if peak is not None:
+                return peak.astimezone(now.tzinfo)
+        tomorrow = now + timedelta(days=1)
+        return tomorrow.replace(hour=cfg.grid_charge_dark_end_hour, minute=0, second=0, microsecond=0)
+
+    def _update_energy_plan(self, bat_kwh_free: float | None, now: datetime) -> None:
+        """Recompute the Energiefahrplan at most every ENERGY_PLAN_RECOMPUTE_SEC.
+
+        Display-only (see energy_plan.py) – never influences the actual
+        charge decision, which stays the tick-level reactive logic above.
+        """
+        if (self._last_energy_plan_at is not None
+                and (now - self._last_energy_plan_at).total_seconds() < ENERGY_PLAN_RECOMPUTE_SEC):
+            return
+        cfg = self._cfg
+
+        tomorrow_pv = None
+        if (self._solcast is not None and cfg.solcast_tomorrow_entity
+                and not self._is_stale_daily(cfg.solcast_tomorrow_entity)):
+            tomorrow_pv = self._solcast.tomorrow_kwh
+
+        curve = PriceCurve.from_entity(self._ws, cfg.electricity_price_entity)
+        self._energy_plan = compute_energy_plan(
+            now=now,
+            deadline=self._plan_deadline(now),
+            bat_kwh_free=bat_kwh_free,
+            predicted_pv_tomorrow_kwh=tomorrow_pv,
+            margin_factor=cfg.pv_charge_margin_factor,
+            charge_kw=self._charge_power_kw(),
+            curve=curve,
+        )
+        self._last_energy_plan_at = now
 
     def _should_defer_grid_charge(self, bat_kwh_free: float, now: datetime) -> bool:
         """Is postponing this grid charge to a later, equally-cheap window safe?

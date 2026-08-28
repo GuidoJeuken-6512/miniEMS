@@ -8,7 +8,7 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "2.0.13"
+VERSION = "2.0.14"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
 CONFIG_SCHEMA_VERSION = 19
@@ -121,6 +121,12 @@ INVERTER_WRITE_STUCK_THRESHOLD_SEC = 1800   # 30 min – provisional, see above
 BATTERY_CAPABILITY_MIN_SAMPLES_PER_DAY = 6   # ~3 min of GRID_CHARGING at a 30s tick
 BATTERY_CAPABILITY_MIN_DAYS = 3              # qualifying days needed before trusting history
 BATTERY_CAPABILITY_LOOKBACK_DAYS = 14
+
+# ── Energiefahrplan (energy_plan.py) ──────────────────────────────────────────
+# Recompute interval for the proactive tomorrow-deficit plan. Hourly, not
+# every 30s tick: display-only, and price/PV forecasts don't change on a
+# tick's timescale – see docs/roadmap/energiefahrplan.md, "Trigger".
+ENERGY_PLAN_RECOMPUTE_SEC = 3600
 
 # ── Custom integration installer ──────────────────────────────────────────────
 from pathlib import Path

@@ -176,6 +176,38 @@ class PriceCurve:
             return None
         return current.rate_eur_kwh <= cheapest + tolerance_eur
 
+    def windows_before(
+        self, start: datetime, deadline: datetime
+    ) -> list[tuple[datetime, datetime, float]]:
+        """Every distinct window in [start, deadline), as real, date-anchored
+        (window_start, window_end, rate) tuples clipped to that span.
+
+        Unlike `_windows_between()` (which returns the abstract, recurring
+        `_Window` objects – no notion of a specific occurrence), this gives
+        the actual datetimes a caller needs to compute a duration or a
+        capacity, e.g. energy_plan.py's fill-cheapest-first schedule. A
+        window already in progress at `start` is clipped to start there, not
+        at its normal start-of-day time.
+        """
+        if deadline <= start:
+            return []
+        result: list[tuple[datetime, datetime, float]] = []
+        cursor = start
+        while cursor < deadline:
+            w = self.window_at(cursor)
+            if w is None:
+                # Calendar gap – advance in small steps, same granularity as
+                # _windows_between(), rather than getting stuck.
+                cursor += timedelta(minutes=15)
+                continue
+            w_end = self.window_end(cursor)
+            if w_end is None:
+                break
+            clipped_end = min(w_end, deadline)
+            result.append((cursor, clipped_end, w.rate_eur_kwh))
+            cursor = clipped_end
+        return result
+
     # ------------------------------------------------------------------
 
     def _windows_between(self, start: datetime, deadline: datetime) -> list[_Window]:

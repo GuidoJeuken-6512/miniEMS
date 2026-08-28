@@ -54,6 +54,11 @@ solcast_remaining: Verbleibend heute
 solcast_today: Heute gesamt
 solcast_tomorrow: Morgen
 
+# Energiefahrplan (Tagesbilanz für die kommende Nacht)
+energy_plan: Energiefahrplan (heute Nacht → morgen)
+energy_plan_deficit: Netzladung nötig
+energy_plan_cost: Geschätzte Netzladekosten
+
 # Prognose & Vorhersage
 forecast_prediction: Prognose & Vorhersage
 predicted_load: Prognostizierter Verbrauch

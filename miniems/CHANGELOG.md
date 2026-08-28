@@ -1,5 +1,25 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.14
+
+### Added
+
+- **Der Energiefahrplan (Energiefahrplan-Roadmap): proaktive
+  Tagesbilanz für heute Nacht → morgen, als Dashboard-Anzeige.** Neues
+  Modul `energy_plan.py` (`compute_energy_plan()`) berechnet stündlich
+  `deficit_kwh = max(0, bat_kwh_free − predicted_pv_tomorrow_kwh ×
+  pv_charge_margin_factor)` – dieselbe Formel, die `_should_grid_charge()`
+  bisher nur reaktiv und unsichtbar im Tomorrow-Fallback nutzte – und
+  füllt die günstigsten Preisfenster vor der nächsten PV-Spitze
+  (`PriceCurve.windows_before()`, neu) zuerst auf. Neuer Dashboard-Bereich
+  „Energiefahrplan" zeigt Bedarf, geplante Fenster und geschätzte Kosten;
+  bei fehlenden Daten eine transparente Erklärung statt einer erfundenen
+  Zahl.
+
+  **Bewusst nur Anzeige:** Der Plan fließt nicht in die tatsächliche
+  Ladeentscheidung zurück – die bleibt die tick-basierte, reaktive Logik
+  aus V1–V4. Kein gespeicherter Fahrplan, keine neue Steuerungsebene.
+
 ## 2.0.13
 
 ### Added

@@ -22,7 +22,7 @@ revision_date: 2026-08-28
     | **Gelernte Ladeleistung** — SoC-gebuckerte Historie statt Konfigurationswert | ✅ umgesetzt (v2.0.11) |
     | V4 — Wirtschaftlichkeits-Gate | ✅ umgesetzt in v2.0.4 |
     | V5 — Zweistufigkeit als Prinzip | offen |
-    | **Energiefahrplan** — Tagesbilanz statt Einzelchecks | offen, dieses Dokument |
+    | **Energiefahrplan** — Tagesbilanz statt Einzelchecks | ✅ umgesetzt (v2.0.14), nur die Anzeige — Steuerentscheidung bleibt reaktiv |
     | **ChargeTask** — Batterie/EV-Ladeplan getrennt, gemeinsame Ressource | offen, Architektur-Vorschlag |
     | **Prioritätsschalter** Batterie ↔ E-Auto (GUI + HA-Switch) | offen |
     | **E-Auto-Lader** als leere Hülle | offen — bewusst kein echtes Gerät, nur die Struktur |
@@ -509,6 +509,28 @@ fülle billigste zuerst, bis Σ(fenster_dauer × P_charge_kw) ≥ deficit_kwh
 Batterie muss vor der morgigen PV wieder aufnahmefähig sein. Innerhalb jedes gewählten
 Fensters übernimmt V1 (Ladeleistung strecken statt Volllast).
 
+!!! success "Umgesetzt in v2.0.14 — als Anzeige, nicht als Steuerung"
+    Neues Modul `energy_plan.py` (`compute_energy_plan()`, reine Funktion ohne I/O;
+    `EnergyPlan`/`PlannedWindow`-Dataclasses) plus `PriceCurve.windows_before(start,
+    deadline)` — im Gegensatz zur internen `_windows_between()` liefert das echte,
+    datumsverankerte `(start, ende, rate)`-Tupel statt der abstrakten, wiederkehrenden
+    `_Window`-Objekte, weil die Fensterwahl reale Zeitspannen für die Kapazitätsrechnung
+    braucht. `EMSController._update_energy_plan()` ruft das jede Stunde auf (siehe
+    „Trigger" unten), Ergebnis in `self._energy_plan`, im `update()`-Result als
+    `energy_plan` fürs Dashboard exponiert.
+
+    `deadline` kommt aus der neuen `_plan_deadline()` — bewusst **immer** morgens Peak/
+    Dunkelfenster, anders als `_next_peak_time()` (das für die *laufende* Netzlade-
+    Entscheidung das jeweils nächste Peak wählt, heute oder morgen). `P_charge_kw` kommt
+    aus `_charge_power_kw()` (V3a/gelernte Ladeleistung) — derselbe Wert, den auch V1 und
+    V3a nutzen.
+
+    **Bewusst nicht verdrahtet in die Steuerung:** Der Plan beeinflusst `_should_grid_
+    charge()`/`_should_hold_pv_charge()`/`_grid_charge_current_a()` nicht — die bleiben die
+    tick-basierte, reaktive Entscheidungslogik von V1–V4. Der Plan ist eine zusätzliche,
+    stündlich aktualisierte **Erklärung**, keine zweite Steuerungsebene — deckt sich mit dem
+    Trigger-Abschnitt unten.
+
 !!! note "Tagesgranularität, bewusst nicht stundenweise"
     `predicted_load_tomorrow_kwh` (`ConsumptionModel.predict()`) ist ein Tagestotal, keine
     Stundenkurve — miniEMS hat keine Datenquelle für „wie verteilt sich der Verbrauch über
@@ -660,6 +682,18 @@ Möglichkeit. Läuft rein reaktiv (heutiges Verhalten, kein `deficit_kwh` ermitt
 fehlende Solcast-Daten), zeigt der Bereich das transparent an, statt eine erfundene Zahl zu
 zeigen — dieselbe Zurückhaltung wie beim Warnbanner heute.
 
+!!! success "Batterie-Teil umgesetzt in v2.0.14"
+    Neuer Bereich in `templates/dashboard.html` (nach dem Solcast-Block): `Netzladung nötig`
+    (`deficit_kwh`), bei geplanten Fenstern zusätzlich `Geschätzte Netzladekosten` und je
+    Fenster Uhrzeit/Energie/Preis als eigene Karte. Nicht ermittelbar (`feasible=false`, z. B.
+    fehlende Solcast-Daten) → Warnzeile mit `reason` statt einer erfundenen Zahl; deckt der
+    Bedarf sich mit der morgigen PV (`deficit_kwh == 0`), ein neutraler Hinweistext statt
+    Warnsymbol. Übersetzungsschlüssel `energy_plan*` in `de.yaml`/`en.yaml`.
+
+    **Der EV-Slot ist nicht Teil dieses Schritts** — es gibt noch kein `ChargeTask`/
+    `ev_charger_enabled` (das ist der nächste Ausbauschritt, siehe „Mehrere Ladeaufgaben"
+    weiter unten). Der Bereich zeigt heute ausschließlich den Batterie-Fahrplan.
+
 Aktualisiert sich mit dem stündlichen Trigger oben, nicht mit jedem 30-s-Tick — die Anzeige
 ändert sich ohnehin nur, wenn sich Preis- oder PV-Prognose ändern.
 
@@ -679,11 +713,11 @@ Aktualisiert sich mit dem stündlichen Trigger oben, nicht mit jedem 30-s-Tick �
 | 4 | ✅ **V4 Wirtschaftlichkeits-Gate** — **umgesetzt in v2.0.4** | klein | mittel |
 | 5 | ✅ **V3a Peak-Sensoren** ersetzt `pv_charge_backstop_hour` — **umgesetzt in v2.0.10** | klein–mittel | hoch |
 | 5b | ✅ **Gelernte Ladeleistung** — SoC-gebuckerte Historie statt Konfigurationswert für `P_charge_kw` — **umgesetzt in v2.0.11** | mittel | hoch, macht V3a/Energiefahrplan-Deadlines belastbar |
-| 6 | **Energiefahrplan** — `deficit_kwh` proaktiv + Fensterwahl, stündlicher Trigger | mittel | hoch |
+| 6 | ✅ **Energiefahrplan** — `deficit_kwh` proaktiv + Fensterwahl, stündlicher Trigger — **umgesetzt in v2.0.14** | mittel | hoch |
 | 7 | **`ChargeTask`-Abstraktion** — Batterie als erster/einziger Task, Struktur für weitere | klein | Freischalter für EV |
 | 8 | **Preisquelle a) Day-Ahead** — `rates[]`/`unit_rate_forecast[]` parsen | mittel | hoch, sobald Nutzer Tibber/aWATTar haben |
 | 9 | **Preisquelle b) Mini-Tabelle** — `PriceCurve.from_config()` + UI-Widget | mittel | hoch für Nicht-Octopus-Nutzer |
-| 10 | **Dashboard-Fahrplananzeige** | klein–mittel | Transparenz, Vertrauen in die Automatik |
+| 10 | ✅ **Dashboard-Fahrplananzeige** — Batterie-Teil **umgesetzt in v2.0.14**; EV-Slot folgt mit Schritt 12 | klein–mittel | Transparenz, Vertrauen in die Automatik |
 | 11 | **Prioritätsschalter** — Config-Feld + neues `switch.py` + Schreib-Endpunkt | mittel | Voraussetzung für EV |
 | 12 | **E-Auto-Lader als leere Hülle** — `ev_charger_enabled`, EV-Slot im Dashboard, kein echtes Gerät | klein | sichtbare Vorbereitung |
 | 13 | **V3b volle PV-Kurve** — Verfeinerung von V3a, nur bei Bedarf | mittel | mittel |
@@ -693,19 +727,21 @@ damit ein Rückfall auf das heutige Verhalten jederzeit möglich bleibt.
 
 ## Betroffene Dateien
 
-- `ha_ws_client.py` — `get_state_attribute()` neben `get_state_value()`.
-- `price_curve.py` — Marktpreis-Parsing (`rates[]`/`unit_rate_forecast[]`) fertigstellen; neue Methode `from_config(windows)`.
-- `pv_curve.py` *(neu, optional)* oder Erweiterung von `solcast_client.py` — `detailedForecast` als Zeitreihe (nur für V3b).
-- `charge_task.py` *(neu)* — `ChargeTask`-Dataclass, Prioritätswarteschlange, `deficit_kwh`-Berechnung. Von `ems_controller.py` aus je Gerät aufgerufen.
-- `battery_capability.py` *(neu)* — `soc_bucket_for(soc)`, Tick-Update von `battery_charge_capability_today`, Tagesabschluss-Übertrag nach `battery_charge_capability_history`, Laufzeit-Lookup für `P_charge_kw` (Median über 14 Tage, Fallback auf Konfigurationswert). Von `ems_controller.py` bei jedem Tick (Update) bzw. am Tageswechsel (Abschluss) aufgerufen.
-- `store.py` — zwei neue Tabellen `battery_charge_capability_today`/`_history` (Schema s. o.); Tagesabschluss-Hook am selben lokalen Mitternachts-Schnitt wie `daily_stats`.
-- `ems_controller.py` — `_should_grid_charge()` (Fensterwahl + Wirtschaftlichkeit), `_should_hold_pv_charge()` (Peak-Zeitpunkt), neuer stündlicher Trigger für den Energiefahrplan, Aufruf von `charge_task.py` und `battery_capability.py`.
-- `inverter_controller.py` — `GRID_CHARGING` setzt einen **berechneten** Ladestrom statt `battery_max_charge_current_a`.
-- `config_loader.py` / `const.py` — `battery_voltage_entity`, `charge_priority`, `ev_charger_enabled`, `MIN_SAMPLES_PER_DAY`/`MIN_DAYS` für die Ladeleistungs-Historie, Schalter je Stufe.
-- `web_server.py` — neuer leichtgewichtiger `POST /api/priority`-Endpunkt (kein Neustart).
-- `templates/settings.html` — Mini-Tabellen-Widget für Preisquelle b), Prioritäts-Auswahl, EV-Platzhalterfelder.
-- `templates/dashboard.html` — neuer Fahrplan-Bereich, EV-Slot (ausgegraut ohne Gerät).
-- `integration/switch.py` *(neu)* — `switch.miniems_priority_ev`; `integration/__init__.py`: `PLATFORMS = ["sensor", "switch"]`.
+- ✅ `ha_ws_client.py` — `get_state_attribute()` neben `get_state_value()` (v2.0.4, vorbestehend).
+- 🟡 `price_curve.py` — `windows_before()` ✅ neu (v2.0.14); Marktpreis-Parsing (`rates[]`/`unit_rate_forecast[]`) und `from_config(windows)` weiterhin offen.
+- `pv_curve.py` *(neu, optional)* oder Erweiterung von `solcast_client.py` — `detailedForecast` als Zeitreihe (nur für V3b). Offen.
+- `charge_task.py` *(neu)* — `ChargeTask`-Dataclass, Prioritätswarteschlange. Offen — `energy_plan.py` (s. u.) deckt die `deficit_kwh`-Berechnung bereits für die Batterie ab, ohne die Mehrgeräte-Abstraktion.
+- ✅ `battery_capability.py` *(neu, v2.0.11)* — `soc_bucket_for(soc)`, Tick-Update von `battery_charge_capability_today`, Tagesabschluss-Übertrag nach `battery_charge_capability_history`, Laufzeit-Lookup für `P_charge_kw`.
+- ✅ `energy_plan.py` *(neu, v2.0.14)* — `compute_energy_plan()` (reine Funktion), `EnergyPlan`/`PlannedWindow`. Von `ems_controller.py` stündlich aufgerufen, nicht in die Steuerung verdrahtet.
+- ✅ `store.py` — zwei neue Tabellen `battery_charge_capability_today`/`_history` (v2.0.11).
+- ✅ `ems_controller.py` — `_should_grid_charge()` (Fensterwahl via `_should_defer_grid_charge()`/V2, Wirtschaftlichkeit via V4, vorbestehend), `_should_hold_pv_charge()` (Peak-Zeitpunkt via `_should_hold_for_peak_time()`/V3a), `_grid_charge_current_a()` (V1), `_update_energy_plan()` (stündlicher Trigger). `charge_task.py`-Aufruf bleibt offen (kein Modul).
+- ✅ `inverter_controller.py` — `apply_mode()` nimmt einen optionalen `grid_charge_current_a`-Parameter (V1, v2.0.13).
+- 🟡 `config_loader.py` / `const.py` — `battery_voltage_entity` ✅ (v2.0.9); `charge_priority`, `ev_charger_enabled` weiterhin offen; `MIN_SAMPLES_PER_DAY`/`MIN_DAYS`/`LOOKBACK_DAYS` ✅ als `BATTERY_CAPABILITY_*` in `const.py` (v2.0.11); `ENERGY_PLAN_RECOMPUTE_SEC` ✅ neu (v2.0.14).
+- `web_server.py` — neuer leichtgewichtiger `POST /api/priority`-Endpunkt (kein Neustart). Offen.
+- `templates/settings.html` — Mini-Tabellen-Widget für Preisquelle b), Prioritäts-Auswahl, EV-Platzhalterfelder. Offen.
+- ✅ `templates/dashboard.html` — Fahrplan-Bereich für die Batterie (v2.0.14); EV-Slot (ausgegraut ohne Gerät) offen, folgt mit Schritt 12.
+- `integration/switch.py` *(neu)* — `switch.miniems_priority_ev`; `integration/__init__.py`: `PLATFORMS = ["sensor", "switch"]`. Offen.
+- ✅ `translations/de.yaml` / `en.yaml` — `energy_plan*`-Schlüssel (v2.0.14).
 - Doku DE/EN + CHANGELOG.
 
 !!! note "Berührungspunkt zur Geräteprofil-Roadmap"
@@ -730,7 +766,9 @@ Smoke-Tests via `docker exec` im Add-on-Container für alles mit echtem HA-/Wech
 5. **Wirtschaftlichkeits-Gate:** Mit `avg_discharge_tariff` unter dem Bezugspreis darf nicht geladen werden.
 6. ✅ **V3a Deadline-Fallback:** `peak_time_today` künstlich so spät setzen, dass `T_needed_h` nicht mehr bis zur Deadline passt → `actual_start` muss auf `latest_start` zurückfallen. Getestet:
    `test_deadline_binds_when_peak_leaves_too_little_time` (`test_ems_controller.py`).
-7. **Energiefahrplan-Bilanz:** `deficit_kwh` muss bei `bat_kwh_free = 0` stets `0` sein, unabhängig von der PV-Prognose (nichts zu laden, wenn der Akku schon voll ist).
+7. ✅ **Energiefahrplan-Bilanz:** `deficit_kwh` muss bei `bat_kwh_free = 0` stets `0` sein, unabhängig von der PV-Prognose (nichts zu laden, wenn der Akku schon voll ist). Formel und Fensterwahl getestet in
+   `test_energy_plan.py` (`TestComputeEnergyPlanGuardClauses`, `TestComputeEnergyPlanFill`, `TestWindowsBefore`); Anzeige- und Stunden-Trigger-Wiring in
+   `test_ems_controller.py::TestPlanDeadline` und `test_ems_controller_update.py::TestUpdateEnergyPlanWiring`.
 8. **`ChargeTask`-Priorität:** Zwei synthetische Tasks mit überlappendem billigstem Fenster und identischer Deadline → der Task mit `charge_priority` gewinnt die Fensterkapazität zuerst, der andere weicht auf das nächstbillige Fenster aus.
 9. **Prioritätsschalter-Sync:** GUI-Änderung muss sich im HA-Switch-Zustand spiegeln und umgekehrt, ohne Add-on-Neustart.
 10. **EV-Hülle No-Op:** Bei `ev_charger_enabled = False` darf kein `ChargeTask` für `ev_charger` erzeugt werden und das Dashboard darf keinen aktiven EV-Fahrplan zeigen.

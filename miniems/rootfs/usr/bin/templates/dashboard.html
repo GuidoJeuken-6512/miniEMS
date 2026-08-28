@@ -40,6 +40,12 @@
       return v !== null && v !== undefined ? Number(v).toFixed(dec) : '–';
     }
 
+    function fmtTime(iso) {
+      if (!iso) return '–';
+      const d = new Date(iso);
+      return isNaN(d) ? '–' : d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+    }
+
     function fmtMode(m) {
       if (!m) return '';
       // Export first: classification is by substring, so this must not be
@@ -187,6 +193,30 @@
             <div class="svalue muted">${fmt(d.solcast_tomorrow_kwh, 2)} kWh</div>
           </div>` : ''}
         </div>` : ''}
+
+        ${d.energy_plan ? `
+        <p class="section-title">${T.energy_plan || 'Energy Plan (Tonight → Tomorrow)'}</p>
+        <div class="savings-grid">
+          <div class="savings-card">
+            <div class="slabel">${T.energy_plan_deficit || 'Grid Charge Needed'}</div>
+            <div class="svalue ${d.energy_plan.deficit_kwh > 0 ? 'negative' : ''}">${fmt(d.energy_plan.deficit_kwh, 2)} kWh</div>
+          </div>
+          ${d.energy_plan.windows.length > 0 ? `
+          <div class="savings-card">
+            <div class="slabel">${T.energy_plan_cost || 'Estimated Grid Charge Cost'}</div>
+            <div class="svalue muted">€${fmt(d.energy_plan.estimated_cost_eur, 2)}</div>
+          </div>` : ''}
+          ${d.energy_plan.windows.map(w => `
+          <div class="savings-card">
+            <div class="slabel">${fmtTime(w.start)} – ${fmtTime(w.end)}</div>
+            <div class="svalue muted">${fmt(w.energy_kwh, 2)} kWh @ ${fmt(w.rate_eur_kwh * 100, 2)} ct</div>
+          </div>`).join('')}
+        </div>
+        ${!d.energy_plan.feasible && d.energy_plan.reason ? `
+        <div class="warn-item">&#9888; ${d.energy_plan.reason}</div>` : ''}
+        ${d.energy_plan.feasible && d.energy_plan.deficit_kwh === 0 && d.energy_plan.reason ? `
+        <div class="svalue muted">${d.energy_plan.reason}</div>` : ''}
+        ` : ''}
 
         ${(d.predicted_load_kwh !== undefined || d.predicted_pv_kwh !== undefined) ? `
         <p class="section-title">${T.forecast_prediction || 'Forecast &amp; Prediction'}

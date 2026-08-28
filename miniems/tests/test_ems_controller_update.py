@@ -1,5 +1,5 @@
 """EMSController.update(): the full per-tick orchestration."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from freezegun import freeze_time
@@ -341,6 +341,51 @@ async def test_update_capacity_result_field_mirrors_sensor_unfiltered(make_confi
     })
     result = await ctrl.update()
     assert result["battery_capacity_kwh"] == 999.0
+
+
+class TestUpdateEnergyPlanWiring:
+    """The Energiefahrplan section of update() – see energy_plan.py."""
+
+    def _build(self, make_config, fake_ws, **overrides):
+        return build_controller(make_config, fake_ws, **overrides)
+
+    @pytest.mark.asyncio
+    async def test_result_includes_energy_plan_after_first_tick(self, make_config, fake_ws):
+        ctrl, optimizer, inverter, model = self._build(make_config, fake_ws)
+        fake_ws.values.update({
+            "sensor.pv": 0.0, "sensor.load": 0.0, "sensor.grid": 0.0,
+            "sensor.soc": 50.0, "sensor.batp": 0.0, "sensor.price": 0.30,
+        })
+        result = await ctrl.update()
+        assert "energy_plan" in result
+        assert "deficit_kwh" in result["energy_plan"]
+        assert "windows" in result["energy_plan"]
+
+    @pytest.mark.asyncio
+    async def test_plan_not_recomputed_within_the_hour(self, make_config, fake_ws):
+        ctrl, optimizer, inverter, model = self._build(make_config, fake_ws)
+        fake_ws.values.update({
+            "sensor.pv": 0.0, "sensor.load": 0.0, "sensor.grid": 0.0,
+            "sensor.soc": 50.0, "sensor.batp": 0.0, "sensor.price": 0.30,
+        })
+        await ctrl.update()
+        first = ctrl._energy_plan
+        fake_ws.values["sensor.soc"] = 10.0   # would change the deficit if recomputed
+        await ctrl.update()
+        assert ctrl._energy_plan is first   # same object -> not recomputed
+
+    @pytest.mark.asyncio
+    async def test_plan_recomputes_after_the_interval_elapses(self, make_config, fake_ws):
+        ctrl, optimizer, inverter, model = self._build(make_config, fake_ws)
+        fake_ws.values.update({
+            "sensor.pv": 0.0, "sensor.load": 0.0, "sensor.grid": 0.0,
+            "sensor.soc": 50.0, "sensor.batp": 0.0, "sensor.price": 0.30,
+        })
+        await ctrl.update()
+        first = ctrl._energy_plan
+        ctrl._last_energy_plan_at -= timedelta(hours=2)   # simulate elapsed time
+        await ctrl.update()
+        assert ctrl._energy_plan is not first
 
 
 @pytest.mark.asyncio

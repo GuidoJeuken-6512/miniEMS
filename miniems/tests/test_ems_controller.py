@@ -541,6 +541,29 @@ class TestShouldDeferGridCharge:
         assert ctrl._should_defer_grid_charge(1.0, now) is False
 
 
+class TestPlanDeadline:
+    def test_uses_tomorrows_peak_when_available(self, make_config, fake_ws, now):
+        ctrl = make_controller(make_config, fake_ws, solcast_peak_time_tomorrow_entity="sensor.ptm")
+        fake_ws.datetimes["sensor.ptm"] = now + timedelta(hours=22)
+        assert ctrl._plan_deadline(now) == now + timedelta(hours=22)
+
+    def test_falls_back_to_tomorrows_dark_window_end(self, make_config, fake_ws, now):
+        ctrl = make_controller(make_config, fake_ws, solcast_peak_time_tomorrow_entity="",
+                                grid_charge_dark_end_hour=6)
+        deadline = ctrl._plan_deadline(now)
+        assert deadline.date() == (now + timedelta(days=1)).date()
+        assert deadline.hour == 6
+
+    def test_falls_back_when_tomorrows_peak_is_stale(self, make_config, fake_ws, now):
+        ctrl = make_controller(make_config, fake_ws, solcast_peak_time_tomorrow_entity="sensor.ptm",
+                                grid_charge_dark_end_hour=6)
+        fake_ws.datetimes["sensor.ptm"] = now + timedelta(hours=22)
+        fake_ws.stale_daily["sensor.ptm"] = True
+        deadline = ctrl._plan_deadline(now)
+        assert deadline.hour == 6
+        assert deadline.date() == (now + timedelta(days=1)).date()
+
+
 class TestGridChargeCurrentA:
     """V1: stretch the grid-charge current across the remaining price window."""
 

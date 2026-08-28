@@ -54,6 +54,11 @@ solcast_remaining: Remaining Today
 solcast_today: Today Total
 solcast_tomorrow: Tomorrow
 
+# Energiefahrplan (proactive tonight-to-tomorrow energy plan)
+energy_plan: Energy Plan (Tonight → Tomorrow)
+energy_plan_deficit: Grid Charge Needed
+energy_plan_cost: Estimated Grid Charge Cost
+
 # Forecast & Prediction
 forecast_prediction: Forecast & Prediction
 predicted_load: Predicted Load
