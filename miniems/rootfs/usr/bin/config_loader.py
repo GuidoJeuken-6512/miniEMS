@@ -214,7 +214,23 @@ class Config:
             ]
             if e
         ]
-        return base + solcast + optional + scenario2
+        # Write-confirmation targets: InverterController reads these back from
+        # ws.state_cache to decide whether a service call actually landed
+        # (inverter_controller.py, _set_charge_current/_set_discharge_current/
+        # _set_grid_charge). Omitted here until now, so the cache never held
+        # them and every write silently never confirmed – invisible in
+        # simulation mode (which confirms without checking the cache) but
+        # fatal for real control: a live write would retry forever and trip
+        # inverter_write_status="error" after INVERTER_WRITE_STUCK_THRESHOLD_SEC.
+        control = [
+            e for e in [
+                self.inverter_charge_current_entity,
+                self.battery_discharging_current_entity,
+                self.grid_charge_switch_entity,
+            ]
+            if e
+        ]
+        return base + solcast + optional + scenario2 + control
 
 
 def _defaults() -> dict:

@@ -33,6 +33,23 @@ class TestDefaults:
         cfg = Config()
         assert cfg.battery_voltage_entity in cfg.monitored_entities
 
+    def test_monitored_entities_includes_control_entities(self):
+        """Regression: InverterController reads these back from
+        ws.state_cache to confirm a write landed (inverter_controller.py,
+        _set_charge_current/_set_discharge_current/_set_grid_charge). Before
+        this fix they were never subscribed, so the cache entry was always
+        empty and a real (non-simulated) write could never confirm –
+        retried forever, eventually tripping inverter_write_status="error"."""
+        cfg = Config()
+        assert cfg.inverter_charge_current_entity in cfg.monitored_entities
+        assert cfg.battery_discharging_current_entity in cfg.monitored_entities
+        assert cfg.grid_charge_switch_entity in cfg.monitored_entities
+
+    def test_monitored_entities_excludes_blanked_control_entities(self):
+        cfg = Config()
+        cfg.grid_charge_switch_entity = ""
+        assert "" not in cfg.monitored_entities
+
     def test_monitored_entities_excludes_blanked_optional_fields(self):
         cfg = Config()
         cfg.feed_in_energy_entity = ""

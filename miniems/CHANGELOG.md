@@ -1,5 +1,27 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.15
+
+### Bug Fixes
+
+- **Wechselrichter-Schreibbestätigung wäre im Live-Betrieb nie bestätigt worden.**
+  `InverterController` liest die drei Steuer-Entities
+  (`inverter_charge_current_entity`, `battery_discharging_current_entity`,
+  `grid_charge_switch_entity`) zur Bestätigung eines Schreibvorgangs aus
+  `ws.state_cache` — standen aber nicht in `Config.monitored_entities`, also
+  hat `HAWebSocketClient` sie nie abonniert und der Cache-Eintrag war immer
+  leer. `matched` war damit **immer** `False`. Im Simulationsmodus (heutiger
+  Auslieferungszustand) unsichtbar, weil Sim ohne Cache-Abgleich sofort
+  bestätigt — im Live-Betrieb hätte jeder Schreibvorgang dauerhaft
+  unbestätigt geblieben, wäre alle 30 s neu gesendet worden und hätte nach
+  `INVERTER_WRITE_STUCK_THRESHOLD_SEC` (30 min)
+  `sensor.miniems_inverter_write_status = "error"` ausgelöst.
+
+  Live gegen die lokale Testinstanz verifiziert (Simulationsmodus,
+  unverändert): `Config loaded (v17): 29 entities monitored` (vorher 23),
+  `States refreshed: 29/29 entities` — die drei Steuer-Entities werden jetzt
+  tatsächlich abonniert und gecacht.
+
 ## 2.0.14
 
 ### Added
