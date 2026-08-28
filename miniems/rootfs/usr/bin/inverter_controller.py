@@ -39,28 +39,13 @@ from const import (
     INVERTER_WRITE_CONFIRM_TIMEOUT_SEC,
     INVERTER_WRITE_ERROR_WINDOW_SEC,
 )
+from write_channel import WriteChannel, WriteChannelSet, WriteSpec, matches
 
 if TYPE_CHECKING:
     from config_loader import Config
     from ha_state_client import HAStateClient
 
 _LOGGER = logging.getLogger(__name__)
-
-
-class _WriteChannel:
-    """Tracks one inverter write's target and confirmation state."""
-    __slots__ = ("target", "sent_at", "confirmed", "pending_since", "label")
-
-    def __init__(self) -> None:
-        self.target: Any = None
-        self.sent_at: float | None = None   # time.monotonic() of the last send
-        self.confirmed: bool = True         # nothing pending yet
-        # time.monotonic() of when this channel most recently became
-        # unconfirmed – distinct from sent_at, which resets on every retry.
-        # Lets longest_pending_sec answer "how long has this really been
-        # wrong", not "how long since the last attempt".
-        self.pending_since: float | None = None
-        self.label: str = ""                # human-readable, set on first use
 
 
 class InverterController:
@@ -78,9 +63,7 @@ class InverterController:
         self._llt = long_lived_token
         self._active_token = supervisor_token
         self._ws = ws_client
-        self._charge_ch = _WriteChannel()
-        self._discharge_ch = _WriteChannel()
-        self._grid_ch = _WriteChannel()
+        self._channels = WriteChannelSet(["charge", "discharge", "grid"])
         # Reported to dashboard/sensors
         self.charge_current_limit_a: int | None = None       # confirmed
         self.discharge_current_limit_a: int | None = None    # confirmed
@@ -115,10 +98,7 @@ class InverterController:
     def write_unconfirmed(self) -> int:
         """How many of the three controls (charge/discharge/grid-switch) are
         currently pending confirmation. Falls back to 0 once all match."""
-        return sum(
-            0 if ch.confirmed else 1
-            for ch in (self._charge_ch, self._discharge_ch, self._grid_ch)
-        )
+        return self._channels.unconfirmed_count
 
     @property
     def longest_pending_sec(self) -> float:
@@ -130,25 +110,12 @@ class InverterController:
         that has genuinely diverged from what the app wants for a long time –
         see inverter_write_status / INVERTER_WRITE_STUCK_THRESHOLD_SEC.
         """
-        now = time.monotonic()
-        pending = [
-            now - ch.pending_since
-            for ch in (self._charge_ch, self._discharge_ch, self._grid_ch)
-            if not ch.confirmed and ch.pending_since is not None
-        ]
-        return max(pending, default=0.0)
+        return self._channels.longest_pending_sec
 
     @property
     def stuck_channel_labels(self) -> list[str]:
         """Labels of currently-unconfirmed channels, longest-pending first."""
-        now = time.monotonic()
-        pending = [
-            (now - ch.pending_since, ch.label)
-            for ch in (self._charge_ch, self._discharge_ch, self._grid_ch)
-            if not ch.confirmed and ch.pending_since is not None and ch.label
-        ]
-        pending.sort(reverse=True)
-        return [label for _, label in pending]
+        return self._channels.stuck_channel_labels
 
     def pop_write_events(self) -> list[dict[str, Any]]:
         """Return and clear write-confirm lifecycle events accumulated since
@@ -231,7 +198,7 @@ class InverterController:
         _LOGGER.info("Restoring safe inverter defaults before shutdown")
 
         now = time.monotonic()
-        for ch in (self._charge_ch, self._discharge_ch, self._grid_ch):
+        for ch in self._channels:
             if not ch.confirmed and ch.pending_since is not None:
                 # The most interesting case (a write that never confirmed at
                 # all) would otherwise vanish silently on restart – the
@@ -243,9 +210,7 @@ class InverterController:
                     "latency_sec": round(now - ch.pending_since, 1),
                 })
 
-        self._charge_ch = _WriteChannel()
-        self._discharge_ch = _WriteChannel()
-        self._grid_ch = _WriteChannel()
+        self._channels.reset()
         await self._set_grid_charge(False, sim)
         await self._set_charge_current(cfg.battery_max_charge_current_a, sim)
         await self._set_discharge_current(cfg.battery_max_discharge_current_a, sim)
@@ -260,11 +225,14 @@ class InverterController:
         if not entity:
             return
         raw = self._ws.state_cache.get(entity, {}).get("state") if self._ws else None
-        matched = raw == ("on" if on else "off")
+        expected = "on" if on else "off"
+        spec = WriteSpec(
+            domain="switch", service="turn_on" if on else "turn_off",
+            entity_id=entity, payload={"entity_id": entity}, expected=expected,
+        )
 
         await self._write_confirmed(
-            self._grid_ch, on, matched, sim,
-            "switch", "turn_on" if on else "turn_off", {"entity_id": entity},
+            self._channels["grid"], spec, matches(raw, spec), sim,
             f"Grid charge switch ({entity})",
         )
 
@@ -274,14 +242,16 @@ class InverterController:
             return
         self.charge_current_target_a = value_a
         actual = self._ws.get_state_value(entity) if self._ws else None
-        matched = actual is not None and abs(actual - value_a) < 0.5
+        spec = WriteSpec(
+            domain="number", service="set_value",
+            entity_id=entity, payload={"entity_id": entity, "value": value_a}, expected=value_a,
+        )
 
         await self._write_confirmed(
-            self._charge_ch, value_a, matched, sim,
-            "number", "set_value", {"entity_id": entity, "value": value_a},
+            self._channels["charge"], spec, matches(actual, spec), sim,
             f"Charge current ({entity})",
         )
-        self.charge_current_limit_a = value_a if self._charge_ch.confirmed else None
+        self.charge_current_limit_a = value_a if self._channels["charge"].confirmed else None
 
     async def _set_discharge_current(self, value_a: int, sim: bool) -> None:
         entity = self._cfg.battery_discharging_current_entity
@@ -289,37 +259,39 @@ class InverterController:
             return
         self.discharge_current_target_a = value_a
         actual = self._ws.get_state_value(entity) if self._ws else None
-        matched = actual is not None and abs(actual - value_a) < 0.5
+        spec = WriteSpec(
+            domain="number", service="set_value",
+            entity_id=entity, payload={"entity_id": entity, "value": value_a}, expected=value_a,
+        )
 
         await self._write_confirmed(
-            self._discharge_ch, value_a, matched, sim,
-            "number", "set_value", {"entity_id": entity, "value": value_a},
+            self._channels["discharge"], spec, matches(actual, spec), sim,
             f"Discharge current ({entity})",
         )
-        self.discharge_current_limit_a = value_a if self._discharge_ch.confirmed else None
+        self.discharge_current_limit_a = value_a if self._channels["discharge"].confirmed else None
 
     async def _write_confirmed(
         self,
-        ch: _WriteChannel,
-        target: Any,
+        ch: WriteChannel,
+        spec: WriteSpec,
         matched: bool,
         sim: bool,
-        domain: str,
-        service: str,
-        data: dict[str, Any],
         label: str,
     ) -> None:
-        """Send `domain.service(data)` for `target`, deduped on the target.
+        """Send `spec.domain.spec.service(spec.payload)`, deduped on `spec.expected`.
 
         `matched` is the caller's fresh comparison of the *real* HA state
-        against `target`. HTTP success alone never marks a write confirmed –
-        only `matched` does. While unconfirmed, the call is re-sent every
-        INVERTER_WRITE_CONFIRM_TIMEOUT_SEC (one EMS tick), so a write that HA
-        silently swallowed or that a slow bridge hasn't applied yet keeps
-        being retried instead of being assumed done after a single 200.
+        against the target (see write_channel.matches()). HTTP success alone
+        never marks a write confirmed – only `matched` does. While
+        unconfirmed, the call is re-sent every INVERTER_WRITE_CONFIRM_TIMEOUT_SEC
+        (one EMS tick), so a write that HA silently swallowed or that a slow
+        bridge hasn't applied yet keeps being retried instead of being
+        assumed done after a single 200.
         """
         now = time.monotonic()
         ch.label = label
+        target = spec.expected
+        domain, service, data = spec.domain, spec.service, spec.payload
 
         if ch.target != target:
             ch.target = target

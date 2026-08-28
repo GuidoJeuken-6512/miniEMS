@@ -1,5 +1,31 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.3.0
+
+### Changed
+
+- **Geräteprofile (I4): Schreibbestätigungs-Engine nach `write_channel.py`
+  extrahiert.** Reiner Refactor, keine Verhaltensänderung — die private
+  `_WriteChannel`-Klasse aus `inverter_controller.py` wird zur
+  öffentlichen `WriteChannel`, generalisiert über eine neue
+  `WriteSpec`/`matches()`-Abstraktion, die `switch`/`number`/`select`
+  einheitlich vergleicht (`select` noch ungenutzt, aber getestet — für
+  ein künftiges `device_control.py`). Die drei bisher einzeln benannten
+  Kanäle (`_charge_ch`/`_discharge_ch`/`_grid_ch`) werden zu einem
+  `WriteChannelSet`, das die bestehenden Aggregat-Properties
+  (`write_unconfirmed`, `longest_pending_sec`, `stuck_channel_labels`)
+  über beliebig viele Kanäle statt der festen drei berechnet.
+
+  **Abnahmekriterium erfüllt:** `test_inverter_controller.py` läuft
+  **unverändert** grün — der gesamte Confirm/Retry-Vertrag aus v2.0.1/
+  v2.0.2 (HTTP 200 bestätigt nie allein, `None`-Timeout zählt nicht als
+  Fehler, Sim bestätigt sofort ohne Event, `unconfirmed_at_shutdown`)
+  bleibt bit-für-bit erhalten.
+
+  Live gegen die lokale Testinstanz verifiziert: sauberer Neustart,
+  Moduswechsel und Schreibvorgänge im Simulationsmodus funktionieren
+  unverändert.
+
 ## 2.2.0
 
 ### Added
