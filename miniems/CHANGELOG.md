@@ -1,5 +1,20 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.6.1
+
+### Fixed
+
+- **Devices-Seite fast unlesbar hell auf manchen Installationen.** `.devices-table`
+  war seit ihrer Einführung (I2/v2.1.0) nur im ersten (blauen, inzwischen von der
+  zweiten, dunklen Theme-Definition weiter unten in `style.css` überschriebenen)
+  Block gestylt — anders als `.log-table`/`.db-table`, die beide eine passende
+  dunkle Fassung bekamen. Die Tabelle fiel dadurch auf `background: #fff` zurück,
+  während die Zellen den (für dunkle Hintergründe gedachten) hellgrauen
+  `body`-Text erbten: helle Schrift auf weißem Grund, kaum lesbar — und zwar nur
+  auf dieser einen Seite, alle anderen Tabs blieben unverändert dunkel. Neue,
+  eigenständige dunkle `.devices-table`-Regeln nach dem Vorbild von `.db-table`
+  ergänzt.
+
 ## 2.6.0
 
 ### Added
