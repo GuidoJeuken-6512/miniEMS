@@ -94,6 +94,9 @@ def migrate(data: dict) -> dict:
     if version < 18:
         data = _v17_to_v18(data)
 
+    if version < 19:
+        data = _v18_to_v19(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -295,6 +298,20 @@ def _v17_to_v18(data: dict) -> dict:
         data["solcast_peak_time_tomorrow_entity"] = "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_morgen"
         _LOGGER.info("Migration v17→v18: set solcast_peak_time_tomorrow_entity = %r",
                      data["solcast_peak_time_tomorrow_entity"])
+    return data
+
+
+def _v18_to_v19(data: dict) -> dict:
+    """v18 → v19: battery voltage entity.
+
+    Needed to convert a charge/discharge power target (W) into the current
+    (A) the Deye's number entities accept – see
+    docs/roadmap/energiefahrplan.md, V1/V3a.
+    """
+    if "battery_voltage_entity" not in data:
+        data["battery_voltage_entity"] = "sensor.deye8k_battery_voltage"
+        _LOGGER.info("Migration v18→v19: set battery_voltage_entity = %r",
+                     data["battery_voltage_entity"])
     return data
 
 

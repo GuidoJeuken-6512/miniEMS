@@ -48,6 +48,7 @@ def test_missing_version_defaults_to_zero_and_runs_full_chain():
     assert result["inverter_write_stuck_threshold_sec"] == 1800
     assert result["solcast_peak_time_today_entity"] == "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_heute"
     assert result["solcast_peak_time_tomorrow_entity"] == "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_morgen"
+    assert result["battery_voltage_entity"] == "sensor.deye8k_battery_voltage"
 
 
 def test_v0_to_v1_renames_gbp_to_eur():
@@ -150,6 +151,18 @@ def test_v17_to_v18_does_not_override_explicit_value():
     data = {"_version": 17, "solcast_peak_time_today_entity": "sensor.custom_peak"}
     result = migrate(data)
     assert result["solcast_peak_time_today_entity"] == "sensor.custom_peak"
+
+
+def test_v18_to_v19_sets_battery_voltage_entity():
+    data = {"_version": 18}
+    result = migrate(data)
+    assert result["battery_voltage_entity"] == "sensor.deye8k_battery_voltage"
+
+
+def test_v18_to_v19_does_not_override_explicit_value():
+    data = {"_version": 18, "battery_voltage_entity": "sensor.custom_voltage"}
+    result = migrate(data)
+    assert result["battery_voltage_entity"] == "sensor.custom_voltage"
 
 
 def test_migration_is_idempotent():

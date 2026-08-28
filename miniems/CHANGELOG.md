@@ -1,5 +1,15 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.0.9
+
+### Added
+
+- **`battery_voltage_entity` config field** (`sensor.deye8k_battery_voltage`
+  by default) – converts a charge/discharge power target (W) into the
+  current (A) the Deye's `number` entities accept. Groundwork for the
+  [Energiefahrplan](../docs/roadmap/energiefahrplan.md) roadmap (V1 "Ladeleistung
+  strecken", V3a "Gelernte Ladeleistung") – not read by any decision yet.
+
 ## 2.0.8
 
 ### Bug Fixes

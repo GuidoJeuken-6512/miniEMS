@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-27
+revision_date: 2026-08-28
 ---
 
 # Energiefahrplan — netzdienliches Laden für Batterie und E-Auto
@@ -15,6 +15,7 @@ revision_date: 2026-08-27
     | Baustein | Stand |
     |---|---|
     | Schritt 1 — Attribut-Zugriff | ✅ umgesetzt in v2.0.4 |
+    | Config-Feld `battery_voltage_entity` | ✅ umgesetzt (Config-Schema v19) — Voraussetzung für V1 und V3a, noch von keiner Entscheidung gelesen |
     | V1 — Ladeleistung strecken | offen; braucht die Frist aus V2 |
     | V2 — PriceCurve | Modul gebaut und getestet; Fensterwahl bewusst nicht verdrahtet |
     | V3 — Export-Halt auf den echten PV-Peak-Zeitpunkt | offen; V3a (Peak-Sensoren) und V3b (volle Kurve) |
@@ -198,9 +199,11 @@ T_needed_h   = bat_kwh_free / P_charge_kw
 ```
 
 `bat_kwh_free` liefert bereits `BatteryModel.free_to_charge_kwh(soc)`.
-`battery_voltage_v` ist neu — dieselbe Entity, die V1 für `I_soll = P_soll /
-Batteriespannung` ohnehin braucht (`sensor.deye8k_battery_voltage`, bisher kein
-Config-Feld). Beide Vorschläge sollten sich dasselbe Feld teilen.
+`battery_voltage_v` kommt aus `cfg.battery_voltage_entity`
+(`sensor.deye8k_battery_voltage`, Config-Schema v19) — dieselbe Entity, die V1
+für `I_soll = P_soll / Batteriespannung` ohnehin braucht. Das Feld existiert
+seit v2.0.9, wird aber noch von keiner Entscheidung gelesen — das ist Sache
+dieses Abschnitts und von V1.
 
 Ursprünglich stand hier schlicht `battery_max_charge_current_a × battery_voltage_v` — der
 Konfigurationswert als angenommene Ladeleistung. Der folgende Abschnitt ersetzt das durch

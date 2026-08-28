@@ -40,6 +40,11 @@ class Config:
     battery_power_entity: str = "sensor.deye_battery_power"
     grid_power_entity: str = "sensor.deye_grid_power"
     load_power_entity: str = "sensor.deye_load_power"
+    # Needed to convert a charge/discharge power target (W) into the current
+    # (A) the Deye's number entities actually accept – see roadmap
+    # docs/roadmap/energiefahrplan.md, V1 ("Ladeleistung strecken") and V3a
+    # ("Gelernte Ladeleistung"), which both share this field.
+    battery_voltage_entity: str = "sensor.deye8k_battery_voltage"
     battery_capacity_kwh: float = 10.0
     battery_min_soc: int = 15
     battery_max_soc: int = 95
@@ -170,6 +175,7 @@ class Config:
             self.pv_power_entity,
             self.battery_soc_entity,
             self.battery_power_entity,
+            self.battery_voltage_entity,
             self.grid_power_entity,
             self.load_power_entity,
             self.electricity_price_entity,

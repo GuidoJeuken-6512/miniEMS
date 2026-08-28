@@ -29,6 +29,10 @@ class TestDefaults:
         assert cfg.solcast_peak_time_today_entity in cfg.monitored_entities
         assert cfg.solcast_peak_time_tomorrow_entity in cfg.monitored_entities
 
+    def test_monitored_entities_includes_battery_voltage(self):
+        cfg = Config()
+        assert cfg.battery_voltage_entity in cfg.monitored_entities
+
     def test_monitored_entities_excludes_blanked_optional_fields(self):
         cfg = Config()
         cfg.feed_in_energy_entity = ""
