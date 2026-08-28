@@ -1,0 +1,30 @@
+[tool.pytest.ini_options]
+# The app is a flat module layout (rootfs/usr/bin/*.py, imports like
+# "from const import ...") rather than a package – add it to sys.path so
+# tests can `import ems_controller` etc. directly, same as main.py does at
+# runtime inside the container (where these files sit at /usr/bin/).
+pythonpath = ["rootfs/usr/bin"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+# Only the add-on's own runtime code. Excluded on purpose:
+#   integration/   – a separate Home Assistant custom component; it imports
+#                    the `homeassistant` package, a dependency universe of
+#                    its own (pytest-homeassistant-custom-component), not
+#                    part of this add-on's requirements.txt.
+#   templates/, static/, translations/ – not Python.
+#   tools/         – one-off maintenance script, not part of the running add-on.
+source = ["rootfs/usr/bin"]
+omit = [
+    "rootfs/usr/bin/integration/*",
+    "rootfs/usr/bin/tools/*",
+]
+
+[tool.coverage.report]
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
