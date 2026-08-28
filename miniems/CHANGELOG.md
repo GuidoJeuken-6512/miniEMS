@@ -1,5 +1,55 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.4.0
+
+### Added
+
+- **Geräteprofile (I5a): der Grid-Charging-Pfad spricht jetzt Watt.**
+  Neues Modul `device_control.py` — die Watt-Grenze: `to_actuator_value()`/
+  `from_actuator_value()` (A/W/%-Umrechnung je nach Profil-`via:`),
+  `clamp_to_limits()` (Clamping **und** Step-Quantisierung — Korrektheit,
+  die die bisherige `int()`-Rundung nicht hatte), `LiveLimitsCache` (eine
+  live gelesene, aber vorübergehend `unavailable` gewordene Obergrenze
+  wird **nie** stillschweigend gesenkt — ein Solarman-Aussetzer darf das
+  Laden nicht blockieren).
+
+  `EMSController._grid_charge_current_a()` → `_grid_charge_power_w()`:
+  liest **kein** `battery_voltage` mehr, rechnet nur noch in kWh/h → W,
+  liefert `None` statt eines geraten Ampere-Fallbacks („kein präziser
+  Zielwert berechenbar — nutze das Maximum des Stellglieds"). Die A↔W-
+  Umrechnung passiert jetzt an **genau einer** Stelle:
+  `InverterController._resolve_grid_charge_current_a()`, mit `48 V` als
+  Rückfall-Spannung, falls `battery_voltage` nicht verfügbar ist. Der
+  konfigurierte `battery_max_charge_current_a` bleibt dabei die harte
+  äußere Grenze — ein live gemeldetes Maximum kann sie nur **verschärfen**
+  (z. B. ein BMS-Limit unter dem konfigurierten Wert), nie **lockern**.
+
+  `InverterController.apply_mode()`: Parameter `grid_charge_current_a`
+  (int, Ampere) → `grid_charge_power_w` (float, Watt).
+
+  **Bewusst kleiner geschnitten als ursprünglich in
+  `docs/roadmap/v3.0-geraeteprofile.md` als „I5" geplant** — dort war eine
+  komplett Watt-native `apply_mode()`-Dispatch über das Profil-`modes:`-
+  Vokabular, Migration auf Schema v20 und eine live vom Resolver
+  gespeiste Laufzeitkonfiguration in einem Schritt vorgesehen. Das hätte
+  Entladen und alle vier anderen Modi (bisher rein amperebasiert, nie ein
+  berechneter Zwischenwert) in denselben sicherheitskritischen Umbau
+  hineingezogen, ohne zusätzlichen Nutzen für den heutigen Stand. Diese
+  Version ändert **ausschließlich** den GRID_CHARGING-Ladepfad — Entladen
+  und alle anderen Modi bleiben unverändert amperebasiert. Rest folgt als
+  eigener Schritt, siehe Roadmap-Dokument.
+
+  Live gegen die lokale Testinstanz mit echten Daten verifiziert (reale
+  Batteriespannung, reale `min`/`max`/`step`-Attribute des Lade-Entities):
+  die konfigurierte Ampere-Obergrenze (185 A) wird bei jedem getesteten
+  Watt-Zielwert korrekt eingehalten, auch bei einem absichtlich absurden
+  Test-Eingabewert (1.000.000 W).
+
+  31 neue Tests (`test_device_control.py`, 100 % Abdeckung; Anpassungen in
+  `test_ems_controller.py`, `test_ems_controller_update.py`,
+  `test_inverter_controller.py` für die neue Watt-Semantik). 650 Tests
+  grün, Coverage 94%.
+
 ## 2.3.0
 
 ### Changed

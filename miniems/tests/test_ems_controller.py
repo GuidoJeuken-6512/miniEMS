@@ -564,54 +564,40 @@ class TestPlanDeadline:
         assert deadline.date() == (now + timedelta(days=1)).date()
 
 
-class TestGridChargeCurrentA:
-    """V1: stretch the grid-charge current across the remaining price window."""
+class TestGridChargePowerW:
+    """V1: stretch the grid-charge power across the remaining price window.
+
+    Since v2.4.0 this returns Watts, not amps, and no longer reads
+    battery_voltage at all – the Watts->amps conversion (and the clamp to
+    battery_max_charge_current_a) moved to InverterController /
+    device_control.py, see docs/roadmap/v3.0-geraeteprofile.md, "Die
+    Watt-Abstraktion". `None` means "no precise target, use the actuator's
+    own max" – tested at the InverterController level
+    (test_inverter_controller.py), not here.
+    """
 
     def _base_kwargs(self):
-        return dict(
-            electricity_price_entity="sensor.price",
-            battery_max_charge_current_a=100,
-            battery_voltage_entity="sensor.voltage",
-        )
+        return dict(electricity_price_entity="sensor.price")
 
-    def test_fallback_when_no_free_capacity(self, make_config, fake_ws, now):
+    def test_none_when_no_free_capacity(self, make_config, fake_ws, now):
         ctrl = make_controller(make_config, fake_ws, **self._base_kwargs())
-        assert ctrl._grid_charge_current_a(0.0, now) == 100
-        assert ctrl._grid_charge_current_a(None, now) == 100
+        assert ctrl._grid_charge_power_w(0.0, now) is None
+        assert ctrl._grid_charge_power_w(None, now) is None
 
-    def test_fallback_without_a_tariff_calendar(self, make_config, fake_ws, now):
+    def test_none_without_a_tariff_calendar(self, make_config, fake_ws, now):
         ctrl = make_controller(make_config, fake_ws, **self._base_kwargs())
-        fake_ws.values["sensor.voltage"] = 50.0
-        assert ctrl._grid_charge_current_a(5.0, now) == 100
+        assert ctrl._grid_charge_power_w(5.0, now) is None
 
-    def test_fallback_without_battery_voltage(self, make_config, fake_ws, now):
-        now_ = datetime(2026, 8, 15, 3, 0, tzinfo=timezone.utc)   # inside NIEDRIG 02-06
-        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs())
-        fake_ws.attributes["sensor.price"] = _OCTOPUS_TIMESLOTS
-        assert ctrl._grid_charge_current_a(5.0, now_) == 100
-
-    def test_stretches_current_across_remaining_window(self, make_config, fake_ws):
+    def test_stretches_power_across_remaining_window(self, make_config, fake_ws):
         # 03:00, NIEDRIG 02-06 -> window ends 06:00, 3h remaining.
-        # 80% margin -> 2.4h to work with. Need 4.8 kWh -> P_soll = 2.0 kW.
-        # voltage=50V -> I_soll = 2000/50 = 40 A.
+        # 80% margin -> 2.4h to work with. Need 4.8 kWh -> P_soll = 2.0 kW = 2000 W.
         now_ = datetime(2026, 8, 15, 3, 0, tzinfo=timezone.utc)
         ctrl = make_controller(make_config, fake_ws, **self._base_kwargs())
         fake_ws.attributes["sensor.price"] = _OCTOPUS_TIMESLOTS
-        fake_ws.values["sensor.voltage"] = 50.0
-        assert ctrl._grid_charge_current_a(4.8, now_) == 40
+        assert ctrl._grid_charge_power_w(4.8, now_) == pytest.approx(2000.0)
 
-    def test_clamps_to_configured_max(self, make_config, fake_ws):
-        # Tiny remaining window, large need -> would exceed the config max.
-        now_ = datetime(2026, 8, 15, 5, 55, tzinfo=timezone.utc)   # 5 min left in NIEDRIG
+    def test_none_when_window_already_ended(self, make_config, fake_ws):
         ctrl = make_controller(make_config, fake_ws, **self._base_kwargs())
-        fake_ws.attributes["sensor.price"] = _OCTOPUS_TIMESLOTS
-        fake_ws.values["sensor.voltage"] = 50.0
-        assert ctrl._grid_charge_current_a(10.0, now_) == 100   # clamped, not 100s of amps
-
-    def test_fallback_when_window_already_ended(self, make_config, fake_ws):
-        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs())
-        fake_ws.attributes["sensor.price"] = _OCTOPUS_TIMESLOTS
-        fake_ws.values["sensor.voltage"] = 50.0
         # A gap in the calendar (no window at `now`) -> window_end() is None.
         data = {"timeslots": [
             {"name": "X", "rate": "10.0",
@@ -619,7 +605,7 @@ class TestGridChargeCurrentA:
         ]}
         fake_ws.attributes["sensor.price"] = data
         gap_time = datetime(2026, 8, 15, 10, 0, tzinfo=timezone.utc)
-        assert ctrl._grid_charge_current_a(5.0, gap_time) == 100
+        assert ctrl._grid_charge_power_w(5.0, gap_time) is None
 
 
 class TestForecastRemainingKwh:

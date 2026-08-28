@@ -217,11 +217,11 @@ class EMSController:
 
         # Apply inverter control (simulation or real)
         if self._inverter:
-            grid_charge_current_a = (
-                self._grid_charge_current_a(bat_kwh_free, now)
+            grid_charge_power_w = (
+                self._grid_charge_power_w(bat_kwh_free, now)
                 if self._mode is EMSMode.GRID_CHARGING else None
             )
-            await self._inverter.apply_mode(self._mode, grid_charge_current_a)
+            await self._inverter.apply_mode(self._mode, grid_charge_power_w)
             # Persist write-confirm lifecycle events durably (SQLite survives
             # restarts and days; the add-on's own log buffer does not) – see
             # InverterController.pop_write_events().
@@ -733,8 +733,8 @@ class EMSController:
         # time to finish before the next PV peak.
         return not self._should_defer_grid_charge(bat_kwh_free, now)
 
-    def _grid_charge_current_a(self, bat_kwh_free: float | None, now: datetime) -> int:
-        """V1: stretch the grid-charge current across the remaining price
+    def _grid_charge_power_w(self, bat_kwh_free: float | None, now: datetime) -> float | None:
+        """V1: stretch the grid-charge power across the remaining price
         window instead of always requesting full current.
 
         docs/roadmap/energiefahrplan.md, V1 ("Ladeleistung strecken"): within
@@ -745,38 +745,36 @@ class EMSController:
         very next tick already corrects for it – no separate state that
         could go stale.
 
-        Falls back to battery_max_charge_current_a (today's behaviour, and
-        always safe) whenever the window end or battery_voltage cannot be
-        determined.
+        Returns Watts, not amps – as of v2.4.0 this function no longer reads
+        battery_voltage at all (docs/roadmap/v3.0-geraeteprofile.md, "Die
+        Watt-Abstraktion": battery_voltage is now consumed at exactly one
+        place, InverterController's actuator conversion). Returns `None`
+        whenever a precise stretched target can't be computed – the caller
+        (InverterController.apply_mode) then uses the actuator's own
+        configured max, exactly like the old amp-based fallback to
+        `battery_max_charge_current_a` did, just expressed as "defer to
+        max" instead of a guessed number.
         """
         cfg = self._cfg
-        fallback = cfg.battery_max_charge_current_a
         if bat_kwh_free is None or bat_kwh_free <= 0:
-            return fallback
+            return None
 
         curve = PriceCurve.from_entity(self._ws, cfg.electricity_price_entity)
         if curve is None:
-            return fallback
+            return None
         window_end = curve.window_end(now)
         if window_end is None:
-            return fallback
+            return None
 
         # Target finishing at ~80% of the remaining window, not 100%: a
         # safety margin against the window ending slightly early or the
         # inverter taking a tick or two to apply the new current.
         remaining_h = (window_end - now).total_seconds() / 3600.0 * 0.8
         if remaining_h <= 0:
-            return fallback
-
-        if not cfg.battery_voltage_entity:
-            return fallback
-        voltage = self._ws.get_state_value(cfg.battery_voltage_entity)
-        if voltage is None or voltage <= 0:
-            return fallback
+            return None
 
         p_soll_kw = bat_kwh_free / remaining_h
-        i_soll_a = p_soll_kw * 1000.0 / voltage
-        return max(0, min(fallback, round(i_soll_a)))
+        return p_soll_kw * 1000.0
 
     def _plan_deadline(self, now: datetime) -> datetime:
         """When the battery must be full again by, for the Energiefahrplan.

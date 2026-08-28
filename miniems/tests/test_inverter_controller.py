@@ -9,14 +9,19 @@ from inverter_controller import InverterController
 
 
 class FakeWS:
-    """Read-only double: state_cache for switch, get_state_value for numbers."""
+    """Read-only double: state_cache for switch, get_state_value for numbers,
+    get_state_attribute for the live min/max/step device_control.py reads."""
 
     def __init__(self) -> None:
         self.state_cache: dict = {}
         self.values: dict = {}
+        self.attributes: dict = {}
 
     def get_state_value(self, entity_id):
         return self.values.get(entity_id)
+
+    def get_state_attribute(self, entity_id, attribute):
+        return self.attributes.get(entity_id, {}).get(attribute)
 
 
 @pytest.fixture
@@ -49,18 +54,53 @@ class TestSimulationMode:
         assert ctrl.discharge_current_limit_a == 0
 
     @pytest.mark.asyncio
-    async def test_grid_charging_current_override_is_used(self, make_config, ws):
+    async def test_grid_charging_power_override_is_used(self, make_config, ws):
         """V1 (docs/roadmap/energiefahrplan.md): EMSController can request a
-        stretched current instead of full blast."""
+        stretched power target (Watts) instead of full blast. No live
+        battery_voltage configured here -> device_control.py falls back to
+        its assumed 48V, so 2016 W -> 2016/48 = 42 A."""
         ctrl = make_ctrl(make_config, ws, simulation=True)
-        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_current_a=42)
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=2016.0)
         assert ctrl.charge_current_target_a == 42
         assert ctrl.charge_current_limit_a == 42
 
     @pytest.mark.asyncio
+    async def test_grid_charging_power_override_uses_live_voltage_when_available(self, make_config, ws):
+        ws.values["sensor.deye8k_battery_voltage"] = 50.0
+        ctrl = make_ctrl(make_config, ws, simulation=True)
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=1000.0)
+        assert ctrl.charge_current_target_a == 20   # 1000 / 50
+
+    @pytest.mark.asyncio
     async def test_grid_charging_none_override_keeps_full_current(self, make_config, ws):
         ctrl = make_ctrl(make_config, ws, simulation=True)
-        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_current_a=None)
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=None)
+        assert ctrl.charge_current_target_a == 185
+
+    @pytest.mark.asyncio
+    async def test_grid_charging_power_override_never_exceeds_configured_max(self, make_config, ws):
+        """The user's configured cap always wins as the outer bound, even
+        against a huge requested Watt target."""
+        ctrl = make_ctrl(make_config, ws, simulation=True)
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=1_000_000.0)
+        assert ctrl.charge_current_target_a == 185
+
+    @pytest.mark.asyncio
+    async def test_grid_charging_respects_a_live_max_below_the_configured_cap(self, make_config, ws):
+        """A BMS-imposed live max (e.g. 65 A, below the configured 185 A)
+        must tighten the effective ceiling, not be ignored."""
+        ws.attributes["number.charge_current"] = {"min": 0, "max": 65, "step": 1}
+        ctrl = make_ctrl(make_config, ws, simulation=True)
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=1_000_000.0)
+        assert ctrl.charge_current_target_a == 65
+
+    @pytest.mark.asyncio
+    async def test_grid_charging_live_max_above_configured_cap_does_not_loosen_it(self, make_config, ws):
+        """A live max ABOVE the configured cap must never let the effective
+        ceiling exceed what the user configured."""
+        ws.attributes["number.charge_current"] = {"min": 0, "max": 350, "step": 1}
+        ctrl = make_ctrl(make_config, ws, simulation=True)
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=1_000_000.0)
         assert ctrl.charge_current_target_a == 185
 
     @pytest.mark.asyncio

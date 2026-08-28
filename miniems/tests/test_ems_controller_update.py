@@ -57,7 +57,7 @@ class FakeOptimizer:
 class FakeInverter:
     def __init__(self) -> None:
         self.applied_modes: list[EMSMode] = []
-        self.last_grid_charge_current_a = None
+        self.last_grid_charge_power_w = None
         self.simulation = True
         self.write_errors = 0
         self.write_unconfirmed = 0
@@ -71,9 +71,9 @@ class FakeInverter:
             {"channel": "test", "target": 1, "outcome": "confirmed", "latency_sec": 1.0},
         ]
 
-    async def apply_mode(self, mode, grid_charge_current_a=None):
+    async def apply_mode(self, mode, grid_charge_power_w=None):
         self.applied_modes.append(mode)
-        self.last_grid_charge_current_a = grid_charge_current_a
+        self.last_grid_charge_power_w = grid_charge_power_w
 
     def pop_write_events(self):
         events, self._events = self._events, []
@@ -147,20 +147,21 @@ async def test_update_applies_inverter_mode(make_config, fake_ws):
 
 
 @pytest.mark.asyncio
-async def test_update_wires_stretched_grid_charge_current_to_inverter(make_config, fake_ws):
+async def test_update_wires_stretched_grid_charge_power_to_inverter(make_config, fake_ws):
     """V1 (docs/roadmap/energiefahrplan.md): end-to-end, update() must pass a
-    stretched (not full-blast) current to the inverter when a tariff
-    calendar and battery_voltage are available."""
+    stretched (not full-blast) Watts target to the inverter when a tariff
+    calendar is available. Since v2.4.0 this is Watts, computed without
+    reading battery_voltage at all (that conversion now happens inside
+    InverterController, see device_control.py)."""
     ctrl, optimizer, inverter, model = build_controller(
         make_config, fake_ws, mode_dwell_sec=0,
         cheap_rate_threshold_eur=0.5, grid_charge_dark_start_hour=21,
         grid_charge_dark_end_hour=6, battery_max_charge_current_a=100,
-        battery_max_soc=90, battery_voltage_entity="sensor.voltage",
+        battery_max_soc=90,
     )
     fake_ws.values.update({
         "sensor.pv": 0.0, "sensor.load": 0.0, "sensor.grid": 0.0,
         "sensor.soc": 50.0, "sensor.batp": 0.0, "sensor.price": 0.05,
-        "sensor.voltage": 50.0,
     })
     fake_ws.attributes["sensor.price"] = _NIEDRIG_0206_TIMESLOTS
     # A naive freeze: datetime.now().astimezone() attaches the local tzinfo
@@ -169,8 +170,9 @@ async def test_update_wires_stretched_grid_charge_current_to_inverter(make_confi
     with freeze_time("2026-08-15 03:00:00"):
         result = await ctrl.update()
     assert result["mode"] == EMSMode.GRID_CHARGING.value
-    assert inverter.last_grid_charge_current_a is not None
-    assert 0 < inverter.last_grid_charge_current_a < 100   # stretched, not full blast
+    # bat_kwh_free = (90-50)/100*10 = 4.0 kWh; window 03:00-06:00, 80% margin
+    # -> 2.4h; P_soll = 4.0/2.4 = 1.6667 kW = 1666.67 W.
+    assert inverter.last_grid_charge_power_w == pytest.approx(1666.67, abs=0.5)
 
 
 @pytest.mark.asyncio

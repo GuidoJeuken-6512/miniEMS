@@ -5,7 +5,13 @@ battery charge/discharge limits based on the current EMS mode.
 
 Units: the Deye exposes battery limits as CURRENT in amperes
 (number.deye8k_battery_max_charging_current, range 0–350 A). It has no
-charge/discharge *power* entity, so everything here is amperes, never watts.
+charge/discharge *power* entity. Since v2.4.0 the GRID_CHARGING charge
+target arrives as Watts from EMSController (V1 "Ladeleistung strecken") and
+is converted to amps here, at the actuator boundary – see
+device_control.py and docs/roadmap/v3.0-geraeteprofile.md, "Die
+Watt-Abstraktion". Discharge, and every other mode's charge current, are
+still set directly in amps (always either the configured max or 0/blocked
+– never a computed intermediate value, so there is nothing to convert).
 
 Simulation mode (battery_control_simulation=True):
   All actions are logged with [SIM] prefix but NOT executed.
@@ -39,6 +45,8 @@ from const import (
     INVERTER_WRITE_CONFIRM_TIMEOUT_SEC,
     INVERTER_WRITE_ERROR_WINDOW_SEC,
 )
+from device_control import ActuatorLimits, LiveLimitsCache, clamp_to_limits, to_actuator_value
+from device_profile import ActuatorControl
 from write_channel import WriteChannel, WriteChannelSet, WriteSpec, matches
 
 if TYPE_CHECKING:
@@ -64,6 +72,11 @@ class InverterController:
         self._active_token = supervisor_token
         self._ws = ws_client
         self._channels = WriteChannelSet(["charge", "discharge", "grid"])
+        # V1 (docs/roadmap/energiefahrplan.md): tracks the charge-current
+        # entity's live max across ticks, so a momentarily unavailable
+        # attribute read never silently drops the ceiling – see
+        # device_control.LiveLimitsCache.
+        self._charge_limits_cache = LiveLimitsCache()
         # Reported to dashboard/sensors
         self.charge_current_limit_a: int | None = None       # confirmed
         self.discharge_current_limit_a: int | None = None    # confirmed
@@ -129,16 +142,19 @@ class InverterController:
         events, self._pending_events = self._pending_events, []
         return events
 
-    async def apply_mode(self, mode: EMSMode, grid_charge_current_a: int | None = None) -> None:
+    async def apply_mode(self, mode: EMSMode, grid_charge_power_w: float | None = None) -> None:
         """Apply inverter settings for the given EMS mode.
 
         Every mode states all three settings explicitly, so the resulting
         inverter state does not depend on which mode preceded it.
 
-        `grid_charge_current_a` overrides the GRID_CHARGING charge current
-        (EMSController._grid_charge_current_a() – V1 "Ladeleistung
-        strecken"); None (all other modes, and any caller that doesn't pass
-        it) keeps the original full-current behaviour.
+        `grid_charge_power_w` overrides the GRID_CHARGING charge power, in
+        WATTS (EMSController._grid_charge_power_w() – V1 "Ladeleistung
+        strecken"; docs/roadmap/v3.0-geraeteprofile.md, "Die Watt-Abstraktion").
+        `None` (all other modes, and any caller that doesn't pass it) keeps
+        the original full-current behaviour – see
+        `_resolve_grid_charge_current_a()` for exactly how "no target" and a
+        live/cached actuator ceiling interact.
         """
         if not self._cfg.battery_control_enabled:
             return
@@ -151,10 +167,7 @@ class InverterController:
                 # Charge from the grid at the cheap rate; block discharging so
                 # the energy just bought is not immediately used up again.
                 await self._set_grid_charge(True, sim)
-                charge_a = (
-                    grid_charge_current_a if grid_charge_current_a is not None
-                    else cfg.battery_max_charge_current_a
-                )
+                charge_a = self._resolve_grid_charge_current_a(grid_charge_power_w)
                 await self._set_charge_current(charge_a, sim)
                 await self._set_discharge_current(0, sim)
 
@@ -182,6 +195,55 @@ class InverterController:
                 await self._set_grid_charge(False, sim)
                 await self._set_charge_current(cfg.battery_max_charge_current_a, sim)
                 await self._set_discharge_current(cfg.battery_max_discharge_current_a, sim)
+
+    def _resolve_grid_charge_current_a(self, grid_charge_power_w: float | None) -> int:
+        """V1: the Watt target from EMSController._grid_charge_power_w(),
+        converted to the charge-current entity's native amps and clamped to
+        its live min/max/step.
+
+        `battery_voltage_entity` is read here – nowhere else in the control
+        path – per docs/roadmap/v3.0-geraeteprofile.md, "Die
+        Watt-Abstraktion": if it's unavailable, `to_actuator_value()` falls
+        back to a fixed assumed voltage (48 V, a mid-range LFP pack voltage)
+        rather than blocking the write. `battery_max_charge_current_a`
+        remains a hard outer ceiling regardless of what the entity's live
+        `max` attribute reports – a live max can only ever *tighten* the
+        effective limit (e.g. a BMS-imposed cap below the configured value),
+        never loosen it beyond what the user configured.
+
+        `None` (V1 couldn't compute a precise target – no price calendar, no
+        window, or bat_kwh_free is zero/unknown) resolves to the actuator's
+        own configured max, exactly like the pre-v2.4.0 amp-based fallback
+        to `battery_max_charge_current_a` did.
+        """
+        cfg = self._cfg
+        configured_max = cfg.battery_max_charge_current_a
+        entity = cfg.inverter_charge_current_entity
+
+        control = ActuatorControl(
+            quantity="power", domain="number", actuator_unit="A", via="dc_current",
+            voltage_fallback_v=48.0,
+            fallback_limits={"min": 0, "max": configured_max, "step": 1},
+        )
+
+        if grid_charge_power_w is None:
+            raw_a = float(configured_max)
+        else:
+            voltage = (
+                self._ws.get_state_value(cfg.battery_voltage_entity)
+                if self._ws and cfg.battery_voltage_entity else None
+            )
+            raw_a = to_actuator_value(grid_charge_power_w, control, voltage_v=voltage)
+
+        live_min = self._ws.get_state_attribute(entity, "min") if self._ws and entity else None
+        live_max = self._ws.get_state_attribute(entity, "max") if self._ws and entity else None
+        live_step = self._ws.get_state_attribute(entity, "step") if self._ws and entity else None
+        limits = self._charge_limits_cache.resolve(entity, live_min, live_max, live_step, control)
+        # The user's configured cap always wins as the outer bound – a live
+        # max may only tighten it, never loosen it.
+        limits = ActuatorLimits(min=limits.min, max=min(limits.max, configured_max), step=limits.step)
+
+        return int(clamp_to_limits(raw_a, limits))
 
     async def restore_safe_defaults(self) -> None:
         """Leave the inverter in a safe state on shutdown.
