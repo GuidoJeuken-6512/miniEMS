@@ -311,6 +311,59 @@ class TestShouldHoldForPeakTime:
         assert hold is False
         assert reason == "peak-time window reached"
 
+    def test_forecast_below_need_releases_the_hold_even_when_peak_time_says_wait(
+        self, make_config, fake_ws, now
+    ):
+        """Observed live 2026-09-13: with a small bat_kwh_free, V3a's time
+        budget (T_needed_h) computes as a mere 15-30 min and holds almost
+        all the way to the backstop hour - but if today's remaining PV
+        forecast has already fallen below what the battery+house still
+        need, that is real information V3a's pure time math never sees.
+        The forecast comparison must win and release the hold early."""
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs(),
+                                pv_charge_backstop_hour=23,
+                                pv_charge_margin_factor=1.2, pv_charge_hysteresis_frac=0.0)
+        fake_ws.values["sensor.voltage"] = 50.0   # charge_kw = 10*50/1000 = 0.5
+        fake_ws.datetimes["sensor.peak_today"] = now + timedelta(hours=2)
+        # bat_kwh_free=1.0 -> T_needed_h=2h -> latest_start=21:00, well after
+        # the 14:00 peak -> V3a alone would hold ("peak-time hold").
+        fake_ws.values["sensor.remaining"] = 0.5   # need=1.0*1.2=1.2 -> 0.5 < 1.2
+        hold, reason = ctrl._should_hold_pv_charge(50.0, 1.0, now)
+        assert hold is False
+        assert reason == "forecast below battery+load need"
+
+    def test_peak_time_hold_survives_when_forecast_is_merely_unavailable(
+        self, make_config, fake_ws, now
+    ):
+        """The cross-check must only fire on a genuine 'forecast below need'
+        verdict - 'forecast unavailable' (missing data, itself a deliberate
+        fail-open default) must never masquerade as that stronger signal
+        and cut V3a's hold short for the wrong reason."""
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs(),
+                                pv_charge_backstop_hour=23)
+        fake_ws.values["sensor.voltage"] = 50.0
+        fake_ws.datetimes["sensor.peak_today"] = now + timedelta(hours=2)
+        # sensor.remaining deliberately left unset -> "forecast unavailable"
+        hold, reason = ctrl._should_hold_pv_charge(50.0, 1.0, now)
+        assert hold is True
+        assert reason == "peak-time hold"
+
+    def test_forecast_above_need_does_not_cut_a_released_peak_time_hold(
+        self, make_config, fake_ws, now
+    ):
+        """When V3a itself already says release (peak passed / window
+        reached), that verdict stands regardless of what the forecast
+        comparison would say - the cross-check only ever shortens a hold,
+        never re-extends a release."""
+        ctrl = make_controller(make_config, fake_ws, **self._base_kwargs(),
+                                pv_charge_backstop_hour=23)
+        fake_ws.values["sensor.voltage"] = 50.0
+        fake_ws.datetimes["sensor.peak_today"] = now - timedelta(hours=1)   # already passed
+        fake_ws.values["sensor.remaining"] = 100.0   # would hold under the forecast alone
+        hold, reason = ctrl._should_hold_pv_charge(50.0, 5.0, now)
+        assert hold is False
+        assert reason == "peak time passed"
+
 
 class TestShouldGridCharge:
     def test_missing_price_never_charges(self, make_config, fake_ws, now):

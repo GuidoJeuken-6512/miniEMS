@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-28
+revision_date: 2026-09-14
 ---
 
 # Energiefahrplan — netzdienliches Laden für Batterie und E-Auto
@@ -18,7 +18,7 @@ revision_date: 2026-08-28
     | Config-Feld `battery_voltage_entity` | ✅ umgesetzt (Config-Schema v19) — Voraussetzung für V1 und V3a, noch von keiner Entscheidung gelesen |
     | V1 — Ladeleistung strecken | ✅ umgesetzt (v2.0.13) |
     | V2 — PriceCurve | ✅ Fensterwahl verdrahtet (v2.0.12, `later_window_as_cheap()`) |
-    | V3 — Export-Halt auf den echten PV-Peak-Zeitpunkt | V3a ✅ umgesetzt (v2.0.10, Konfigurationswert als `P_charge_kw`); V3b (volle Kurve) offen |
+    | V3 — Export-Halt auf den echten PV-Peak-Zeitpunkt | V3a ✅ umgesetzt (v2.0.10, Konfigurationswert als `P_charge_kw`); v2.6.2 löst den Halt zusätzlich frei, sobald die Restprognose unter den Bedarf fällt (V3a allein hielt zu lange, siehe unten); V3b (volle Kurve) offen |
     | **Gelernte Ladeleistung** — SoC-gebuckerte Historie statt Konfigurationswert | ✅ umgesetzt (v2.0.11) |
     | V4 — Wirtschaftlichkeits-Gate | ✅ umgesetzt in v2.0.4 |
     | V5 — Zweistufigkeit als Prinzip | offen |
@@ -226,6 +226,28 @@ Aufwand und unterschiedlicher Reichweite.
     diesem Schritt noch `battery_max_charge_current_a × battery_voltage_v`
     (Konfigurationswert) — die SoC-gebuckerte Historie aus dem nächsten
     Abschnitt ersetzt das noch nicht.
+
+!!! success "v2.6.2: Rückfrage gegen die Restprognose, wenn V3a hält"
+    Live beobachtet am 13.09.2026 auf der Produktivinstanz: mit nur ~2 kWh
+    `bat_kwh_free` errechnet `T_needed_h` aus der Nennladeleistung eine
+    Restzeit von 15–30 Minuten — `_should_hold_for_peak_time()` hielt den
+    Export-Halt deshalb fast bis zur Backstop-Stunde, obwohl der tatsächliche
+    PV-Überschuss am Nachmittag weit unter der Nennrate lag. Ergebnis: der
+    Akku erreichte bis Sonnenuntergang nur 88 % statt der konfigurierten 95 %
+    `battery_max_soc` — das Zeitbudget war zu optimistisch, nicht falsch
+    gerechnet, nur blind gegenüber der realen Leistung.
+
+    `_should_hold_pv_charge()` prüft jetzt zusätzlich `_should_hold_by_forecast()`
+    (die Restprognose-Mengen-Schätzung, `sensor.solcast_pv_forecast_prognose_
+    verbleibende_leistung_heute` gegen `bat_kwh_free + verbleibender Hausbedarf`)
+    und löst den Halt frühzeitig auf, sobald **diese** Prüfung „forecast below
+    battery+load need" meldet — unabhängig davon, was V3as Zeitbudget noch für
+    Reserve sieht. Bewusst **nicht** umgekehrt: ein bloßes „forecast
+    unavailable" (fehlende/veraltete Daten, selbst schon ein Fail-Open-Rückfall)
+    darf den Halt nie aus dem falschen Grund verkürzen — nur das konkrete
+    "unter dem Bedarf"-Ergebnis zählt. Damit gilt für die Freigabe wieder die
+    ursprüngliche Fail-Safe-Idee unten: die *frühere* der beiden Antworten
+    gewinnt, nicht mehr ausschließlich V3as.
 
 Seit [Sensor-Staleness](../technical/sensor-staleness.md) sind zwei zusätzliche
 Solcast-Entities angebunden (`solcast_peak_time_today_entity`,

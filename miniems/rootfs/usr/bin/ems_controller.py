@@ -550,13 +550,30 @@ class EMSController:
         # V3a (docs/roadmap/energiefahrplan.md): hold exactly until the real
         # PV peak, sized by how long the battery actually needs to charge –
         # takes over whenever a confident answer is possible, ahead of the
-        # coarser remaining-forecast comparison below.
+        # coarser remaining-forecast comparison below. But V3a's time budget
+        # (bat_kwh_free / charge_kw) assumes the full configured/learned
+        # charge rate is actually achievable, and stays silent about the one
+        # thing the remaining-forecast comparison DOES know: whether today's
+        # PV has already fallen to what the battery+house still need. Cross-
+        # check it and release as soon as EITHER signal says so – observed
+        # live 2026-09-13: V3a held until ~17:00 with only ~2 kWh free
+        # (T_needed_h a mere 15-30 min at the nameplate rate), afternoon PV
+        # never reached that rate, and the battery topped out at 88% instead
+        # of 95% before sunset with the window already gone.
+        forecast_result = self._should_hold_by_forecast(bat_kwh_free, now)
+
         if cfg.solcast_peak_time_today_entity:
             peak_result = self._should_hold_for_peak_time(bat_kwh_free, now)
             if peak_result is not None:
+                # Only a genuine "remaining has fallen below need" verdict
+                # overrides V3a's hold – "forecast unavailable" (missing/
+                # stale data, itself a deliberate fail-open default) must
+                # never masquerade as this stronger signal.
+                if peak_result[0] and forecast_result == (False, "forecast below battery+load need"):
+                    return forecast_result
                 return peak_result
 
-        return self._should_hold_by_forecast(bat_kwh_free, now)
+        return forecast_result
 
     def _should_hold_for_peak_time(
         self, bat_kwh_free: float, now: datetime

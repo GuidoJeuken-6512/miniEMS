@@ -1,5 +1,42 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 2.6.2
+
+### Fixed
+
+- **V3a-Export-Halt hielt zu lange fest, wenn die freie Kapazität klein war
+  — Akku erreichte nicht mehr 95 %.** Live auf der Produktivinstanz
+  untersucht (13.09.2026, via MCP-Zugriff auf Registry/History/Add-on-API):
+  Der Akku lag den ganzen Vormittag flach bei 83 %, begann gegen Mittag zu
+  laden, erreichte aber bis Sonnenuntergang nur 88 % statt der konfigurierten
+  95 % (`battery_max_soc`) — danach nur noch Entladen über Nacht, ohne dass
+  trotz günstigem Nachttarif (0.2744 €/kWh, unter dem Cheap-Schwellwert)
+  nachgeladen wurde (das Netzladen-Verhalten selbst war dabei korrekt: die
+  Prognose für den Folgetag war üppig genug, dass Netzladen wirtschaftlich
+  nicht nötig war — siehe `_should_grid_charge()`, unverändert).
+
+  Ursache im PV-Halt (`_should_hold_pv_charge()`): mit nur ~2 kWh
+  `bat_kwh_free` errechnet V3as Zeitbudget (`T_needed_h = bat_kwh_free /
+  P_charge_kw`, mit der vollen Nennladeleistung) eine Restzeit von nur
+  15–30 Minuten und hält den Export-Halt deshalb fast bis zur
+  Backstop-Stunde — unabhängig davon, ob der tatsächliche PV-Überschuss an
+  diesem Nachmittag überhaupt in der Nähe der Nennrate lag (tat er nicht:
+  Ø 480–630 W gegen eine Nennladeleistung im kW-Bereich).
+
+  `_should_hold_pv_charge()` prüft jetzt zusätzlich die Restprognose-Mengen-
+  Schätzung (`_should_hold_by_forecast()`, unverändert) und löst den Halt
+  frühzeitig auf, sobald **die** ein `"forecast below battery+load need"`
+  meldet — die frühere der beiden Antworten gewinnt, nicht mehr
+  ausschließlich V3as Zeitbudget. Bewusst **nicht** umgekehrt: ein bloßes
+  `"forecast unavailable"` (fehlende/veraltete Daten, selbst schon ein
+  Fail-Open-Rückfall) darf den Halt nie aus dem falschen Grund verkürzen —
+  dafür wird exakt auf den Erfolgsfall-String geprüft, nicht nur auf
+  `hold=False`.
+
+  4 neue Tests (der neue Cross-Check, dass "forecast unavailable" ihn NICHT
+  auslöst, und dass ein bereits durch V3a freigegebener Halt nie erneut
+  verlängert wird). 693 Tests grün, Coverage 94%.
+
 ## 2.6.1
 
 ### Fixed
