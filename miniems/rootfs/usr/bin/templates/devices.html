@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>miniEMS – Devices</title>
+  <link rel="icon" type="image/png" href="static/icon.png">
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+  <header>
+    <img src="static/icon.png" alt="miniEMS" style="height:2.2rem;width:2.2rem;vertical-align:middle;">
+    <h1>{{ translations.ui_devices or 'Devices' }}</h1>
+    <span class="version-badge">v{{ version }}</span>
+  </header>
+  <nav class="tab-nav">
+    <a href="." class="tab-link">{{ translations.tab_dashboard or 'Dashboard' }}</a>
+    <a href="settings" class="tab-link">{{ translations.tab_settings or 'Settings' }}</a>
+    <a href="log" class="tab-link">{{ translations.tab_log or 'Log' }}</a>
+    <a href="config-json" class="tab-link">{{ translations.tab_config_json or 'config.json' }}</a>
+    <a href="options-json" class="tab-link">{{ translations.tab_options_json or 'options.json' }}</a>
+    <a href="database" class="tab-link">{{ translations.tab_database or 'Database' }}</a>
+    <a href="devices" class="tab-link active">{{ translations.tab_devices or 'Devices' }}</a>
+  </nav>
+
+  <p class="raw-file-hint">{{ translations.devices_hint or 'Read-only preview of what Home Assistant knows about your devices – the energy dashboard and the device/entity registry. Nothing on this page is used for control yet; see docs/roadmap/v3.0-geraeteprofile.md.' }}</p>
+
+  <div id="devices-content">Loading…</div>
+
+  <footer>{{ translations.footer or 'miniEMS v' }}{{ version }} &middot; Home Assistant Add-on</footer>
+
+  <script>
+    const T = {{ translations | tojson }};
+
+    function esc(s) {
+      return String(s ?? '–').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function signLabel(sign) {
+      if (!sign) return '–';
+      if (sign.mode === 'unsigned') return 'unsigned';
+      if (sign.mode === 'split') return 'split (two entities)';
+      return `${sign.mode}, positive = ${sign.positive}`;
+    }
+
+    function renderEnergyDashboard(d) {
+      const rows = Object.entries(d.candidates || {}).map(([role, entity]) => `
+        <tr>
+          <td>${esc(role)}</td>
+          <td><code>${esc(entity)}</code></td>
+          <td>${esc(signLabel(d.signs?.[role]))}</td>
+        </tr>`).join('');
+      const splitRows = Object.entries(d.split_candidates || {}).map(([role, pair]) => `
+        <tr>
+          <td>${esc(role)}</td>
+          <td><code>${esc(pair[0])}</code> (in) / <code>${esc(pair[1])}</code> (out)</td>
+          <td>split</td>
+        </tr>`).join('');
+      const capacityRow = (d.battery_capacity_kwh !== null && d.battery_capacity_kwh !== undefined) ? `
+        <tr><td>battery_capacity_kwh</td><td colspan="2">${d.battery_capacity_kwh} kWh</td></tr>` : '';
+      const body = rows + splitRows + capacityRow;
+      return `
+        <p class="section-title">${T.energy_dashboard_section || 'Energy Dashboard (energy/get_prefs)'}</p>
+        ${body ? `
+        <table class="devices-table">
+          <thead><tr><th>${T.role || 'Role'}</th><th>${T.entity || 'Entity'}</th><th>${T.sign || 'Sign'}</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>` : `<p class="svalue muted">${T.no_energy_dashboard || 'No energy dashboard configured in Home Assistant.'}</p>`}
+      `;
+    }
+
+    function renderDevices(devices) {
+      if (!devices || devices.length === 0) {
+        return `<p class="svalue muted">${T.no_devices || 'No devices found.'}</p>`;
+      }
+      const rows = devices.map(dev => `
+        <tr>
+          <td>${esc(dev.manufacturer)}</td>
+          <td><code>${esc(dev.model)}</code></td>
+          <td>${esc(dev.name)}</td>
+          <td>${dev.entity_count}</td>
+        </tr>`).join('');
+      return `
+        <p class="section-title">${T.device_registry_section || 'Device Registry'} (${devices.length})</p>
+        <table class="devices-table">
+          <thead><tr>
+            <th>${T.manufacturer || 'Manufacturer'}</th>
+            <th>${T.model || 'Model'}</th>
+            <th>${T.name || 'Name'}</th>
+            <th>${T.entities || 'Entities'}</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    function renderResolution(res, title) {
+      if (!res) return '';
+      const bindings = res.bindings || {};
+      const conflictsByRole = {};
+      (res.conflicts || []).forEach(c => { conflictsByRole[c.role] = c; });
+
+      const rows = Object.entries(bindings).map(([role, b]) => {
+        const conflict = conflictsByRole[role];
+        const conflictNote = conflict
+          ? `<br><span class="svalue muted" style="font-size:0.8rem">${T.also_offered_by || 'also offered by'}: ${
+              conflict.rejected.map(r => `<code>${esc(r.entity_id)}</code> (${esc(r.source)})`).join(', ')
+            }</span>`
+          : '';
+        return `
+        <tr>
+          <td>${esc(role)}</td>
+          <td><code>${esc(b.entity_id)}</code>${conflictNote}</td>
+          <td>${esc(b.source)}</td>
+        </tr>`;
+      }).join('');
+
+      const unresolved = res.unresolved_required || [];
+      const unresolvedBanner = unresolved.length > 0 ? `
+        <div class="warnings-banner">${unresolved.map(role =>
+          `<div class="warn-item">&#9888; ${T.role_unresolved || 'Role unresolved'}: ${esc(role)}</div>`
+        ).join('')}</div>` : '';
+
+      const statusColor = {ok: '#2e7d32', degraded: '#e6a817', unresolved: '#c62828'}[res.status] || '#888';
+      const statusLabel = (T['profile_status_' + res.status]) || res.status;
+
+      return `
+        <p class="section-title">${title}
+          ${res.status ? `<span style="font-size:0.75rem;font-weight:600;color:${statusColor};margin-left:0.5rem">&#9679; ${esc(statusLabel)}</span>` : ''}
+        </p>
+        ${res.matched_device_id ? `<p class="svalue muted" style="font-size:0.9rem;margin-bottom:0.75rem">${T.matched_device || 'Matched device'}: <code>${esc(res.matched_device_id)}</code></p>` : ''}
+        ${unresolvedBanner}
+        ${rows ? `
+        <table class="devices-table">
+          <thead><tr><th>${T.role || 'Role'}</th><th>${T.entity || 'Entity'}</th><th>${T.source || 'Source'}</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>` : `<p class="svalue muted">${T.no_resolution || 'Nothing resolved yet.'}</p>`}
+      `;
+    }
+
+    async function load() {
+      const el = document.getElementById('devices-content');
+      try {
+        const r = await fetch('api/devices');
+        const d = await r.json();
+        if (d.error) {
+          el.innerHTML = `<div class="warnings-banner"><div class="warn-item">&#9888; ${esc(d.error)}</div></div>`;
+          return;
+        }
+        const resolutions = d.resolutions || {};
+        el.innerHTML = renderResolution(resolutions.inverter, T.resolution_section_inverter || 'Resolved Roles (Inverter)')
+          + renderResolution(resolutions.energy_meter, T.resolution_section_energy_meter || 'Resolved Roles (Energy Meter)')
+          + renderEnergyDashboard(d.energy_dashboard || {})
+          + renderDevices(d.devices || []);
+      } catch(e) {
+        el.innerHTML = `<div class="warnings-banner"><div class="warn-item">&#9888; ${esc('Request failed: ' + e)}</div></div>`;
+      }
+    }
+
+    window.onload = load;
+  </script>
+</body>
+</html>

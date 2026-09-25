@@ -10,12 +10,13 @@ import aiohttp
 import uvicorn
 
 import const
+from battery_capability import BatteryCapabilityTracker
 from config_loader import load_config
 from consumption_model import ConsumptionModel
 from cost_optimizer import CostOptimizer
 from ems_controller import EMSController
 from event_log import EventLog
-from ha_ws_client import HAWebSocketClient
+from ha_state_client import HAStateClient
 from integration_installer import install_integration
 from inverter_controller import InverterController
 from solcast_client import SolcastClient
@@ -86,7 +87,7 @@ async def main() -> None:
     cost_optimizer = CostOptimizer(cfg, store)
     await cost_optimizer.restore_today()
 
-    ws_client = HAWebSocketClient(cfg.monitored_entities, long_lived_token=cfg.long_lived_token)
+    ws_client = HAStateClient(cfg.monitored_entities, long_lived_token=cfg.long_lived_token)
 
     inverter = InverterController(cfg, supervisor_token, cfg.long_lived_token, ws_client)
     if cfg.battery_control_enabled:
@@ -101,11 +102,13 @@ async def main() -> None:
     solcast_client = SolcastClient(cfg, ws_client)
     event_log = EventLog(max_entries=100, store=store)
     await event_log.restore_from_db()
+    capability = BatteryCapabilityTracker(store)
 
     controller = EMSController(
         cfg, ws_client, cost_optimizer, inverter, consumption_model,
         solcast=solcast_client,
         event_log=event_log,
+        capability=capability,
     )
     app = create_app(status_store, cfg, supervisor_token, store)
 

@@ -13,13 +13,14 @@ user's settings are never lost even if options.json is reset to defaults.
 import json
 import logging
 import os
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 
 from const import (
     BATTERY_MAX_CURRENT_A,
     CONFIG_FILE,
     CONFIG_SCHEMA_VERSION,
     FORECAST_MAX_AGE_SEC,
+    INVERTER_WRITE_STUCK_THRESHOLD_SEC,
     OPTIONS_FILE,
     PRICE_MAX_AGE_SEC,
     SENSOR_MAX_AGE_SEC,
@@ -39,6 +40,11 @@ class Config:
     battery_power_entity: str = "sensor.deye_battery_power"
     grid_power_entity: str = "sensor.deye_grid_power"
     load_power_entity: str = "sensor.deye_load_power"
+    # Needed to convert a charge/discharge power target (W) into the current
+    # (A) the Deye's number entities actually accept – see roadmap
+    # docs/roadmap/energiefahrplan.md, V1 ("Ladeleistung strecken") and V3a
+    # ("Gelernte Ladeleistung"), which both share this field.
+    battery_voltage_entity: str = "sensor.deye8k_battery_voltage"
     battery_capacity_kwh: float = 10.0
     battery_min_soc: int = 15
     battery_max_soc: int = 95
@@ -71,6 +77,12 @@ class Config:
     # `available`, their timestamps keep advancing, and nothing else reveals that
     # the numbers are days old. Leave empty to skip the freshness check.
     solcast_last_fetch_entity: str = "sensor.solcast_pv_forecast_zeitpunkt_letzter_api_abruf"
+    # Time of day the forecast expects peak PV power, today/tomorrow. Same
+    # SensorUpdatePolicy.DEFAULT write behaviour as solcast_today/tomorrow_entity
+    # (written once per day, on fetch/date-change) – staleness is checked the
+    # same way: by date, not by age (see is_stale_daily()).
+    solcast_peak_time_today_entity: str = "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_heute"
+    solcast_peak_time_tomorrow_entity: str = "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_morgen"
     # Grid charge control via switch + discharge power entity (Phase 6)
     grid_charge_switch_entity: str = "switch.deye8k_battery_grid_charging"
     battery_discharging_current_entity: str = "number.deye8k_battery_max_discharging_current"
@@ -152,6 +164,25 @@ class Config:
     daily_base_price_eur: float = 0.0
     # Average discharge tariff for ROI calculation (€/kWh); 0 = auto-derive from price tiers
     avg_discharge_tariff_eur_kwh: float = 0.0
+    # How long a single inverter write channel must stay continuously
+    # unconfirmed before sensor.miniems_inverter_write_status reports "error"
+    # instead of "warning". Provisional default – see const.py.
+    inverter_write_stuck_threshold_sec: int = INVERTER_WRITE_STUCK_THRESHOLD_SEC
+    # --- Device detection (docs/roadmap/v3.0-geraeteprofile.md) ---------
+    # Highest-priority resolver override, keyed "<class>.<role>" -> entity_id
+    # (e.g. "inverter.battery_power": "sensor.foo") – see
+    # device_resolver.resolve_class()'s `overrides` parameter. Empty by
+    # default; only ever set explicitly (today via the raw config.json
+    # editor – /devices' entity-picker UI is a later step). Never has a form
+    # field in settings.html, so it can never be corrupted by _coerce()'s
+    # str(value) fallback for unknown keys – see web_server._DICT_FIELDS.
+    entity_overrides: dict[str, str] = field(default_factory=dict)
+    # Gates whether device_resolver is allowed to actually drive runtime
+    # config, vs. today's read-only /devices preview. False on every
+    # upgrade (migration.py's v19->v20 step is byte-identical for existing
+    # installs); True only for a genuinely new install with no config.json
+    # yet, so it never inherits the five historically-wrong Deye defaults.
+    device_detection_enabled: bool = False
 
     @property
     def monitored_entities(self) -> list[str]:
@@ -159,6 +190,7 @@ class Config:
             self.pv_power_entity,
             self.battery_soc_entity,
             self.battery_power_entity,
+            self.battery_voltage_entity,
             self.grid_power_entity,
             self.load_power_entity,
             self.electricity_price_entity,
@@ -169,6 +201,8 @@ class Config:
                 self.solcast_tomorrow_entity,
                 self.solcast_remaining_today_entity,
                 self.solcast_last_fetch_entity,
+                self.solcast_peak_time_today_entity,
+                self.solcast_peak_time_tomorrow_entity,
             ]
             if e
         ]
@@ -195,7 +229,23 @@ class Config:
             ]
             if e
         ]
-        return base + solcast + optional + scenario2
+        # Write-confirmation targets: InverterController reads these back from
+        # ws.state_cache to decide whether a service call actually landed
+        # (inverter_controller.py, _set_charge_current/_set_discharge_current/
+        # _set_grid_charge). Omitted here until now, so the cache never held
+        # them and every write silently never confirmed – invisible in
+        # simulation mode (which confirms without checking the cache) but
+        # fatal for real control: a live write would retry forever and trip
+        # inverter_write_status="error" after INVERTER_WRITE_STUCK_THRESHOLD_SEC.
+        control = [
+            e for e in [
+                self.inverter_charge_current_entity,
+                self.battery_discharging_current_entity,
+                self.grid_charge_switch_entity,
+            ]
+            if e
+        ]
+        return base + solcast + optional + scenario2 + control
 
 
 def _defaults() -> dict:
@@ -283,8 +333,14 @@ def load_config() -> Config:
     """Load, merge, migrate and persist configuration."""
     defs = _defaults()
 
+    # Checked before _load_json (which returns {} either way) – the only
+    # signal that distinguishes "genuinely new install" from "an ancient
+    # unversioned config", both of which start migrate() at version 0. See
+    # migration._v19_to_v20()'s device_detection_enabled default.
+    is_fresh = not os.path.exists(CONFIG_FILE)
+
     # Load both sources
-    stored = migrate(_load_json(CONFIG_FILE))
+    stored = migrate(_load_json(CONFIG_FILE), is_fresh=is_fresh)
     options = _load_json(OPTIONS_FILE)
 
     # Carry forward renamed keys that may only exist in options.json

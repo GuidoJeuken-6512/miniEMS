@@ -5,15 +5,27 @@ Add a new function and increment CURRENT_VERSION whenever the config schema chan
 """
 import logging
 
-from const import CONFIG_SCHEMA_VERSION, FORECAST_MAX_AGE_SEC, PRICE_MAX_AGE_SEC
+from const import (
+    CONFIG_SCHEMA_VERSION,
+    FORECAST_MAX_AGE_SEC,
+    INVERTER_WRITE_STUCK_THRESHOLD_SEC,
+    PRICE_MAX_AGE_SEC,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 CURRENT_VERSION = CONFIG_SCHEMA_VERSION
 
 
-def migrate(data: dict) -> dict:
-    """Migrate config dict to CURRENT_VERSION. Returns updated dict."""
+def migrate(data: dict, *, is_fresh: bool = False) -> dict:
+    """Migrate config dict to CURRENT_VERSION. Returns updated dict.
+
+    `is_fresh` is True only when the caller found no pre-existing config.json
+    at all (a brand new installation) – see config_loader.load_config(). It
+    is threaded through to _v19_to_v20() so device-detection can default to
+    on for new installs but stay off for every upgrade, byte-identical to
+    the pre-v20 behaviour (docs/roadmap/v3.0-geraeteprofile.md, "Migration").
+    """
     if not isinstance(data, dict):
         _LOGGER.error("Config is %s, not an object – ignoring it and using defaults",
                       type(data).__name__)
@@ -82,6 +94,18 @@ def migrate(data: dict) -> dict:
 
     if version < 16:
         data = _v15_to_v16(data)
+
+    if version < 17:
+        data = _v16_to_v17(data)
+
+    if version < 18:
+        data = _v17_to_v18(data)
+
+    if version < 19:
+        data = _v18_to_v19(data)
+
+    if version < 20:
+        data = _v19_to_v20(data, is_fresh)
 
     data["_version"] = CURRENT_VERSION
     return data
@@ -266,6 +290,81 @@ def _v11_to_v12(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v11→v12: set %s = %r", key, default)
+    return data
+
+
+def _v17_to_v18(data: dict) -> dict:
+    """v17 → v18: Solcast peak-power-time entities, today and tomorrow.
+
+    Same write policy as solcast_today/tomorrow_entity (once per day, on
+    fetch/date-change) – needed for an upcoming feature, staleness is checked
+    by date the same way (is_stale_daily()), not by age.
+    """
+    if "solcast_peak_time_today_entity" not in data:
+        data["solcast_peak_time_today_entity"] = "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_heute"
+        _LOGGER.info("Migration v17→v18: set solcast_peak_time_today_entity = %r",
+                     data["solcast_peak_time_today_entity"])
+    if "solcast_peak_time_tomorrow_entity" not in data:
+        data["solcast_peak_time_tomorrow_entity"] = "sensor.solcast_pv_forecast_zeitpunkt_spitzenleistung_morgen"
+        _LOGGER.info("Migration v17→v18: set solcast_peak_time_tomorrow_entity = %r",
+                     data["solcast_peak_time_tomorrow_entity"])
+    return data
+
+
+def _v19_to_v20(data: dict, is_fresh: bool) -> dict:
+    """v19 → v20: device-detection substrate (docs/roadmap/v3.0-geraeteprofile.md).
+
+    `entity_overrides["<class>.<role>"]` is the new, explicit way to pin a
+    role to an entity – device_resolver.resolve_class() already accepts it
+    as its highest-priority source, alongside the 30 legacy `*_entity`
+    fields (unaffected, unchanged, still read directly). Empty on every
+    migrated config: nothing is inferred here, an override only ever comes
+    from a user setting one.
+
+    `device_detection_enabled` gates whether the resolver is allowed to
+    actually drive runtime config instead of just previewing on /devices
+    (not wired up yet – see the roadmap doc's "Umsetzungsschritte", I6).
+    `is_fresh` is the one deliberate exception to "migrations never change
+    behaviour": upgrading an existing installation must stay byte-identical
+    (`False`), but a brand new install has no legacy entity fields to
+    protect and should see detection on immediately, so it never meets the
+    five wrong Deye defaults this add-on used to ship.
+    """
+    if "entity_overrides" not in data:
+        data["entity_overrides"] = {}
+        _LOGGER.info("Migration v19→v20: set entity_overrides = {}")
+    if "device_detection_enabled" not in data:
+        data["device_detection_enabled"] = is_fresh
+        _LOGGER.info("Migration v19→v20: set device_detection_enabled = %r (fresh install: %s)",
+                     is_fresh, is_fresh)
+    return data
+
+
+def _v18_to_v19(data: dict) -> dict:
+    """v18 → v19: battery voltage entity.
+
+    Needed to convert a charge/discharge power target (W) into the current
+    (A) the Deye's number entities accept – see
+    docs/roadmap/energiefahrplan.md, V1/V3a.
+    """
+    if "battery_voltage_entity" not in data:
+        data["battery_voltage_entity"] = "sensor.deye8k_battery_voltage"
+        _LOGGER.info("Migration v18→v19: set battery_voltage_entity = %r",
+                     data["battery_voltage_entity"])
+    return data
+
+
+def _v16_to_v17(data: dict) -> dict:
+    """v16 → v17: threshold for the inverter write-status sensor.
+
+    How long a write channel must stay continuously unconfirmed before it
+    counts as a real ("error") rather than a still-plausibly-resolving
+    ("warning") problem. See const.py for why the default is provisional.
+    """
+    if "inverter_write_stuck_threshold_sec" not in data:
+        data["inverter_write_stuck_threshold_sec"] = INVERTER_WRITE_STUCK_THRESHOLD_SEC
+        _LOGGER.info("Migration v16→v17: set inverter_write_stuck_threshold_sec = %r",
+                     data["inverter_write_stuck_threshold_sec"])
     return data
 
 

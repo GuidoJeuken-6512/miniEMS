@@ -1,0 +1,78 @@
+# Shelly 3EM, Gen1 hardware/firmware ("emeter_N" naming), via HA's built-in
+# shelly integration.
+#
+# Live-verified against a real installation (2026-08-28, see
+# docs/roadmap/v3.0-geraeteprofile.md, I7): registry structure (devices,
+# config_entry_id grouping, unique_id values) AND live state values (signed
+# power, units, device_class) were both read from the running instance, not
+# guessed.
+#
+# Two things this hardware generation forces that the Deye profile doesn't
+# need at all:
+#
+# 1. No translation_key. Every entity this integration registers has
+#    translation_key=null – unique_id_suffix (device_registry.py's fallback
+#    role-matching key) is the ONLY way to bind a role here.
+# 2. One physical meter, four registry devices. HA registers this Shelly as
+#    a parent device (relay/diagnostics) plus one separate child device per
+#    phase (Phase A/B/C) – each phase's power/energy/voltage/current/
+#    powerFactor entities live on ITS OWN device_id, and none of the four
+#    devices reference each other (parent_device_id is null on all of
+#    them). group_by_config_entry pools all four into one entity set for
+#    role resolution – see device_registry.py's module docstring.
+#
+# NOT the same as a Gen2/Gen3 "Pro 3EM" (REST API, phase_a_active_power-style
+# naming, usually one combined device) – that needs its own separate
+# profile, never this one. Conflating the two would silently misbind roles
+# on whichever generation isn't actually installed.
+schema: 1
+id: shelly_gen1_3em
+class: energy_meter
+verified: true
+derived_from: "none – authored directly from a live registry+state capture, no Solarman/SEM equivalent exists for Shelly"
+
+match:
+  manufacturer: Shelly
+  model: ["Shelly 3EM"]
+  integration: shelly
+  group_by_config_entry: true
+
+roles:
+  l1_power:    {unique_id_suffix: [emeter_0-power]}
+  l2_power:    {unique_id_suffix: [emeter_1-power]}
+  l3_power:    {unique_id_suffix: [emeter_2-power]}
+  l1_voltage:  {unique_id_suffix: [emeter_0-voltage]}
+  l2_voltage:  {unique_id_suffix: [emeter_1-voltage]}
+  l3_voltage:  {unique_id_suffix: [emeter_2-voltage]}
+  l1_current:  {unique_id_suffix: [emeter_0-current]}
+  l2_current:  {unique_id_suffix: [emeter_1-current]}
+  l3_current:  {unique_id_suffix: [emeter_2-current]}
+
+signs:
+  # Empirically verified, not assumed: live power readings were negative
+  # (-3.43/-11.95/-2.04 W) while the per-phase "energyReturned" lifetime
+  # counters (2177/2187/1913 kWh) dwarfed the "energy" (import) counters
+  # (0.07/0/0.06 kWh) by four orders of magnitude – negative power tracks
+  # the direction that dominates the lifetime total, i.e. negative = export.
+  # Matches roles.yaml's canonical convention for power roles already
+  # (positive = import), stated explicitly here because it's the one fact
+  # about this device that would silently invert charge/discharge-style
+  # logic if it were ever wrong.
+  l1_power: {mode: signed, positive: import}
+  l2_power: {mode: signed, positive: import}
+  l3_power: {mode: signed, positive: import}
+
+caveats:
+  - "Kein Summen-/Standort-Sensor: dieses Gen1-3EM liefert nur die drei
+     Phasenwerte, keine Aggregation. Die Rollen active_power/import_energy/
+     export_energy bleiben deshalb bewusst ungebunden – eine Summe der drei
+     Phasen wäre eine Erfindung, kein Messwert. Wer sie braucht, legt sich
+     einen Template-Sensor an."
+  - "Leistungsfaktor ist ebenfalls pro Phase (drei getrennte Sensoren), der
+     Rollenkatalog kennt aber nur eine Klassen-Ebene power_factor-Rolle –
+     bewusst ungebunden statt eine der drei Phasen zu erraten."
+  - "Gen1-Hardware (emeter_N-Namensschema). Ein Gen2/Gen3 Pro-3EM braucht ein
+     eigenes Profil (andere Entity-Namen, meist ein einzelnes Gerät statt
+     vier) – niemals dieses Profil auf ein Pro-3EM anwenden."
+  - "Vier Registry-Geräte für ein physisches Gerät, ohne parent_device_id-
+     Verknüpfung – siehe group_by_config_entry oben und device_registry.py."

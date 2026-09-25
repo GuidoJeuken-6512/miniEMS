@@ -1,0 +1,540 @@
+# Generic role catalog for miniEMS device profiles.
+#
+# See docs/roadmap/v3.0-geraeteprofile.md ("Auflösungskette", "Rollenkatalog").
+# Declares WHAT a role means (kind/quantity/canonical sign) and HOW to
+# recognise a matching HA entity (domain/device_class/unit filter, plus
+# free-text `hints` used as a last-resort heuristic – source 4 in the
+# resolution chain). Contains no Solarman-specific strings: hints are plain
+# English words a device-profile author or the generic heuristic matches
+# against an entity's translation_key/entity_id.
+#
+# Five classes are declared here; only `inverter` and `battery` are wired
+# into a resolver so far (device_resolver.py). `ev`/`energy_meter`/
+# `load_actor` exist as a role vocabulary now so the abstraction doesn't have
+# to be broken open again at the first real device in those classes – see
+# docs/roadmap/v3.x-ev-lasten-zaehler.md for what's still open there.
+version: 1
+
+classes:
+  inverter:
+    roles:
+      pv_power:
+        required: true
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W, kW]
+        sign: {mode: unsigned}
+        hints: [pv_power, pv_total_power, solar_power]
+
+      grid_power:
+        required: true
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W, kW]
+        sign: {mode: signed, positive: import}
+        hints: [grid_power, total_grid_power, meter_active_power]
+
+      load_power:
+        required: true
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W, kW]
+        sign: {mode: unsigned}
+        hints: [load_power, house_load, consumption_power]
+
+      battery_soc:
+        required: true
+        kind: measurement
+        quantity: soc
+        domain: [sensor]
+        device_class: battery
+        unit: ["%"]
+        hints: [battery, battery_soc, state_of_charge]
+
+      battery_power:
+        required: true
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W, kW]
+        sign: {mode: signed, positive: discharge}
+        hints: [battery_power, charge_discharge_power]
+
+      battery_voltage:
+        required: false
+        kind: measurement
+        quantity: voltage
+        domain: [sensor]
+        device_class: voltage
+        unit: [V]
+        hints: [battery_voltage]
+
+      battery_capacity_kwh:
+        required: false
+        kind: measurement
+        quantity: energy
+        domain: [sensor]
+        device_class: [energy_storage, energy]
+        unit: [kWh]
+        hints: [battery_capacity]
+
+      battery_state:
+        required: false
+        kind: measurement
+        quantity: enum
+        domain: [sensor]
+        hints: [battery_state, battery_status]
+
+      grid_import_energy:
+        required: false
+        kind: measurement
+        quantity: energy
+        domain: [sensor]
+        device_class: energy
+        unit: [kWh]
+        hints: [today_energy_import, grid_import_today]
+
+      grid_import_energy_total:
+        required: false
+        kind: measurement
+        quantity: energy_lifetime
+        domain: [sensor]
+        device_class: energy
+        unit: [kWh]
+        hints: [total_energy_import]
+
+      feed_in_energy:
+        required: false
+        kind: measurement
+        quantity: energy
+        domain: [sensor]
+        device_class: energy
+        unit: [kWh]
+        hints: [today_energy_export, feed_in_today]
+
+      feed_in_energy_total:
+        required: false
+        kind: measurement
+        quantity: energy_lifetime
+        domain: [sensor]
+        device_class: energy
+        unit: [kWh]
+        hints: [total_energy_export]
+
+      load_consumption_energy:
+        required: false
+        kind: measurement
+        quantity: energy
+        domain: [sensor]
+        device_class: energy
+        unit: [kWh]
+        hints: [today_load_consumption]
+
+      load_consumption_energy_total:
+        required: false
+        kind: measurement
+        quantity: energy_lifetime
+        domain: [sensor]
+        device_class: energy
+        unit: [kWh]
+        hints: [total_load_consumption]
+
+      today_production:
+        required: false
+        kind: measurement
+        quantity: energy
+        domain: [sensor]
+        device_class: energy
+        unit: [kWh]
+        hints: [today_production]
+
+      today_losses:
+        required: false
+        kind: measurement
+        quantity: energy
+        domain: [sensor]
+        device_class: energy
+        unit: [kWh]
+        hints: [today_losses]
+
+      power_losses:
+        required: false
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W]
+        hints: [power_losses]
+
+      # --- actuators ---------------------------------------------------
+      grid_charge_enable:
+        required_if: battery_control_enabled
+        kind: actuator
+        quantity: boolean
+        domain: [switch, select]
+        hints: [battery_grid_charging, grid_charge]
+
+      battery_charge_limit:
+        required_if: battery_control_enabled
+        kind: actuator
+        quantity: power
+        domain: [number]
+        accepts_unit: [W, A, "%"]
+        hints: [battery_max_charging_current, charge_power_limit]
+
+      battery_discharge_limit:
+        required_if: battery_control_enabled
+        kind: actuator
+        quantity: power
+        domain: [number]
+        accepts_unit: [W, A, "%"]
+        hints: [battery_max_discharging_current, discharge_power_limit]
+
+      grid_import_limit:
+        required: false
+        kind: actuator
+        quantity: power
+        domain: [number]
+        accepts_unit: [W]
+        hints: [grid_max_import_power]
+
+      grid_export_limit:
+        required: false
+        kind: actuator
+        quantity: power
+        domain: [number]
+        accepts_unit: [W]
+        hints: [grid_max_export_power, zero_export_power]
+
+  battery:
+    roles:
+      battery_soc:
+        required: true
+        kind: measurement
+        quantity: soc
+        domain: [sensor]
+        device_class: battery
+        unit: ["%"]
+        hints: [battery, battery_soc, state_of_charge]
+
+      battery_power:
+        required: false
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W, kW]
+        sign: {mode: signed, positive: discharge}
+        hints: [battery_power]
+
+      battery_voltage:
+        required: false
+        kind: measurement
+        quantity: voltage
+        domain: [sensor]
+        device_class: voltage
+        unit: [V]
+        hints: [battery_voltage]
+
+      battery_current:
+        required: false
+        kind: measurement
+        quantity: current
+        domain: [sensor]
+        device_class: current
+        unit: [A]
+        hints: [battery_current]
+
+      battery_temperature:
+        required: false
+        kind: measurement
+        quantity: temperature
+        domain: [sensor]
+        device_class: temperature
+        unit: ["°C"]
+        hints: [battery_temperature]
+
+      battery_capacity_kwh:
+        required: false
+        kind: measurement
+        quantity: energy
+        domain: [sensor]
+        device_class: [energy_storage, energy]
+        unit: [kWh]
+        hints: [battery_capacity]
+
+      bms_charge_current_limit:
+        required: false
+        kind: measurement
+        quantity: current
+        domain: [sensor, number]
+        unit: [A]
+        hints: [bms_max_charging_current]
+
+      bms_discharge_current_limit:
+        required: false
+        kind: measurement
+        quantity: current
+        domain: [sensor, number]
+        unit: [A]
+        hints: [bms_max_discharging_current]
+
+      soh:
+        required: false
+        kind: measurement
+        quantity: soc
+        domain: [sensor]
+        unit: ["%"]
+        hints: [state_of_health, soh]
+
+      cycle_count:
+        required: false
+        kind: measurement
+        quantity: energy
+        domain: [sensor]
+        hints: [cycle_times, cycle_count, battery_life_cycles]
+
+  # --- roadmap only, not implemented – see docs/roadmap/v3.x-ev-lasten-zaehler.md ---
+  ev:
+    roles:
+      soc:
+        required: true
+        kind: measurement
+        quantity: soc
+        domain: [sensor]
+        device_class: battery
+        unit: ["%"]
+        hints: [battery_level, soc]
+
+      charge_power:
+        required: true
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W, kW]
+        sign: {mode: unsigned}
+        hints: [charging_power, charge_power]
+
+      plugged_in:
+        required: false
+        kind: measurement
+        quantity: boolean
+        domain: [binary_sensor]
+        hints: [plug_connected, plugged_in]
+
+      charger_enable:
+        required: false
+        kind: actuator
+        quantity: boolean
+        domain: [switch]
+        hints: [charging_enable, charger_enable]
+
+      charge_current_limit:
+        required: false
+        kind: actuator
+        quantity: power
+        domain: [number]
+        accepts_unit: [W, A]
+        hints: [charging_current_limit, max_charging_current]
+
+      target_soc:
+        required: false
+        kind: actuator
+        quantity: soc
+        domain: [number]
+        unit: ["%"]
+        hints: [target_soc, charge_limit]
+
+      departure_time:
+        required: false
+        kind: actuator
+        quantity: timestamp
+        domain: [datetime, time]
+        hints: [departure_time]
+
+  energy_meter:
+    roles:
+      # Not marked required here: a meter reports EITHER a single signed
+      # active_power OR a separate import_power/export_power pair, never
+      # both required at once. That "one of these two shapes" rule is a
+      # resolver-level concern (device_resolver.py), not expressible as a
+      # single role's `required` flag.
+      active_power:
+        required: false
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W, kW]
+        sign: {mode: signed, positive: import}
+        hints: [total_active_power, power]
+
+      import_power:
+        required: false
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W, kW]
+        sign: {mode: unsigned}
+        hints: [import_power]
+
+      export_power:
+        required: false
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W, kW]
+        sign: {mode: unsigned}
+        hints: [export_power]
+
+      import_energy:
+        required: false
+        kind: measurement
+        quantity: energy_lifetime
+        domain: [sensor]
+        device_class: energy
+        unit: [kWh]
+        hints: [total_active_energy, energy]
+
+      export_energy:
+        required: false
+        kind: measurement
+        quantity: energy_lifetime
+        domain: [sensor]
+        device_class: energy
+        unit: [kWh]
+        hints: [total_active_energy_returned, energy_returned]
+
+      l1_power:
+        required: false
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W]
+        hints: [phase_a_active_power, channel_1_power]
+
+      l2_power:
+        required: false
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W]
+        hints: [phase_b_active_power, channel_2_power]
+
+      l3_power:
+        required: false
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W]
+        hints: [phase_c_active_power, channel_3_power]
+
+      l1_voltage:
+        required: false
+        kind: measurement
+        quantity: voltage
+        domain: [sensor]
+        device_class: voltage
+        unit: [V]
+        hints: [phase_a_voltage, voltage]
+
+      l2_voltage:
+        required: false
+        kind: measurement
+        quantity: voltage
+        domain: [sensor]
+        device_class: voltage
+        unit: [V]
+        hints: [phase_b_voltage]
+
+      l3_voltage:
+        required: false
+        kind: measurement
+        quantity: voltage
+        domain: [sensor]
+        device_class: voltage
+        unit: [V]
+        hints: [phase_c_voltage]
+
+      l1_current:
+        required: false
+        kind: measurement
+        quantity: current
+        domain: [sensor]
+        device_class: current
+        unit: [A]
+        hints: [phase_a_current]
+
+      l2_current:
+        required: false
+        kind: measurement
+        quantity: current
+        domain: [sensor]
+        device_class: current
+        unit: [A]
+        hints: [phase_b_current]
+
+      l3_current:
+        required: false
+        kind: measurement
+        quantity: current
+        domain: [sensor]
+        device_class: current
+        unit: [A]
+        hints: [phase_c_current]
+
+      power_factor:
+        required: false
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power_factor
+        hints: [power_factor]
+
+  load_actor:
+    roles:
+      switch:
+        required: true
+        kind: actuator
+        quantity: boolean
+        domain: [switch, number]
+        hints: [switch, relay]
+
+      power:
+        required: false
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W]
+        sign: {mode: unsigned}
+        hints: [power]
+
+      energy:
+        required: false
+        kind: measurement
+        quantity: energy_lifetime
+        domain: [sensor]
+        device_class: energy
+        unit: [kWh]
+        hints: [energy]
+
+      available:
+        required: false
+        kind: measurement
+        quantity: boolean
+        domain: [binary_sensor]
+        hints: [available, online]

@@ -19,7 +19,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import const
+import ha_ws_api
+from config_loader import Config
 from const import CONFIG_FILE, OPTIONS_FILE, SUPERVISOR_RESTART_URL
+from device_profile import load_profiles
+from device_registry import RegistrySnapshot
+from device_resolver import profile_status, resolve_class
+from energy_dashboard import parse_energy_prefs
+from legacy_entity_fields import inverter_overrides
+from role_catalog import load_role_catalog
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -68,8 +76,16 @@ def load_translations(lang: str) -> dict:
 # Config field type map for coercion
 _BOOL_FIELDS = {
     "battery_control_enabled", "battery_control_simulation",
-    "pv_export_priority_enabled",
+    "pv_export_priority_enabled", "device_detection_enabled",
 }
+# Dict-valued fields never have a settings.html form control (no free-text
+# input can represent a dict safely) – but /api/config's merge loop below
+# runs every posted key through _coerce() regardless of source, and without
+# this set a dict value would fall through to the str(value) branch and get
+# silently stringified/corrupted on save. See
+# docs/roadmap/v3.0-geraeteprofile.md, "Migration" – "Mine im selben Schritt
+# entschärfen".
+_DICT_FIELDS = {"entity_overrides"}
 _INT_FIELDS = {
     "battery_min_soc", "battery_max_soc", "pv_surplus_threshold_w",
     "update_interval_sec", "battery_max_charge_current_a", "battery_max_discharge_current_a",
@@ -78,6 +94,7 @@ _INT_FIELDS = {
     "mode_dwell_sec", "battery_soc_hysteresis_pct",
     "grid_charge_dark_start_hour", "grid_charge_dark_end_hour",
     "sensor_max_age_sec", "forecast_max_age_sec", "price_max_age_sec",
+    "inverter_write_stuck_threshold_sec",
 }
 # NOTE: any float field missing here falls through to str(value) in _coerce()
 # and is persisted as a string, which then raises TypeError on first use.
@@ -105,7 +122,51 @@ def _coerce(key: str, value: Any) -> Any:
             return float(value) if value is not None else 0.0
         except (TypeError, ValueError):
             return 0.0
+    if key in _DICT_FIELDS:
+        return value if isinstance(value, dict) else {}
     return str(value) if value is not None else ""
+
+
+def _resolve_class_json(
+    class_name: str,
+    *,
+    catalog: Any,
+    overrides: dict[str, str],
+    energy_map: Any,
+    registry: Any,
+    profiles: list[Any],
+    live_config: "Config",
+) -> dict[str, Any]:
+    """resolve_class() for one class, JSON-shaped for /api/devices. `battery_
+    control_enabled` is the only config_flags entry any role currently
+    declares required_if on (inverter's three control roles) – harmless to
+    pass for every class, roles.yaml's other classes simply don't reference it."""
+    resolution = resolve_class(
+        class_name,
+        catalog=catalog,
+        overrides=overrides,
+        energy_map=energy_map,
+        registry=registry,
+        profiles=profiles,
+        config_flags={"battery_control_enabled": live_config.battery_control_enabled},
+    )
+    return {
+        "status": profile_status(resolution),
+        "matched_device_id": resolution.matched_device_id,
+        "bindings": {
+            role: {"entity_id": b.entity_id, "source": b.source}
+            for role, b in resolution.bindings.items()
+        },
+        "unresolved_required": list(resolution.unresolved_required),
+        "conflicts": [
+            {
+                "role": c.role,
+                "chosen": {"entity_id": c.chosen.entity_id, "source": c.chosen.source},
+                "rejected": [{"entity_id": r.entity_id, "source": r.source} for r in c.rejected],
+            }
+            for c in resolution.conflicts
+        ],
+    }
 
 
 def create_app(
@@ -182,6 +243,81 @@ def create_app(
             return JSONResponse({"rows": [], "error": "Store not available"})
         rows = await store.query_all_days()
         return JSONResponse({"rows": rows})
+
+    # ── Devices (read-only preview, see docs/roadmap/v3.0-geraeteprofile.md) ──
+
+    @app.get("/devices", response_class=HTMLResponse)
+    async def devices_page(request: Request) -> HTMLResponse:
+        lang = await get_ha_language(request)
+        translations = load_translations(lang)
+        return _TEMPLATES.TemplateResponse(
+            request, "devices.html", {"version": const.VERSION, "translations": translations, "lang": lang}
+        )
+
+    @app.get("/api/devices")
+    async def api_devices() -> JSONResponse:
+        """What HA's energy dashboard and device/entity registry know –
+        purely informational, nothing here feeds the control path yet.
+        Degrades to an `error` field rather than a 5xx: the WS registry
+        query is a nice-to-have preview, not something a dashboard visit
+        should ever fail on.
+        """
+        llt = getattr(config, "long_lived_token", "") if config is not None else ""
+        try:
+            prefs, raw_devices, raw_entities = await ha_ws_api.get_registry_snapshot(llt)
+        except ha_ws_api.HAWebSocketError as exc:
+            return JSONResponse({"error": f"Could not query Home Assistant: {exc}"})
+
+        energy_map = parse_energy_prefs(prefs)
+        snapshot = RegistrySnapshot.from_lists(raw_devices, raw_entities)
+
+        devices = [
+            {
+                "manufacturer": device.manufacturer,
+                "model": device.model,
+                "name": device.name,
+                "entity_count": len(snapshot.entities_of(device.device_id)),
+            }
+            for device in snapshot.devices.values()
+        ]
+        devices.sort(key=lambda d: (d["manufacturer"] or "", d["name"] or ""))
+
+        # Mapping preview: resolve every implemented class's roles against
+        # the same data, so the page shows what miniEMS would actually bind
+        # – not just what HA reports. Purely a preview: resolve_class() is
+        # not called anywhere in the control path yet, see
+        # docs/roadmap/v3.0-geraeteprofile.md. "battery" is left out here –
+        # its only profile (pylontech_force) is unverified and the legacy
+        # config has never had a separate battery slot to compare against.
+        live_config = config if config is not None else Config()
+        # entity_overrides (explicit, "<class>.<role>" keyed – set via the raw
+        # config.json editor today, an entity-picker later) wins over a
+        # legacy *_entity field that merely differs from its default: both
+        # are resolution source 1, but entity_overrides is the more
+        # deliberate signal of the two. resolve_class() only ever reads the
+        # keys prefixed for the class it was called with, so one merged dict
+        # can be reused across every class's call.
+        overrides = {**inverter_overrides(live_config, Config()), **(live_config.entity_overrides or {})}
+        catalog = load_role_catalog()
+        profiles = load_profiles()
+        resolutions = {
+            class_name: _resolve_class_json(
+                class_name, catalog=catalog, overrides=overrides, energy_map=energy_map,
+                registry=snapshot, profiles=profiles, live_config=live_config,
+            )
+            for class_name in ("inverter", "energy_meter")
+        }
+
+        return JSONResponse({
+            "energy_dashboard": {
+                "candidates": energy_map.candidates,
+                "signs": {k: {"mode": v.mode, "positive": v.positive} for k, v in energy_map.signs.items()},
+                "split_candidates": energy_map.split_candidates,
+                "battery_capacity_kwh": energy_map.battery_capacity_kwh,
+            },
+            "devices": devices,
+            "resolutions": resolutions,
+        })
 
     @app.get("/api/config")
     async def api_config() -> dict[str, Any]:

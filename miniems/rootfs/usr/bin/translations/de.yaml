@@ -5,14 +5,40 @@ ui_log: miniEMS Protokoll
 ui_config_json: config.json Editor
 ui_options_json: options.json Editor
 ui_database: Datenbank – daily_stats
+ui_devices: Geräte
 tab_dashboard: Hauptseite
 tab_settings: Einstellungen
 tab_log: Protokoll
 tab_config_json: config.json
 tab_options_json: options.json
 tab_database: Datenbank
+tab_devices: Geräte
 refresh_hint: Automatische Aktualisierung alle 5 Sekunden
 footer: miniEMS v
+
+# Geräte-Seite (read-only Vorschau von Energie-Dashboard + Geräte-Registry)
+devices_hint: Reine Lesevorschau dessen, was Home Assistant über deine Geräte weiß – das Energie-Dashboard und die Geräte-/Entity-Registry. Nichts auf dieser Seite wird bereits zur Steuerung genutzt, siehe docs/roadmap/v3.0-geraeteprofile.md.
+energy_dashboard_section: Energie-Dashboard (energy/get_prefs)
+device_registry_section: Geräte-Registry
+role: Rolle
+entity: Entity
+sign: Vorzeichen
+manufacturer: Hersteller
+model: Modell
+name: Name
+entities: Entities
+no_energy_dashboard: Kein Energie-Dashboard in Home Assistant konfiguriert.
+no_devices: Keine Geräte gefunden.
+resolution_section_inverter: Aufgelöste Rollen (Wechselrichter)
+resolution_section_energy_meter: Aufgelöste Rollen (Energiezähler)
+matched_device: Erkanntes Gerät
+source: Herkunft
+also_offered_by: auch angeboten von
+role_unresolved: Rolle nicht aufgelöst
+profile_status_ok: ok
+profile_status_degraded: uneindeutig
+profile_status_unresolved: unaufgelöst
+no_resolution: Noch nichts aufgelöst.
 
 # Dashboard – Echtzeit-Leistungskarten
 pv_power: PV-Leistung
@@ -53,6 +79,11 @@ solcast: Solcast PV-Prognose
 solcast_remaining: Verbleibend heute
 solcast_today: Heute gesamt
 solcast_tomorrow: Morgen
+
+# Energiefahrplan (Tagesbilanz für die kommende Nacht)
+energy_plan: Energiefahrplan (heute Nacht → morgen)
+energy_plan_deficit: Netzladung nötig
+energy_plan_cost: Geschätzte Netzladekosten
 
 # Prognose & Vorhersage
 forecast_prediction: Prognose & Vorhersage

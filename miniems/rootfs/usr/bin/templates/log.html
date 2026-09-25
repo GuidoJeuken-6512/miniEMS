@@ -20,6 +20,7 @@
     <a href="config-json" class="tab-link">{{ translations.tab_config_json or 'config.json' }}</a>
     <a href="options-json" class="tab-link">{{ translations.tab_options_json or 'options.json' }}</a>
     <a href="database" class="tab-link">{{ translations.tab_database or 'Database' }}</a>
+    <a href="devices" class="tab-link">{{ translations.tab_devices or 'Devices' }}</a>
   </nav>
   <p class="refresh-hint">{{ translations.refresh_hint or 'Auto-refreshes every 5 seconds' }}</p>
   <div id="log-content">Loading…</div>
@@ -56,8 +57,8 @@
       'soc below export floor':             'reason_soc_below_export_floor',
       'no free capacity':                   'reason_no_free_capacity',
       'forecast unavailable':               'reason_forecast_unavailable',
-      'forecast above battery need':        'reason_forecast_above_need',
-      'forecast below battery need':        'reason_forecast_below_need',
+      'forecast above battery+load need':   'reason_forecast_above_need',
+      'forecast below battery+load need':   'reason_forecast_below_need',
       'cheap rate, pv cannot fill battery': 'reason_grid_charge_cheap_rate',
       'no action':                          'reason_no_action',
     };

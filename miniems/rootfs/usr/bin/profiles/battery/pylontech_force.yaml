@@ -1,0 +1,40 @@
+# Pylontech Force H1/H2/H3 – a standalone battery/BMS, not itself an
+# inverter. Relevant when the battery is a separate device from the
+# inverter (e.g. attached via its own Modbus connection) rather than a slot
+# on the inverter's own registers, as on this project's Deye installation.
+#
+# UNVERIFIED: no Pylontech hardware was available to check this against –
+# derived purely offline from the Solarman definition's item names. Do not
+# treat `verified: false` profiles as auto-bindable; see device_resolver.py.
+schema: 1
+id: pylontech_force
+class: battery
+verified: false
+derived_from: "solarman/pylontech_force.yaml (custom_components/solarman/inverter_definitions/), MIT, David Rapan – item names only, never read at runtime"
+
+match:
+  manufacturer: Pylontech
+  model: ["Force H1", "Force H2", "Force H3"]
+  integration: solarman
+  entity_hints: [battery_voltage, battery_current]
+
+roles:
+  battery_soc:                  {translation_key: [battery, battery_soc]}
+  battery_voltage:               {translation_key: [battery_voltage]}
+  battery_current:                {translation_key: [battery_current]}
+  battery_temperature:            {translation_key: [battery_temperature]}
+  battery_capacity_kwh:           {translation_key: [battery_capacity]}
+  bms_charge_current_limit:       {translation_key: [bms_max_charging_current]}
+  bms_discharge_current_limit:    {translation_key: [bms_max_discharging_current]}
+  cycle_count:                    {translation_key: [battery_cycle_times, cycle_times]}
+
+signs:
+  battery_power: {mode: signed, positive: discharge}
+
+control: {}   # a pure-sensor battery has no actuators of its own
+
+caveats:
+  - "Ein eigenständiges Batteriegerät überschreibt die vom Wechselrichter durchgereichten
+     BMS-Werte in der Slot-Priorität (entity_overrides -> battery-Slot -> inverter-Slot)."
+  - "Nicht an echter Hardware verifiziert – vor produktivem Einsatz die translation_key-Werte
+     gegen die reale Entity-Registry prüfen."

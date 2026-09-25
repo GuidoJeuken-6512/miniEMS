@@ -27,6 +27,26 @@ CREATE TABLE IF NOT EXISTS event_log (
 )
 """
 
+_CREATE_CAPABILITY_TODAY_TABLE = """
+CREATE TABLE IF NOT EXISTS battery_charge_capability_today (
+    date          TEXT NOT NULL,
+    soc_bucket    TEXT NOT NULL,
+    max_power_w   REAL NOT NULL DEFAULT 0,
+    sample_count  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (date, soc_bucket)
+)
+"""
+
+_CREATE_CAPABILITY_HISTORY_TABLE = """
+CREATE TABLE IF NOT EXISTS battery_charge_capability_history (
+    date          TEXT NOT NULL,
+    soc_bucket    TEXT NOT NULL,
+    max_power_w   REAL NOT NULL,
+    sample_count  INTEGER NOT NULL,
+    PRIMARY KEY (date, soc_bucket)
+)
+"""
+
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS daily_stats (
     date               TEXT PRIMARY KEY,
@@ -80,9 +100,17 @@ class EnergyStore:
                 await self._db.execute(f"ALTER TABLE daily_stats ADD COLUMN {col_def}")
             except Exception:
                 pass   # column already exists – ignore
+        await self._db.execute(_CREATE_CAPABILITY_TODAY_TABLE)
+        await self._db.execute(_CREATE_CAPABILITY_HISTORY_TABLE)
         await self._db.execute(_CREATE_EVENT_LOG_TABLE)
         # Add columns if missing (upgrade for existing DBs)
-        for col_def in ("mode TEXT", "reason TEXT"):
+        for col_def in (
+            "mode TEXT", "reason TEXT",
+            # write_confirm entries only – see InverterController.pop_write_events()
+            "write_channel TEXT",
+            "write_latency_sec REAL",
+            "write_outcome TEXT",
+        ):
             try:
                 await self._db.execute(f"ALTER TABLE event_log ADD COLUMN {col_def}")
             except Exception:
@@ -180,6 +208,66 @@ class EnergyStore:
             return [dict(r) for r in rows]
 
     # ------------------------------------------------------------------
+    # Battery charge capability (gelernte Ladeleistung) – see
+    # battery_capability.py for the full rationale.
+    # ------------------------------------------------------------------
+
+    async def upsert_capability_today(
+        self, day: date, bucket: str, max_power_w: float, sample_count: int
+    ) -> None:
+        """Insert or overwrite one bucket's running max for `day`."""
+        if not self._db:
+            return
+        await self._db.execute(
+            """INSERT INTO battery_charge_capability_today
+                   (date, soc_bucket, max_power_w, sample_count)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(date, soc_bucket) DO UPDATE SET
+                   max_power_w = excluded.max_power_w,
+                   sample_count = excluded.sample_count""",
+            [str(day), bucket, max_power_w, sample_count],
+        )
+        await self._db.commit()
+
+    async def rollover_capability_day(self, day: date, min_samples: int) -> None:
+        """Copy `day`'s qualifying buckets into permanent history, then drop
+        that day's row from the temporary table (a new day's ticks start it
+        fresh regardless)."""
+        if not self._db:
+            return
+        await self._db.execute(
+            """INSERT INTO battery_charge_capability_history
+                   (date, soc_bucket, max_power_w, sample_count)
+               SELECT date, soc_bucket, max_power_w, sample_count
+               FROM battery_charge_capability_today
+               WHERE date = ? AND sample_count >= ?
+               ON CONFLICT(date, soc_bucket) DO UPDATE SET
+                   max_power_w = excluded.max_power_w,
+                   sample_count = excluded.sample_count""",
+            [str(day), min_samples],
+        )
+        await self._db.execute(
+            "DELETE FROM battery_charge_capability_today WHERE date = ?", [str(day)]
+        )
+        await self._db.commit()
+
+    async def query_capability_history(
+        self, bucket: str, lookback_days: int, min_samples: int
+    ) -> list[float]:
+        """max_power_w of every qualifying day for `bucket`, newest first."""
+        if not self._db:
+            return []
+        cutoff = str(date.today() - timedelta(days=lookback_days))
+        async with self._db.execute(
+            """SELECT max_power_w FROM battery_charge_capability_history
+               WHERE soc_bucket = ? AND date >= ? AND sample_count >= ?
+               ORDER BY date DESC""",
+            [bucket, cutoff, min_samples],
+        ) as cur:
+            rows = await cur.fetchall()
+            return [r["max_power_w"] for r in rows]
+
+    # ------------------------------------------------------------------
     # Event log
     # ------------------------------------------------------------------
 
@@ -190,13 +278,16 @@ class EnergyStore:
         await self._db.execute(
             """INSERT INTO event_log
                (timestamp, entry_type, state, battery_kwh_freetochange,
-                battery_kwh_useable, predicted_load_kwh, price_eur_kwh, mode, reason)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                battery_kwh_useable, predicted_load_kwh, price_eur_kwh, mode, reason,
+                write_channel, write_latency_sec, write_outcome)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [
                 entry["timestamp"], entry["entry_type"], entry["state"],
                 entry["battery_kwh_freetochange"], entry["battery_kwh_useable"],
                 entry.get("predicted_load_kwh"), entry.get("price_eur_kwh"),
                 entry.get("mode"), entry.get("reason"),
+                entry.get("write_channel"), entry.get("write_latency_sec"),
+                entry.get("write_outcome"),
             ],
         )
         await self._db.commit()

@@ -20,6 +20,7 @@
     <a href="config-json" class="tab-link">{{ translations.tab_config_json or 'config.json' }}</a>
     <a href="options-json" class="tab-link">{{ translations.tab_options_json or 'options.json' }}</a>
     <a href="database" class="tab-link">{{ translations.tab_database or 'Database' }}</a>
+    <a href="devices" class="tab-link">{{ translations.tab_devices or 'Devices' }}</a>
   </nav>
 
   <div id="settings-form">Loading…</div>
@@ -36,7 +37,8 @@
       'pv_export_min_soc_pct', 'pv_charge_backstop_hour', 'export_hold_charge_current_a',
       'mode_dwell_sec', 'battery_soc_hysteresis_pct',
       'grid_charge_dark_start_hour', 'grid_charge_dark_end_hour',
-      'sensor_max_age_sec', 'forecast_max_age_sec', 'price_max_age_sec'
+      'sensor_max_age_sec', 'forecast_max_age_sec', 'price_max_age_sec',
+      'inverter_write_stuck_threshold_sec'
     ]);
     const FLOAT_FIELDS = new Set([
       'battery_capacity_kwh', 'cheap_rate_threshold_eur', 'medium_rate_threshold_eur',
@@ -53,6 +55,7 @@
           { key: 'pv_power_entity',      label: 'PV Power Entity' },
           { key: 'battery_soc_entity',   label: 'Battery SoC Entity' },
           { key: 'battery_power_entity', label: 'Battery Power Entity' },
+          { key: 'battery_voltage_entity', label: 'Battery Voltage Entity' },
           { key: 'grid_power_entity',    label: 'Grid Power Entity' },
           { key: 'load_power_entity',          label: 'Load Power Entity' },
           { key: 'grid_import_energy_entity',  label: 'Grid Import Energy Today Entity (daily kWh total)' },
@@ -105,6 +108,7 @@
           { key: 'battery_discharging_current_entity', label: 'Max Discharging Current Entity' },
           { key: 'battery_max_charge_current_a',       label: 'Max Charge Current (A)' },
           { key: 'battery_max_discharge_current_a',    label: 'Max Discharge Current (A)' },
+          { key: 'inverter_write_stuck_threshold_sec', label: 'Write "error" threshold (s) — provisional default, see docs' },
         ]
       },
       {
@@ -139,6 +143,8 @@
           { key: 'solcast_tomorrow_entity',        label: 'Solcast Tomorrow Entity' },
           { key: 'solcast_remaining_today_entity', label: 'Solcast Remaining Today Entity' },
           { key: 'solcast_last_fetch_entity',      label: 'Last API Fetch Entity (its value = age of the forecast data)' },
+          { key: 'solcast_peak_time_today_entity',    label: 'Solcast Peak Power Time Today Entity' },
+          { key: 'solcast_peak_time_tomorrow_entity', label: 'Solcast Peak Power Time Tomorrow Entity' },
         ]
       },
     ];

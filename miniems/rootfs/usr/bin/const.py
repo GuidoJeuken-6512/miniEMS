@@ -8,10 +8,10 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "2.0.4"
+VERSION = "3.1.0"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
-CONFIG_SCHEMA_VERSION = 16
+CONFIG_SCHEMA_VERSION = 20
 
 # ── Battery current limits ────────────────────────────────────────────────────
 # The Deye inverter exposes battery limits as CURRENT in amperes
@@ -29,10 +29,29 @@ HA_API_BASE         = "http://hassio/homeassistant/api"
 HA_STATES_URL       = f"{HA_API_BASE}/states"
 HA_SERVICES_URL     = f"{HA_API_BASE}/services"
 SUPERVISOR_RESTART_URL = "http://supervisor/addons/self/restart"
+# Registry data (device/entity registry, energy-dashboard prefs) has no REST
+# endpoint – WebSocket-only. Verified reachable from the add-on container with
+# SUPERVISOR_TOKEN, no extra permission beyond the existing homeassistant_api:
+# true in config.yaml. Used only for one-shot queries (ha_ws_api.py), never
+# for the per-tick state poll – that stays ha_state_client.py's REST job.
+HA_WEBSOCKET_URL = "ws://hassio/homeassistant/websocket"
+
+# ── MQTT (mqtt_publisher.py – not yet wired into main.py) ────────────────────
+# Supervisor's Services API for the MQTT service add-on (host/port/credentials
+# of the broker, if one is installed). Same http://supervisor/... base as
+# SUPERVISOR_RESTART_URL above.
+SUPERVISOR_MQTT_URL = "http://supervisor/services/mqtt"
+# Home Assistant's default MQTT Discovery prefix (matches HA's own default;
+# not currently exposed as a config option).
+MQTT_DISCOVERY_PREFIX = "homeassistant"
+# Namespace for this add-on's own state topics, separate from the discovery
+# config topics above.
+MQTT_STATE_TOPIC_PREFIX = "miniems"
 
 # ── Polling / timing (seconds) ────────────────────────────────────────────────
-HA_POLL_INTERVAL_SEC  = 15   # how often ha_ws_client refreshes HA states
+HA_POLL_INTERVAL_SEC  = 15   # how often ha_state_client refreshes HA states
 HA_RETRY_INTERVAL_SEC = 10   # retry delay after a failed poll / 401
+HA_WS_QUERY_TIMEOUT_SEC = 15   # one-shot WS query (ha_ws_api.py) – connect+auth+response
 
 # ── Sensor staleness limits (seconds) ─────────────────────────────────────────
 # HA only advances last_updated when a value actually changes, so these must be
@@ -52,7 +71,7 @@ PRICE_MAX_AGE_SEC    = 21720   # 6 h + 2 min. A time-of-use tariff is written on
 # Grace period for once-per-day values (Solcast daily forecast totals). The
 # source rewrites them within ~5 min of local midnight; until then a timestamp
 # from yesterday is legitimate. 15 min gives that margin without letting a truly
-# stopped integration hide. Used by HAWebSocketClient.is_stale_daily(), which
+# stopped integration hide. Used by HAStateClient.is_stale_daily(), which
 # asks "was it written today?" instead of "how old is it?" – see
 # docs/roadmap/sensor-staleness.md for why no age threshold can be right here.
 DAILY_VALUE_GRACE_SEC = 900
@@ -88,6 +107,45 @@ INVERTER_WRITE_CONFIRM_TIMEOUT_SEC = 30
 # value only needs to be generous enough to catch the common case without
 # stalling the EMS loop – it is deliberately below the tick interval budget.
 INVERTER_SERVICE_CALL_TIMEOUT_SEC = 15
+
+# Window over which InverterController.write_errors counts real (HTTP-rejected)
+# write failures for the dashboard/warning banner. A plain lifetime total never
+# clears once any failure has happened since the last add-on restart – 28
+# failures from days ago would look identical to 28 happening right now.
+# Pruned to this window on every read instead.
+INVERTER_WRITE_ERROR_WINDOW_SEC = 3600   # 1 h
+
+# How long a single channel (charge/discharge current, grid-charge switch)
+# must stay continuously unconfirmed before InverterController.longest_pending_sec
+# counts it as a real, consequential problem (sensor.miniems_inverter_write_status
+# = "error") rather than a normal, still-plausibly-resolving confirmation cycle
+# ("warning"). Deliberately conservative and explicitly PROVISIONAL: the only
+# figure on record for how long a legitimate confirmation can take (~25 min,
+# CHANGELOG v2.0.1) is an unsourced historical observation, not a vendor spec
+# and not backed by retained raw data. The write-confirm events persisted to
+# event_log (entry_type="write_confirm") exist specifically to replace this
+# guess with real, multi-day latency data – revisit once that exists.
+INVERTER_WRITE_STUCK_THRESHOLD_SEC = 1800   # 30 min – provisional, see above
+
+# ── Gelernte Ladeleistung (battery_capability.py) ─────────────────────────────
+# SoC-bucketed history of GRID_CHARGING throughput, replacing
+# battery_max_charge_current_a x voltage with an observed value once enough
+# history exists – see docs/roadmap/energiefahrplan.md, "Gelernte
+# Ladeleistung statt Konfigurationswert".
+#
+# Provisional, like INVERTER_WRITE_STUCK_THRESHOLD_SEC above: not yet derived
+# from real GRID_CHARGING frequency on a production installation (open
+# question in the roadmap doc) – revisit once event_log/write-confirm data
+# gives a real distribution to size these against.
+BATTERY_CAPABILITY_MIN_SAMPLES_PER_DAY = 6   # ~3 min of GRID_CHARGING at a 30s tick
+BATTERY_CAPABILITY_MIN_DAYS = 3              # qualifying days needed before trusting history
+BATTERY_CAPABILITY_LOOKBACK_DAYS = 14
+
+# ── Energiefahrplan (energy_plan.py) ──────────────────────────────────────────
+# Recompute interval for the proactive tomorrow-deficit plan. Hourly, not
+# every 30s tick: display-only, and price/PV forecasts don't change on a
+# tick's timescale – see docs/roadmap/energiefahrplan.md, "Trigger".
+ENERGY_PLAN_RECOMPUTE_SEC = 3600
 
 # ── Custom integration installer ──────────────────────────────────────────────
 from pathlib import Path

@@ -25,7 +25,7 @@ from datetime import date, datetime, time, timedelta
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ha_ws_client import HAWebSocketClient
+    from ha_state_client import HAStateClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class PriceCurve:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_entity(cls, ws: "HAWebSocketClient", entity_id: str) -> "PriceCurve | None":
+    def from_entity(cls, ws: "HAStateClient", entity_id: str) -> "PriceCurve | None":
         """Build from a price entity, or None when it carries no calendar."""
         if not entity_id:
             return None
@@ -127,6 +127,40 @@ class PriceCurve:
         rates = [w.rate_eur_kwh for w in self._windows_between(start, deadline)]
         return min(rates) if rates else None
 
+    def later_window_as_cheap(
+        self, now: datetime, deadline: datetime, charge_duration: timedelta
+    ) -> bool:
+        """Can charging be safely postponed to a later, equally-cheap window?
+
+        `is_cheapest_now()` cannot answer this on its own: two windows at the
+        identical rate (this installation's NIEDRIG at 02-06 *and* 12-16) are
+        both "as cheap as anything before the deadline", so it says yes to
+        both, including the one in the middle of PV production that this
+        method exists to avoid.
+
+        True when a window starting after the one covering `now` ends – but
+        still early enough that charging for `charge_duration` finishes
+        before `deadline` – has a rate no higher than the current window's.
+        Deferring then costs nothing and still meets the deadline. False
+        whenever no such window exists, the calendar has a hole, or there
+        simply is no time left to defer – "don't defer" always just means
+        charging slightly earlier than strictly necessary, so every unclear
+        case resolves that way, not the other.
+        """
+        current = self.window_at(now)
+        if current is None:
+            return False
+        latest_feasible_start = deadline - charge_duration
+        if latest_feasible_start <= now:
+            return False
+        window_end_now = self.window_end(now)
+        if window_end_now is None or window_end_now >= latest_feasible_start:
+            return False
+        cheapest_later = self.cheapest_rate_between(window_end_now, latest_feasible_start)
+        if cheapest_later is None:
+            return False
+        return cheapest_later <= current.rate_eur_kwh
+
     def is_cheapest_now(
         self, moment: datetime, deadline: datetime, tolerance_eur: float = 0.0005
     ) -> bool | None:
@@ -141,6 +175,38 @@ class PriceCurve:
         if current is None or cheapest is None:
             return None
         return current.rate_eur_kwh <= cheapest + tolerance_eur
+
+    def windows_before(
+        self, start: datetime, deadline: datetime
+    ) -> list[tuple[datetime, datetime, float]]:
+        """Every distinct window in [start, deadline), as real, date-anchored
+        (window_start, window_end, rate) tuples clipped to that span.
+
+        Unlike `_windows_between()` (which returns the abstract, recurring
+        `_Window` objects – no notion of a specific occurrence), this gives
+        the actual datetimes a caller needs to compute a duration or a
+        capacity, e.g. energy_plan.py's fill-cheapest-first schedule. A
+        window already in progress at `start` is clipped to start there, not
+        at its normal start-of-day time.
+        """
+        if deadline <= start:
+            return []
+        result: list[tuple[datetime, datetime, float]] = []
+        cursor = start
+        while cursor < deadline:
+            w = self.window_at(cursor)
+            if w is None:
+                # Calendar gap – advance in small steps, same granularity as
+                # _windows_between(), rather than getting stuck.
+                cursor += timedelta(minutes=15)
+                continue
+            w_end = self.window_end(cursor)
+            if w_end is None:
+                break
+            clipped_end = min(w_end, deadline)
+            result.append((cursor, clipped_end, w.rate_eur_kwh))
+            cursor = clipped_end
+        return result
 
     # ------------------------------------------------------------------
 

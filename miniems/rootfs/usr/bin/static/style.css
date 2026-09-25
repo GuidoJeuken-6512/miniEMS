@@ -100,6 +100,33 @@ h1 {
   font-weight: 700;
 }
 
+.devices-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #b3e0ff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,128,255,0.07);
+  margin-bottom: 1.5rem;
+}
+.devices-table th, .devices-table td {
+  text-align: left;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid #e6f4ff;
+  font-size: 0.95rem;
+}
+.devices-table th {
+  color: #0077cc;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #f4faff;
+}
+.devices-table tr:last-child td { border-bottom: none; }
+.devices-table code { color: #0099ff; }
+
 .mode-badge {
   display: inline-block;
   padding: 0.5rem 1.2rem;
@@ -574,3 +601,39 @@ footer        { font-size: 0.75rem; color: #8b949e; margin-top: 2rem; }
   box-sizing: border-box;
   tab-size: 2;
 }
+
+/* ── Devices page ────────────────────────────────────────
+   .devices-table was only ever styled in the light theme block above
+   (added in I2/v2.1.0, before the dark redesign further down in this
+   file existed) and never got a matching dark override – unlike
+   .log-table/.db-table below, which both did. Every other page ends up
+   dark via this file's cascade (a later same-specificity rule always
+   wins), but the table fell through to the light block's white
+   background with the dark block's pale body text colour inherited on
+   top of it – unreadable, and only on this one page. */
+.devices-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+  font-size: 0.85rem;
+}
+.devices-table th, .devices-table td {
+  text-align: left;
+  padding: 0.45rem 0.8rem;
+  border-bottom: 1px solid #21262d;
+  color: #c9d1d9;
+}
+.devices-table th {
+  background: #21262d;
+  color: #8b949e;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.devices-table tr:last-child td { border-bottom: none; }
+.devices-table code { color: #58a6ff; }
