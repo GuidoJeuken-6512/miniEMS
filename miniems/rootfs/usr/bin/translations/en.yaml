@@ -52,6 +52,13 @@ tier_low: low
 tier_medium: medium
 tier_high: high
 
+# Dashboard – power flow diagram
+flow_title: Power Flow
+flow_solar: Solar
+flow_grid: Grid
+flow_battery: Battery
+flow_home: Home
+
 # Cost & Savings
 cost_savings: Cost & Savings
 saved_today: Saved Today (PV)

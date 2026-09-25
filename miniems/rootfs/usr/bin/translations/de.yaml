@@ -52,6 +52,13 @@ tier_low: niedrig
 tier_medium: mittel
 tier_high: hoch
 
+# Dashboard – Energiefluss-Diagramm
+flow_title: Energiefluss
+flow_solar: Solar
+flow_grid: Netz
+flow_battery: Batterie
+flow_home: Verbrauch
+
 # Kosten & Einsparung
 cost_savings: Kosten & Einsparung
 saved_today: Heute gespart (PV)

@@ -58,6 +58,96 @@
       return 'mode-IDLE';
     }
 
+    // ── Power flow diagram ──────────────────────────────────────────────
+    // Same visual idea as the SEM Community integration's animated flow
+    // card (Solar/Grid/Battery around a Home hub) – reimplemented as plain
+    // inline SVG since this dashboard has no Lovelace/custom-element
+    // pipeline, just a full innerHTML re-render every 5s like everything
+    // else here. Flow direction follows the app's own sign convention
+    // (docs/technical/calculations.md): grid_power_w > 0 = import,
+    // battery_power_w > 0 = discharge.
+    const FLOW_COLORS = {
+      solar: '#f0883e', gridIn: '#58a6ff', gridOut: '#bc8cff',
+      battery: '#56d4dd', home: '#e6edf3',
+    };
+    const FLOW_MIN_W = 10; // below this, treat as "no flow" (avoids sensor-noise flicker)
+
+    // node centres in the 380×340 viewBox – solar/grid/battery around a home hub
+    const FLOW_POS = {
+      solar:   { x: 190, y: 45,  r: 26 },
+      grid:    { x: 55,  y: 150, r: 26 },
+      battery: { x: 325, y: 150, r: 26 },
+      home:    { x: 190, y: 240, r: 38 },
+    };
+
+    function flowNode(key, color, label, value, sub) {
+      const p = FLOW_POS[key];
+      const labelY = p.y + p.r + 16;
+      return `
+        <circle class="flow-node-circle" cx="${p.x}" cy="${p.y}" r="${p.r}"
+                fill="${color}22" stroke="${color}" stroke-width="2"/>
+        <text x="${p.x}" y="${labelY}" text-anchor="middle" fill="${color}" class="flow-node-label">${label}</text>
+        <text x="${p.x}" y="${labelY + 18}" text-anchor="middle" fill="${color}" class="flow-node-value">${value}</text>
+        ${sub ? `<text x="${p.x}" y="${labelY + 33}" text-anchor="middle" fill="${color}" class="flow-node-sub">${sub}</text>` : ''}
+      `;
+    }
+
+    // path + up to 3 animated travelling dots; `active` also picks the
+    // direction (a→b vs b→a) along the very same visual line
+    function flowConnection(a, b, color, active) {
+      const pa = FLOW_POS[a], pb = FLOW_POS[b];
+      const track = `M${pa.x},${pa.y} L${pb.x},${pb.y}`;
+      let dots = '';
+      if (active) {
+        const path = active === 'reverse' ? `M${pb.x},${pb.y} L${pa.x},${pa.y}` : track;
+        for (let i = 0; i < 3; i++) {
+          dots += `<circle r="4" fill="${color}" class="flow-dot">
+            <animateMotion dur="1.6s" begin="${(i * 0.53).toFixed(2)}s" repeatCount="indefinite" path="${path}"/>
+          </circle>`;
+        }
+      }
+      return `<path class="flow-track" d="${track}" stroke="${color}"/>${dots}`;
+    }
+
+    function flowDiagram(d) {
+      const pv    = d.pv_power_w ?? 0;
+      const load  = d.load_power_w ?? 0;
+      const grid  = d.grid_power_w ?? 0;
+      const batt  = d.battery_power_w ?? 0;
+      const soc   = d.battery_soc_pct;
+
+      const gridImport = Math.max(0, grid);
+      const gridExport = Math.max(0, -grid);
+      const battCharge = Math.max(0, -batt);
+      const battDischarge = Math.max(0, batt);
+
+      const solarActive = pv > FLOW_MIN_W ? 'forward' : null;
+      const gridActive  = gridImport > FLOW_MIN_W ? 'forward' : (gridExport > FLOW_MIN_W ? 'reverse' : null);
+      const battActive  = battDischarge > FLOW_MIN_W ? 'forward' : (battCharge > FLOW_MIN_W ? 'reverse' : null);
+      const gridColor   = gridActive === 'reverse' ? FLOW_COLORS.gridOut : FLOW_COLORS.gridIn;
+
+      const gridLabel = gridActive === 'reverse'
+        ? `&#8593; ${fmt(gridExport, 0)} W` : `&#8595; ${fmt(gridImport, 0)} W`;
+      const battLabel = battActive === 'reverse'
+        ? `&#9650; ${fmt(battCharge, 0)} W` : `&#9660; ${fmt(battDischarge, 0)} W`;
+
+      return `
+        <div class="flow-card">
+          <p class="section-title">${T.flow_title || 'Power Flow'}</p>
+          <svg viewBox="0 0 380 340" xmlns="http://www.w3.org/2000/svg">
+            ${flowConnection('solar', 'home', FLOW_COLORS.solar, solarActive)}
+            ${flowConnection('grid', 'home', gridColor, gridActive)}
+            ${flowConnection('battery', 'home', FLOW_COLORS.battery, battActive)}
+            ${flowNode('solar', FLOW_COLORS.solar, T.flow_solar || 'Solar', `${fmt(pv, 0)} W`)}
+            ${flowNode('grid', gridColor, T.flow_grid || 'Grid', gridLabel)}
+            ${flowNode('battery', FLOW_COLORS.battery, T.flow_battery || 'Battery',
+                        `${fmt(soc, 0)}%`, battLabel)}
+            ${flowNode('home', FLOW_COLORS.home, T.flow_home || 'Home', `${fmt(load, 0)} W`)}
+          </svg>
+        </div>
+      `;
+    }
+
     function renderDashboard(d) {
       const simBadge = (d.battery_control_active && d.battery_control_simulation)
         ? '<span class="sim-badge">SIM</span>' : '';
@@ -70,6 +160,8 @@
       return `
         ${warnHtml}
         <div class="mode-badge ${fmtMode(d.mode)}">${d.mode || 'Unknown'}${simBadge}</div>
+
+        ${flowDiagram(d)}
 
         <div class="grid">
           <div class="card">

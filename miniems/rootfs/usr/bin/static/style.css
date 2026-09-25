@@ -277,6 +277,42 @@ h1 {
 .negative   { color: #f85149; }
 .muted      { color: #8b949e; }
 
+/* ── Power flow diagram ─────────────────────────────────────
+   Inspired by the SEM Community integration's animated flow card
+   (LitElement + Lovelace-only there); reimplemented here as plain
+   inline SVG re-rendered on every 5s /api/status poll, consistent
+   with how the rest of this dashboard already works – no build step,
+   no custom-element registration, no extra dependency. */
+.flow-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 0.5rem 1rem 0.75rem;
+  margin-bottom: 1.5rem;
+}
+.flow-card svg { width: 100%; height: auto; display: block; }
+.flow-track { fill: none; stroke-width: 2.5; opacity: 0.2; }
+.flow-dot   { filter: drop-shadow(0 0 3px currentColor); }
+.flow-node-circle { transition: opacity 0.4s ease; }
+.flow-node-label {
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.flow-node-value {
+  font-family: system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+.flow-node-sub {
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
 /* ── Misc ───────────────────────────────────────────────── */
 .refresh-hint { font-size: 0.75rem; color: #8b949e; margin-bottom: 1rem; }
 footer        { font-size: 0.75rem; color: #8b949e; margin-top: 2rem; }
