@@ -36,6 +36,7 @@
   "entity": {
     "sensor": {
       "mode": { "name": "Mode" },
+      "price_tier": { "name": "Price Tier" },
       "today_grid_cost": { "name": "Today Grid Cost" },
       "today_pv_savings": { "name": "Today PV Savings" },
       "today_load_cost": { "name": "Today Load Cost" },
@@ -45,6 +46,7 @@
       "today_pv_used": { "name": "Today PV Used" },
       "today_load_total": { "name": "Today Load Total" },
       "today_grid_charge": { "name": "Today Grid Charge" },
+      "today_grid_import": { "name": "Today Grid Import" },
       "today_kwh_high_rate": { "name": "Today kWh High Rate" },
       "today_kwh_medium_rate": { "name": "Today kWh Medium Rate" },
       "today_kwh_low_rate": { "name": "Today kWh Low Rate" },

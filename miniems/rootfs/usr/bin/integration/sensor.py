@@ -50,6 +50,17 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         status_key="mode",
         icon="mdi:home-lightning-bolt",
     ),
+    # Current tariff tier – already computed every tick by
+    # cost_optimizer.price_tier() and present in /api/status since
+    # ems_controller.py's result dict, just never bound to a sensor before.
+    MiniEMSSensorDescription(
+        key="miniems_price_tier",
+        translation_key="price_tier",
+        status_key="price_tier",
+        device_class=SensorDeviceClass.ENUM,
+        options=["low", "medium", "high"],
+        icon="mdi:currency-eur",
+    ),
     # ── Today: cost / savings ────────────────────────────────────────────────
     MiniEMSSensorDescription(
         key="miniems_today_grid_cost_eur",
@@ -123,6 +134,19 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
         icon="mdi:lightning-bolt",
+    ),
+    # Already computed by cost_optimizer.summary() (today_grid_import_kwh),
+    # reaches /api/status via ems_controller.py's **summary spread – just
+    # never bound to a sensor before. Lets a dashboard card derive autarky
+    # (1 - grid_import/load_total) without a new backend calculation.
+    MiniEMSSensorDescription(
+        key="miniems_today_grid_import_kwh",
+        translation_key="today_grid_import",
+        status_key="today_grid_import_kwh",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:transmission-tower-import",
     ),
     MiniEMSSensorDescription(
         key="miniems_today_grid_charge_kwh",

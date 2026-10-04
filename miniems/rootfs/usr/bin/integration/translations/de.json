@@ -36,6 +36,7 @@
   "entity": {
     "sensor": {
       "mode": { "name": "Betriebsmodus" },
+      "price_tier": { "name": "Preisstufe" },
       "today_grid_cost": { "name": "Heutige Netzkosten" },
       "today_pv_savings": { "name": "Heutige PV-Einsparung" },
       "today_load_cost": { "name": "Heutige Verbrauchskosten" },
@@ -45,6 +46,7 @@
       "today_pv_used": { "name": "Heutige PV-Eigennutzung" },
       "today_load_total": { "name": "Heutiger Gesamtverbrauch" },
       "today_grid_charge": { "name": "Heutige Netzladung" },
+      "today_grid_import": { "name": "Heutiger Netzbezug" },
       "today_kwh_high_rate": { "name": "Heutige kWh Hochtarif" },
       "today_kwh_medium_rate": { "name": "Heutige kWh Mitteltarif" },
       "today_kwh_low_rate": { "name": "Heutige kWh Niedertarif" },
