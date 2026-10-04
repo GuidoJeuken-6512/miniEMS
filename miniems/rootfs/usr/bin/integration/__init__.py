@@ -4,11 +4,14 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.typing import ConfigType
 
 from .coordinator import MiniEMSCoordinator
 
@@ -22,6 +25,30 @@ DEFAULT_BASE_URL = "http://homeassistant:8080"
 DEFAULT_POLL_INTERVAL = 30
 
 _RESTART_MARKER = Path(__file__).parent / ".restart_required"
+
+# Lovelace cards this integration ships, bundled under frontend/. Registered
+# once in async_setup() (domain-level, runs even without a config entry) –
+# not async_setup_entry() – same pattern as cygnusb/ha-smart-battery-pilot's
+# __init__.py, so the card resource exists as soon as the integration is
+# loaded at all, not contingent on a working config entry.
+_FRONTEND_CARDS = {
+    "miniems-flow-card.js": f"/{DOMAIN}/miniems-flow-card.js",
+}
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the bundled Lovelace card resources."""
+    frontend_dir = Path(__file__).parent / "frontend"
+    for filename, url in _FRONTEND_CARDS.items():
+        card_path = frontend_dir / filename
+        if await hass.async_add_executor_job(card_path.exists):
+            await hass.http.async_register_static_paths(
+                [StaticPathConfig(url, str(card_path), cache_headers=False)]
+            )
+            add_extra_js_url(hass, url)
+        else:
+            _LOGGER.warning("miniEMS frontend card not found: %s", card_path)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
