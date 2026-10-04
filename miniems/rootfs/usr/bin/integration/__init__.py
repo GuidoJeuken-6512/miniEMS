@@ -37,6 +37,7 @@ _RESTART_MARKER = Path(__file__).parent / ".restart_required"
 _FRONTEND_CARDS = {
     "miniems-flow-card.js": f"/{DOMAIN}/miniems-flow-card.js",
     "miniems-plan-card.js": f"/{DOMAIN}/miniems-plan-card.js",
+    "miniems-status-card.js": f"/{DOMAIN}/miniems-status-card.js",
 }
 
 # Auto-generated dashboard (Schritt B3) – same raw-storage-write approach as
