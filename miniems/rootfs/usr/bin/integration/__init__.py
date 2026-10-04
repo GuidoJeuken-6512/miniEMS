@@ -105,17 +105,22 @@ async def _fetch_addon_config(hass: HomeAssistant, base_url: str) -> dict[str, A
 
 
 async def async_generate_dashboard(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Create (or refresh) the miniEMS dashboard with both bundled cards.
+    """Create (or refresh) the miniEMS dashboard with all five bundled cards.
 
-    Pre-fills the flow card's entity fields from the addon's own config.json
-    (already configured once by the user in the addon's Settings page) –
-    see integration/sensor.py's comment on why this integration does not
-    publish its own pv/battery/grid/load sensors; the card needs those
-    entity ids from *somewhere*, and the addon's config is the one place
-    they already exist without asking the user again.
+    Pre-fills the flow/solar cards' entity fields from the addon's own
+    config.json (already configured once by the user in the addon's
+    Settings page) – see integration/sensor.py's comment on why this
+    integration does not publish its own pv/battery/grid/load sensors; the
+    cards need those entity ids from *somewhere*, and the addon's config is
+    the one place they already exist without asking the user again.
+
+    Card order follows the SEM Community integration's "Haus" tab (glance
+    status first, diagram in the middle, details after) – see
+    docs/roadmap/vergleich-sem-community.md.
     """
     base_url = entry.data.get(CONF_BASE_URL, DEFAULT_BASE_URL)
     addon_cfg = await _fetch_addon_config(hass, base_url)
+    pv_entity = addon_cfg.get("pv_power_entity", "")
 
     dashboard_config = {
         "views": [
@@ -126,9 +131,14 @@ async def async_generate_dashboard(hass: HomeAssistant, entry: ConfigEntry) -> N
                     {
                         "type": "grid",
                         "cards": [
+                            {"type": "custom:miniems-status-card"},
+                            {
+                                "type": "custom:miniems-plan-card",
+                                "entity": "sensor.miniems_energy_plan_deficit_kwh",
+                            },
                             {
                                 "type": "custom:miniems-flow-card",
-                                "pv_entity": addon_cfg.get("pv_power_entity", ""),
+                                "pv_entity": pv_entity,
                                 "battery_power_entity": addon_cfg.get(
                                     "battery_power_entity", ""
                                 ),
@@ -139,9 +149,10 @@ async def async_generate_dashboard(hass: HomeAssistant, entry: ConfigEntry) -> N
                                 "load_entity": addon_cfg.get("load_power_entity", ""),
                             },
                             {
-                                "type": "custom:miniems-plan-card",
-                                "entity": "sensor.miniems_energy_plan_deficit_kwh",
+                                "type": "custom:miniems-solar-card",
+                                "pv_entity": pv_entity,
                             },
+                            {"type": "custom:miniems-costs-card"},
                         ],
                     }
                 ],
