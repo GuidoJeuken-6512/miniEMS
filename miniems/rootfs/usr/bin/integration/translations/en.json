@@ -77,7 +77,8 @@
           "warning": "Warning",
           "error": "Error"
         }
-      }
+      },
+      "energy_plan_deficit": { "name": "Energy Plan Deficit" }
     }
   }
 }

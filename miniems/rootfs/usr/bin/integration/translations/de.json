@@ -77,7 +77,8 @@
           "warning": "Warnung",
           "error": "Fehler"
         }
-      }
+      },
+      "energy_plan_deficit": { "name": "Energiefahrplan-Defizit" }
     }
   }
 }

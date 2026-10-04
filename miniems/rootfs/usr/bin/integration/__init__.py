@@ -33,6 +33,7 @@ _RESTART_MARKER = Path(__file__).parent / ".restart_required"
 # loaded at all, not contingent on a working config entry.
 _FRONTEND_CARDS = {
     "miniems-flow-card.js": f"/{DOMAIN}/miniems-flow-card.js",
+    "miniems-plan-card.js": f"/{DOMAIN}/miniems-plan-card.js",
 }
 
 
