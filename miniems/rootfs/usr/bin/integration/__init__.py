@@ -38,6 +38,7 @@ _FRONTEND_CARDS = {
     "miniems-flow-card.js": f"/{DOMAIN}/miniems-flow-card.js",
     "miniems-plan-card.js": f"/{DOMAIN}/miniems-plan-card.js",
     "miniems-status-card.js": f"/{DOMAIN}/miniems-status-card.js",
+    "miniems-solar-card.js": f"/{DOMAIN}/miniems-solar-card.js",
 }
 
 # Auto-generated dashboard (Schritt B3) – same raw-storage-write approach as
