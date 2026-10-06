@@ -16,7 +16,7 @@
   - `miniems-status-card`, `-solar-card`, `-costs-card` (jetzt mit
     Zeitraum-Tabs und Tarifstufen-Verteilung), `-plan-card` (Zeitachse,
     Preisfarben).
-- **Dashboard mit Tabs** (Übersicht, Batterie, Plan, Kosten, System), jeder
+- **Dashboard mit Tabs** (Haus, Batterie, Plan, Kosten, System), jeder
   Tab beginnt mit dem neuen `miniems-tab-header`.
 
 ### Added
