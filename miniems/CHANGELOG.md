@@ -1,5 +1,29 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.2.2
+
+### Changed
+
+- **Dashboard-Karten komplett überarbeitet, Design nach dem SEM-Community-
+  Dashboard.** Glas-Karten mit Punktraster und Akzent-Glow, Kacheln für
+  Werte, einheitliche Farben je Energiefluss, hell/dunkel über das HA-Theme.
+  - `miniems-flow-card`: illustrierte Knoten (Solarmodul, Wechselrichter,
+    Haus, Strommast, Batterie mit Füllstand), geschwungene Flusslinien mit
+    wandernden Punkten und eine Sonne, die mit der Tageszeit (`sun.sun`)
+    über einen Bogen wandert. Neue optionale Felder: `sun_entity`,
+    `inverter_label`, `max_power_w`, `pv_forecast_entity`,
+    `*_today_entity`.
+  - `miniems-status-card`, `-solar-card`, `-costs-card` (jetzt mit
+    Zeitraum-Tabs und Tarifstufen-Verteilung), `-plan-card` (Zeitachse,
+    Preisfarben).
+- **Dashboard mit Tabs** (Übersicht, Batterie, Plan, Kosten, System), jeder
+  Tab beginnt mit dem neuen `miniems-tab-header`.
+
+### Added
+
+- Neue Karten `miniems-tab-header`, `miniems-battery-card`,
+  `miniems-system-card` sowie `miniems-shared.js` (gemeinsame Helfer).
+
 ## 3.2.1
 
 ### Fixed

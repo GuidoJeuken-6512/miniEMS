@@ -1,53 +1,13 @@
-/* miniEMS Solar card.
- *
- * Reduced version of the SEM Community integration's sem-solar-card ring
- * hero: live PV power (optional, read from a user-configured entity — PV
- * power is deliberately NOT a miniEMS sensor, see integration/sensor.py's
- * anti-duplication comment, same reasoning as miniems-flow-card.js) plus
- * today's used PV energy vs. the predicted PV yield, both already-published
- * miniEMS sensors (today_pv_used_kwh, predicted_pv_kwh). No per-string, no
- * degradation/specific-yield metrics – miniEMS doesn't track those.
- *
- * Same plain-HTMLElement style as the other miniems-*-card.js files.
+/* miniEMS Solar card – PV ring hero in the style of SEM's solar card: live
+ * PV power (optional pv_entity – PV power is deliberately not a miniEMS
+ * sensor, see integration/sensor.py), today's used PV energy against the
+ * forecast, and a marker bar showing how far the day is along.
  */
 (() => {
-  function fmt(v, dec = 1, unit = "") {
-    return v !== null && v !== undefined && !Number.isNaN(v)
-      ? `${Number(v).toFixed(dec)}${unit}`
-      : "–";
-  }
-
-  function fmtW(w) {
-    if (w === null || w === undefined || Number.isNaN(w)) return "–";
-    return Math.abs(w) >= 1000 ? `${(w / 1000).toFixed(2)} kW` : `${Math.round(w)} W`;
-  }
-
-  const CARD_CSS = `
-    ha-card { padding: 0.5rem 1rem 0.75rem; }
-    .section-title { font-size: 0.9rem; color: var(--secondary-text-color); margin: 0 0 0.6rem; }
-    .hero { display: flex; align-items: center; gap: 1.2rem; margin-bottom: 0.75rem; }
-    .ring { position: relative; width: 84px; height: 84px; flex-shrink: 0; }
-    .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-    .ring-bg { fill: none; stroke: rgba(255,152,0,0.15); stroke-width: 6; }
-    .ring-arc {
-      fill: none; stroke: #ff9800; stroke-width: 6; stroke-linecap: round;
-      transition: stroke-dashoffset 1s ease;
-    }
-    .ring-center {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      text-align: center; pointer-events: none;
-    }
-    .ring-power { font-size: 0.85rem; font-weight: 700; color: #ff9800; line-height: 1.2; }
-    .ring-sub { font-size: 0.65rem; color: var(--secondary-text-color); }
-    .compare { flex: 1; min-width: 0; }
-    .compare-row { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 0.15rem 0; }
-    .compare-row .label { color: var(--secondary-text-color); }
-    .compare-row .value { font-weight: 700; color: var(--primary-text-color); }
-    .vs-bar { height: 6px; border-radius: 3px; background: var(--secondary-background-color, #2a2a2a);
-               overflow: hidden; margin-top: 0.4rem; }
-    .vs-bar-fill { height: 100%; background: #ff9800; border-radius: 3px; }
-    .vs-pct { font-size: 0.75rem; color: var(--secondary-text-color); margin-top: 0.2rem; }
-  `;
+  const TXT = {
+    de: { title: "Solar", used: "Heute genutzt", pred: "Prognose heute", of: "der Prognose", now: "Jetzt", left: "Noch offen" },
+    en: { title: "Solar", used: "Used today", pred: "Forecast today", of: "of forecast", now: "Now", left: "Remaining" },
+  };
 
   class MiniEMSSolarCard extends HTMLElement {
     setConfig(config) {
@@ -57,93 +17,45 @@
         max_power_w: 10000,
         ...config,
       };
-      if (!this.shadowRoot) this.attachShadow({ mode: "open" });
     }
-
-    set hass(hass) {
-      this._hass = hass;
-      this._render();
-    }
-
-    getCardSize() {
-      return 2;
-    }
-
-    static getStubConfig() {
-      return {};
-    }
-
-    _num(entityId) {
-      if (!entityId) return null;
-      const st = this._hass?.states[entityId];
-      if (!st || st.state === "unavailable" || st.state === "unknown") return null;
-      const n = parseFloat(st.state);
-      return Number.isFinite(n) ? n : null;
-    }
+    set hass(hass) { this._hass = hass; this._render(); }
+    getCardSize() { return 3; }
+    static getStubConfig() { return {}; }
 
     _render() {
-      if (!this._config || !this._hass || !this.shadowRoot) return;
-      const c = this._config;
-      const title = c.title || "Solar";
-
-      const pvW = this._num(c.pv_entity);
-      const maxW = c.max_power_w || 10000;
-      const pct = pvW !== null ? Math.min(Math.max(pvW / maxW, 0), 1) : 0;
-      const circumference = 2 * Math.PI * 36;
-      const arcOffset = (circumference * (1 - pct)).toFixed(1);
-
-      const pvUsed = this._num(c.pv_used_entity);
-      const predicted = this._num(c.predicted_pv_entity);
-      const vsPct =
-        predicted !== null && predicted > 0 && pvUsed !== null
-          ? Math.min(999, (pvUsed / predicted) * 100)
-          : null;
-
-      this.shadowRoot.innerHTML = `
+      const M = window.MiniEMS;
+      if (!M || !this._config || !this._hass) return;
+      const c = this._config, h = this._hass, t = TXT[M.lang(h)], col = M.COLORS.solar;
+      const pvW = M.num(h, c.pv_entity), maxW = c.max_power_w || 10000;
+      const used = M.num(h, c.pv_used_entity), pred = M.num(h, c.predicted_pv_entity);
+      const vs = pred !== null && pred > 0 && used !== null ? (used / pred) * 100 : null;
+      const left = pred !== null && used !== null ? Math.max(0, pred - used) : null;
+      M.mount(this, `${M.RING_CSS}
+        .main { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+        .info { flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+        .line { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+        .line b { font-size: 18px; font-variant-numeric: tabular-nums; }
+        .bar > span { background: linear-gradient(90deg, #ffb74d, ${col}); box-shadow: 0 0 10px ${col}88; }
+        .ring-v { font-size: 17px; }
+        .sunwrap { filter: drop-shadow(0 0 10px ${col}55); }
+      `, `
         <ha-card>
-          <style>${CARD_CSS}</style>
-          <p class="section-title">${title}</p>
-          <div class="hero">
-            <div class="ring">
-              <svg viewBox="0 0 80 80">
-                <circle class="ring-bg" cx="40" cy="40" r="36"/>
-                <circle class="ring-arc" cx="40" cy="40" r="36"
-                  stroke-dasharray="${circumference.toFixed(1)}"
-                  style="stroke-dashoffset:${arcOffset}"/>
-              </svg>
-              <div class="ring-center">
-                <div class="ring-power">${c.pv_entity ? fmtW(pvW) : "–"}</div>
-                <div class="ring-sub">PV</div>
-              </div>
-            </div>
-            <div class="compare">
-              <div class="compare-row">
-                <span class="label">Heute genutzt</span>
-                <span class="value">${fmt(pvUsed, 2, " kWh")}</span>
-              </div>
-              <div class="compare-row">
-                <span class="label">Prognose heute</span>
-                <span class="value">${fmt(predicted, 2, " kWh")}</span>
-              </div>
-              <div class="vs-bar">
-                <div class="vs-bar-fill" style="width:${vsPct !== null ? Math.min(100, vsPct) : 0}%"></div>
-              </div>
-              <div class="vs-pct">${vsPct !== null ? `${vsPct.toFixed(0)}% der Prognose` : "–"}</div>
+          <div class="hd"><span class="hd-dot"></span><span class="hd-title">${M.esc(c.title || t.title)}</span>
+            <div class="hd-right">${vs !== null ? M.pill(`${vs.toFixed(0)}% ${t.of}`, vs >= 80 ? M.COLORS.good : col) : ""}</div></div>
+          <div class="main">
+            <div class="sunwrap">${M.ring(pvW === null ? 0 : pvW / maxW, col, 112, c.pv_entity ? M.fmtPower(pvW) : "–", t.now)}</div>
+            <div class="info">
+              <div class="line"><span class="muted">${t.used}</span><b>${M.fmtKwh(used, 2)}</b></div>
+              <div class="line"><span class="muted">${t.pred}</span><b>${M.fmtKwh(pred, 2)}</b></div>
+              <div class="bar"><span style="width:${vs !== null ? Math.min(100, vs) : 0}%"></span></div>
+              <div class="line"><span class="muted">${t.left}</span><span class="muted">${M.fmtKwh(left, 2)}</span></div>
             </div>
           </div>
-        </ha-card>
-      `;
+        </ha-card>`, col);
     }
   }
-
-  if (!customElements.get("miniems-solar-card")) {
-    customElements.define("miniems-solar-card", MiniEMSSolarCard);
-    window.customCards = window.customCards || [];
-    window.customCards.push({
-      type: "miniems-solar-card",
-      name: "miniEMS Solar",
-      description: "Live PV power plus today's production vs. forecast",
-      preview: false,
-    });
-  }
+  const reg = () => window.MiniEMS
+    ? window.MiniEMS.register("miniems-solar-card", MiniEMSSolarCard, "miniEMS Solar", "Live PV power plus today's production vs. forecast")
+    : setTimeout(reg, 50);
+  reg();
 })();

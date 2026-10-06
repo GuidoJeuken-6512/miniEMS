@@ -69,7 +69,17 @@
 
   const CARD_CSS = `
     :host { display: block; }
-    ha-card { padding: 0.5rem 0.5rem 0.75rem; overflow: hidden; }
+    ha-card {
+      display: block; color: var(--primary-text-color);
+      padding: 0.5rem 0.5rem 0.75rem; overflow: hidden; position: relative;
+      background:
+        radial-gradient(ellipse 80% 70% at 12% 0%, rgba(91,200,216,0.10) 0%, transparent 70%),
+        radial-gradient(circle at 2px 2px, rgba(128,128,128,0.08) 0.7px, transparent 0.7px),
+        var(--ha-card-background, var(--card-background-color, #1c1c1c));
+      background-size: 100% 100%, 46px 46px, auto;
+      border: 1px solid var(--divider-color, rgba(255,255,255,0.12));
+      border-radius: var(--ha-card-border-radius, 18px);
+    }
     .title { font-size: 0.9rem; color: var(--secondary-text-color); margin: 0.25rem 0.75rem 0; }
     svg { width: 100%; height: auto; display: block; }
     text { font-family: var(--paper-font-common-base_-_font-family, system-ui, sans-serif); }

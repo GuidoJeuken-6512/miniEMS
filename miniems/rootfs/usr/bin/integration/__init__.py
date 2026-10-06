@@ -40,11 +40,16 @@ _RESTART_MARKER = Path(__file__).parent / ".restart_required"
 # __init__.py, so the card resource exists as soon as the integration is
 # loaded at all, not contingent on a working config entry.
 _FRONTEND_CARDS = {
+    # shared helpers first: the cards read window.MiniEMS at render time
+    "miniems-shared.js": f"/{DOMAIN}/miniems-shared.js",
+    "miniems-tab-header.js": f"/{DOMAIN}/miniems-tab-header.js",
     "miniems-flow-card.js": f"/{DOMAIN}/miniems-flow-card.js",
     "miniems-plan-card.js": f"/{DOMAIN}/miniems-plan-card.js",
     "miniems-status-card.js": f"/{DOMAIN}/miniems-status-card.js",
     "miniems-solar-card.js": f"/{DOMAIN}/miniems-solar-card.js",
     "miniems-costs-card.js": f"/{DOMAIN}/miniems-costs-card.js",
+    "miniems-battery-card.js": f"/{DOMAIN}/miniems-battery-card.js",
+    "miniems-system-card.js": f"/{DOMAIN}/miniems-system-card.js",
 }
 
 # Opt-in generated dashboard (Schritt B3, made opt-in after a live-observed
@@ -113,7 +118,8 @@ async def _fetch_addon_config(hass: HomeAssistant, base_url: str) -> dict[str, A
 
 
 async def async_generate_dashboard(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Create (or refresh) the miniEMS dashboard with all five bundled cards.
+    """Create (or refresh) the miniEMS dashboard: one tab per topic, each
+    starting with the tab header card (layout after SEM's dashboard template).
 
     Pre-fills the flow/solar cards' entity fields from the addon's own
     config.json (already configured once by the user in the addon's
@@ -122,49 +128,74 @@ async def async_generate_dashboard(hass: HomeAssistant, entry: ConfigEntry) -> N
     cards need those entity ids from *somewhere*, and the addon's config is
     the one place they already exist without asking the user again.
 
-    Card order follows the SEM Community integration's "Haus" tab (glance
-    status first, diagram in the middle, details after) – see
+    The Home tab follows the SEM Community integration's "Home" tab (tab
+    header, animated diagram, status, solar summary) – see
     docs/roadmap/vergleich-sem-community.md.
     """
     base_url = entry.data.get(CONF_BASE_URL, DEFAULT_BASE_URL)
     addon_cfg = await _fetch_addon_config(hass, base_url)
     pv_entity = addon_cfg.get("pv_power_entity", "")
 
+    de = str(hass.config.language or "en").startswith("de")
+    flow_card: dict[str, Any] = {
+        "type": "custom:miniems-flow-card",
+        "pv_entity": pv_entity,
+        "battery_power_entity": addon_cfg.get("battery_power_entity", ""),
+        "battery_soc_entity": addon_cfg.get("battery_soc_entity", ""),
+        "grid_entity": addon_cfg.get("grid_power_entity", ""),
+        "load_entity": addon_cfg.get("load_power_entity", ""),
+    }
+
+    def _tab(title: str, path: str, icon: str, tab: str, cards: list[dict[str, Any]]):
+        """One dashboard tab: a panel view whose stack starts with the
+        tab header card (same layout idea as SEM's dashboard template)."""
+        return {
+            "title": title,
+            "path": path,
+            "icon": icon,
+            "type": "panel",
+            "cards": [
+                {
+                    "type": "vertical-stack",
+                    "cards": [{"type": "custom:miniems-tab-header", "tab": tab}, *cards],
+                }
+            ],
+        }
+
     dashboard_config = {
+        "title": "miniEMS",
         "views": [
-            {
-                "title": "miniEMS",
-                "type": "sections",
-                "sections": [
+            _tab(
+                "Übersicht" if de else "Overview", "home", "mdi:home-lightning-bolt", "home",
+                [
+                    flow_card,
+                    {"type": "custom:miniems-status-card"},
+                    {"type": "custom:miniems-solar-card", "pv_entity": pv_entity},
+                ],
+            ),
+            _tab(
+                "Batterie" if de else "Battery", "battery", "mdi:battery-charging", "battery",
+                [
                     {
-                        "type": "grid",
-                        "cards": [
-                            {"type": "custom:miniems-status-card"},
-                            {
-                                "type": "custom:miniems-plan-card",
-                                "entity": "sensor.miniems_energy_plan_deficit_kwh",
-                            },
-                            {
-                                "type": "custom:miniems-flow-card",
-                                "pv_entity": pv_entity,
-                                "battery_power_entity": addon_cfg.get(
-                                    "battery_power_entity", ""
-                                ),
-                                "battery_soc_entity": addon_cfg.get(
-                                    "battery_soc_entity", ""
-                                ),
-                                "grid_entity": addon_cfg.get("grid_power_entity", ""),
-                                "load_entity": addon_cfg.get("load_power_entity", ""),
-                            },
-                            {
-                                "type": "custom:miniems-solar-card",
-                                "pv_entity": pv_entity,
-                            },
-                            {"type": "custom:miniems-costs-card"},
-                        ],
+                        "type": "custom:miniems-battery-card",
+                        "battery_soc_entity": addon_cfg.get("battery_soc_entity", ""),
+                        "battery_power_entity": addon_cfg.get("battery_power_entity", ""),
                     }
                 ],
-            }
+            ),
+            _tab(
+                "Plan", "plan", "mdi:calendar-clock", "plan",
+                [{"type": "custom:miniems-plan-card",
+                  "entity": "sensor.miniems_energy_plan_deficit_kwh"}],
+            ),
+            _tab(
+                "Kosten" if de else "Costs", "costs", "mdi:cash-multiple", "costs",
+                [{"type": "custom:miniems-costs-card"}],
+            ),
+            _tab(
+                "System", "system", "mdi:chart-line", "system",
+                [{"type": "custom:miniems-system-card"}],
+            ),
         ],
     }
 

@@ -1,171 +1,110 @@
-/* miniEMS Costs card.
- *
- * Combines what SEM Community splits across sem-price-card + sem-costs-card
- * into one panel, using only already-published miniEMS sensors (no
- * user-configured entity mapping needed, unlike the flow/solar cards —
- * these are all addon-native computed values).
- *
- * Highlight: today_cost_without_grid_charge vs. today_cost_fix_price_tariff
- * – cost_optimizer.py computes the fix-price comparison specifically to
- * answer "would a flat tariff have been cheaper than today's dynamic one",
- * but nothing has displayed that comparison until now.
- *
- * Same plain-HTMLElement style as the other miniems-*-card.js files.
+/* miniEMS Costs card – period tabs (today / week / month / year), headline
+ * tiles, tariff-tier split and the dynamic-vs-fixed tariff comparison that
+ * cost_optimizer.py computes. Uses only already-published miniEMS sensors.
  */
 (() => {
-  function fmtEur(v, dec = 2) {
-    return v !== null && v !== undefined && !Number.isNaN(v) ? `${Number(v).toFixed(dec)} €` : "–";
-  }
-
-  const CARD_CSS = `
-    ha-card { padding: 0.5rem 1rem 0.75rem; }
-    .section-title { font-size: 0.9rem; color: var(--secondary-text-color); margin: 0 0 0.6rem; }
-    .headline-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
-    .headline { flex: 1; min-width: 100px; }
-    .headline-label { font-size: 0.7rem; color: var(--secondary-text-color); text-transform: uppercase; letter-spacing: 0.04em; }
-    .headline-value { font-size: 1.2rem; font-weight: 700; color: var(--primary-text-color); }
-    .headline-value.good { color: #3fb950; }
-    .headline-value.bad { color: #f85149; }
-    .compare {
-      background: var(--secondary-background-color, #21262d); border-radius: 8px;
-      padding: 0.6rem 0.75rem; margin-bottom: 0.75rem;
-    }
-    .compare-row { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 0.1rem 0; }
-    .compare-row .label { color: var(--secondary-text-color); }
-    .compare-row .value { font-weight: 600; }
-    .compare-delta { font-size: 0.85rem; font-weight: 700; margin-top: 0.3rem; }
-    .compare-delta.good { color: #3fb950; }
-    .compare-delta.bad { color: #f85149; }
-    .trend-table { width: 100%; font-size: 0.8rem; border-collapse: collapse; }
-    .trend-table th { text-align: right; color: var(--secondary-text-color); font-weight: 600; padding: 0.2rem 0.4rem; }
-    .trend-table th:first-child { text-align: left; }
-    .trend-table td { text-align: right; padding: 0.2rem 0.4rem; font-weight: 600; }
-    .trend-table td:first-child { text-align: left; color: var(--secondary-text-color); font-weight: 400; }
-  `;
+  const TXT = {
+    de: {
+      title: "Kosten", today: "Heute", week: "Woche", month: "Monat", year: "Jahr",
+      cost: "Netzkosten", saved: "PV-Ersparnis", feed: "Einspeise-Erlös", load: "Verbrauchskosten",
+      tiers: "Netzbezug nach Tarifstufe", low: "niedrig", medium: "mittel", high: "hoch",
+      cmp: "Tarifvergleich heute", dyn: "Dynamisch (ohne Netzladung)", fix: "Fixpreis (hypothetisch)",
+      win: "Ersparnis durch dynamischen Tarif", lose: "Mehrkosten durch dynamischen Tarif", roi: "ROI Netzladung heute",
+    },
+    en: {
+      title: "Costs", today: "Today", week: "Week", month: "Month", year: "Year",
+      cost: "Grid cost", saved: "PV savings", feed: "Feed-in revenue", load: "Load cost",
+      tiers: "Grid import by tariff tier", low: "low", medium: "medium", high: "high",
+      cmp: "Tariff comparison today", dyn: "Dynamic (without grid charge)", fix: "Fixed price (hypothetical)",
+      win: "Saved by dynamic tariff", lose: "Extra cost of dynamic tariff", roi: "Grid-charge ROI today",
+    },
+  };
+  const PERIODS = ["today", "week", "month", "year"];
 
   class MiniEMSCostsCard extends HTMLElement {
     setConfig(config) {
       const p = (config && config.entity_prefix) || "sensor.miniems_";
-      this._config = {
-        today_cost_entity: `${p}today_grid_cost_eur`,
-        today_pv_savings_entity: `${p}today_pv_savings_eur`,
-        today_feed_in_revenue_entity: `${p}today_feed_in_revenue_eur`,
-        today_cost_without_grid_charge_entity: `${p}today_cost_without_grid_charge`,
-        today_cost_fix_price_entity: `${p}today_cost_fix_price_tariff`,
-        today_grid_charge_roi_entity: `${p}today_grid_charge_roi_eur`,
-        week_cost_entity: `${p}week_grid_cost_eur`,
-        week_savings_entity: `${p}week_pv_savings_eur`,
-        month_cost_entity: `${p}month_grid_cost_eur`,
-        month_savings_entity: `${p}month_pv_savings_eur`,
-        year_cost_entity: `${p}year_grid_cost_eur`,
-        year_savings_entity: `${p}year_pv_savings_eur`,
-        ...config,
-      };
-      if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+      this._p = p;
+      this._config = { period: "today", ...config };
+      this._period = PERIODS.includes(this._config.period) ? this._config.period : "today";
     }
-
-    set hass(hass) {
-      this._hass = hass;
-      this._render();
-    }
-
-    getCardSize() {
-      return 3;
-    }
-
-    static getStubConfig() {
-      return {};
-    }
-
-    _num(entityId) {
-      const st = this._hass?.states[entityId];
-      if (!st || st.state === "unavailable" || st.state === "unknown") return null;
-      const n = parseFloat(st.state);
-      return Number.isFinite(n) ? n : null;
-    }
+    set hass(hass) { this._hass = hass; this._render(); }
+    getCardSize() { return 4; }
+    static getStubConfig() { return {}; }
 
     _render() {
-      if (!this._config || !this._hass || !this.shadowRoot) return;
-      const c = this._config;
-      const title = c.title || "Kosten";
+      const M = window.MiniEMS;
+      if (!M || !this._config || !this._hass) return;
+      const h = this._hass, t = TXT[M.lang(h)], C = M.COLORS, per = this._period;
+      const n = (s) => M.num(h, this._p + s);
+      const cost = n(`${per}_grid_cost_eur`), sav = n(`${per}_pv_savings_eur`);
+      const feed = per === "today" ? n("today_feed_in_revenue_eur") : null;
+      const load = per === "today" || per === "month" || per === "year" ? n(`${per}_load_cost_eur`) : null;
 
-      const todayCost = this._num(c.today_cost_entity);
-      const pvSavings = this._num(c.today_pv_savings_entity);
-      const feedInRevenue = this._num(c.today_feed_in_revenue_entity);
+      const hi = per === "today" || per === "month" ? n(`${per}_kwh_high_rate`) : null;
+      const me = per === "today" || per === "month" ? n(`${per}_kwh_medium_rate`) : null;
+      const lo = per === "today" || per === "month" ? n(`${per}_kwh_low_rate`) : null;
+      const tot = (hi || 0) + (me || 0) + (lo || 0);
+      const seg = (v, col, label) => `<span style="width:${tot ? (v / tot) * 100 : 0}%;background:${col}" title="${label}: ${M.fmtKwh(v)}"></span>`;
+      const tierBlock = tot > 0 ? `
+        <div class="sect">${t.tiers}</div>
+        <div class="bar">${seg(lo || 0, C.good, t.low)}${seg(me || 0, C.warn, t.medium)}${seg(hi || 0, C.bad, t.high)}</div>
+        <div class="legend">
+          <span><i style="background:${C.good}"></i>${t.low} ${M.fmtKwh(lo)}</span>
+          <span><i style="background:${C.warn}"></i>${t.medium} ${M.fmtKwh(me)}</span>
+          <span><i style="background:${C.bad}"></i>${t.high} ${M.fmtKwh(hi)}</span>
+        </div>` : "";
 
-      const withoutGridCharge = this._num(c.today_cost_without_grid_charge_entity);
-      const fixPrice = this._num(c.today_cost_fix_price_entity);
-      const dynamicVsFix =
-        withoutGridCharge !== null && fixPrice !== null ? fixPrice - withoutGridCharge : null;
+      const dyn = n("today_cost_without_grid_charge"), fix = n("today_cost_fix_price_tariff"), roi = n("today_grid_charge_roi_eur");
+      let cmp = "";
+      if (per === "today" && dyn !== null && fix !== null) {
+        const mx = Math.max(dyn, fix, 0.01), delta = fix - dyn;
+        cmp = `
+          <div class="sect">${t.cmp}</div>
+          <div class="cmp"><span class="muted">${t.dyn}</span><b>${M.fmtEur(dyn)}</b></div>
+          <div class="bar"><span style="width:${(dyn / mx) * 100}%;background:${C.gridIn}"></span></div>
+          <div class="cmp"><span class="muted">${t.fix}</span><b>${M.fmtEur(fix)}</b></div>
+          <div class="bar"><span style="width:${(fix / mx) * 100}%;background:#8b949e"></span></div>
+          <div class="delta ${delta >= 0 ? "good" : "bad"}">${delta >= 0 ? t.win : t.lose}: ${M.fmtEur(Math.abs(delta))}</div>
+          ${roi !== null ? `<div class="cmp"><span class="muted">${t.roi}</span><b>${M.fmtEur(roi)}</b></div>` : ""}`;
+      }
 
-      const roi = this._num(c.today_grid_charge_roi_entity);
-
-      const rows = [
-        ["Woche", c.week_cost_entity, c.week_savings_entity],
-        ["Monat", c.month_cost_entity, c.month_savings_entity],
-        ["Jahr", c.year_cost_entity, c.year_savings_entity],
-      ].map(([label, costEnt, savEnt]) => {
-        const cost = this._num(costEnt);
-        const sav = this._num(savEnt);
-        return `<tr><td>${label}</td><td>${fmtEur(cost)}</td><td>${fmtEur(sav)}</td></tr>`;
-      }).join("");
-
-      this.shadowRoot.innerHTML = `
+      M.mount(this, `
+        .tabs { display: flex; gap: 4px; padding: 3px; border-radius: 999px; margin-left: auto;
+                background: var(--secondary-background-color, rgba(255,255,255,0.06)); }
+        .tabs button { all: unset; cursor: pointer; padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 600;
+                       color: var(--secondary-text-color); }
+        .tabs button:focus-visible { outline: 2px solid var(--accent); }
+        .tabs button.on { color: var(--primary-text-color); background: color-mix(in srgb, var(--accent) 24%, transparent);
+                          box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent); }
+        .sect { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+                color: var(--secondary-text-color); margin: 18px 0 8px; }
+        .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 12px; color: var(--secondary-text-color); }
+        .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+        .cmp { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; margin: 8px 0 4px; }
+        .cmp b { font-variant-numeric: tabular-nums; }
+        .delta { font-size: 13px; font-weight: 700; margin: 10px 0 6px; }
+        .delta.good { color: ${C.good}; } .delta.bad { color: ${C.bad}; }
+      `, `
         <ha-card>
-          <style>${CARD_CSS}</style>
-          <p class="section-title">${title}</p>
-          <div class="headline-row">
-            <div class="headline">
-              <div class="headline-label">Netzkosten heute</div>
-              <div class="headline-value">${fmtEur(todayCost)}</div>
-            </div>
-            <div class="headline">
-              <div class="headline-label">PV-Ersparnis</div>
-              <div class="headline-value good">${fmtEur(pvSavings)}</div>
-            </div>
-            <div class="headline">
-              <div class="headline-label">Einspeise-Erlös</div>
-              <div class="headline-value good">${fmtEur(feedInRevenue)}</div>
-            </div>
+          <div class="hd"><span class="hd-dot"></span><span class="hd-title">${M.esc(this._config.title || t.title)}</span>
+            <div class="tabs" role="tablist">${PERIODS.map((p) =>
+              `<button data-p="${p}" role="tab" aria-selected="${p === per}" class="${p === per ? "on" : ""}">${t[p]}</button>`).join("")}</div></div>
+          <div class="tiles">
+            ${M.tile(t.cost, M.fmtEur(cost))}
+            ${M.tile(t.saved, M.fmtEur(sav), "good")}
+            ${feed !== null ? M.tile(t.feed, M.fmtEur(feed), "good") : ""}
+            ${load !== null ? M.tile(t.load, M.fmtEur(load)) : ""}
           </div>
-          <div class="compare">
-            <div class="compare-row">
-              <span class="label">Dynamischer Tarif (ohne Netzladung)</span>
-              <span class="value">${fmtEur(withoutGridCharge)}</span>
-            </div>
-            <div class="compare-row">
-              <span class="label">Fixpreistarif (hypothetisch)</span>
-              <span class="value">${fmtEur(fixPrice)}</span>
-            </div>
-            ${dynamicVsFix !== null
-              ? `<div class="compare-delta ${dynamicVsFix >= 0 ? "good" : "bad"}">
-                   ${dynamicVsFix >= 0 ? "Ersparnis" : "Mehrkosten"} durch dynamischen Tarif: ${fmtEur(Math.abs(dynamicVsFix))}
-                 </div>`
-              : ""}
-            ${roi !== null
-              ? `<div class="compare-row" style="margin-top:0.4rem">
-                   <span class="label">ROI Netzladung heute</span>
-                   <span class="value ${roi >= 0 ? "" : ""}">${fmtEur(roi)}</span>
-                 </div>`
-              : ""}
-          </div>
-          <table class="trend-table">
-            <tr><th></th><th>Netzkosten</th><th>PV-Ersparnis</th></tr>
-            ${rows}
-          </table>
-        </ha-card>
-      `;
+          ${tierBlock}${cmp}
+        </ha-card>`, C.charge);
+
+      this.shadowRoot.querySelectorAll(".tabs button").forEach((b) =>
+        b.addEventListener("click", () => { this._period = b.dataset.p; this._render(); }));
     }
   }
-
-  if (!customElements.get("miniems-costs-card")) {
-    customElements.define("miniems-costs-card", MiniEMSCostsCard);
-    window.customCards = window.customCards || [];
-    window.customCards.push({
-      type: "miniems-costs-card",
-      name: "miniEMS Costs",
-      description: "Today's costs/savings, dynamic-vs-fixed-tariff comparison, week/month/year trend",
-      preview: false,
-    });
-  }
+  const reg = () => window.MiniEMS
+    ? window.MiniEMS.register("miniems-costs-card", MiniEMSCostsCard, "miniEMS Costs", "Costs and savings by period, tariff-tier split and dynamic-vs-fixed comparison")
+    : setTimeout(reg, 50);
+  reg();
 })();
