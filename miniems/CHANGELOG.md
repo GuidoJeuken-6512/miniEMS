@@ -19,6 +19,14 @@
 - **Dashboard mit Tabs** (Haus, Batterie, Plan, Kosten, System), jeder
   Tab beginnt mit dem neuen `miniems-tab-header`.
 
+### Fixed
+
+- Integration-Version 3.3.7: der Installer kopiert die Integration nur bei
+  geänderter `manifest.json`-Version – ohne Bump kamen die neuen Karten nie in
+  HA an. Das Dashboard wird bei aktivem Schalter einmalig neu erzeugt, wenn
+  sich das Layout ändert (`_dashboard_layout`). Karten laden `miniems-shared.js`
+  selbst nach, falls es noch fehlt.
+
 ### Added
 
 - Neue Karten `miniems-tab-header`, `miniems-battery-card`,

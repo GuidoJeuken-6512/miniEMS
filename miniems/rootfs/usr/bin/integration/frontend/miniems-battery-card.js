@@ -5,6 +5,17 @@
  * without it the fill is derived from usable/capacity.
  */
 (() => {
+  // shared helpers normally load first (see __init__.py); if this card won
+  // the race, or the page was cached, pull them in next to this script
+  if (!window.MiniEMS && !document.querySelector("script[data-miniems-shared]")) {
+    const src = document.currentScript && document.currentScript.src;
+    if (src) {
+      const sh = document.createElement("script");
+      sh.src = src.replace(/[^/?#]*([?#].*)?$/, "miniems-shared.js");
+      sh.dataset.miniemsShared = "1";
+      document.head.appendChild(sh);
+    }
+  }
   const TXT = {
     de: { title: "Batterie", soc: "Ladezustand", cap: "Kapazität", use: "Nutzbar", free: "Frei (Ladereserve)", stored: "Gespeichert",
           charging: "Lädt", discharging: "Entlädt", idle: "Bereit", power: "Leistung" },

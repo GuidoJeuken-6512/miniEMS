@@ -4,6 +4,17 @@
  * forecast, and a marker bar showing how far the day is along.
  */
 (() => {
+  // shared helpers normally load first (see __init__.py); if this card won
+  // the race, or the page was cached, pull them in next to this script
+  if (!window.MiniEMS && !document.querySelector("script[data-miniems-shared]")) {
+    const src = document.currentScript && document.currentScript.src;
+    if (src) {
+      const sh = document.createElement("script");
+      sh.src = src.replace(/[^/?#]*([?#].*)?$/, "miniems-shared.js");
+      sh.dataset.miniemsShared = "1";
+      document.head.appendChild(sh);
+    }
+  }
   const TXT = {
     de: { title: "Solar", used: "Heute genutzt", pred: "Prognose heute", of: "der Prognose", now: "Jetzt", left: "Noch offen" },
     en: { title: "Solar", used: "Used today", pred: "Forecast today", of: "of forecast", now: "Now", left: "Remaining" },

@@ -4,6 +4,17 @@
  * window of the plan.
  */
 (() => {
+  // shared helpers normally load first (see __init__.py); if this card won
+  // the race, or the page was cached, pull them in next to this script
+  if (!window.MiniEMS && !document.querySelector("script[data-miniems-shared]")) {
+    const src = document.currentScript && document.currentScript.src;
+    if (src) {
+      const sh = document.createElement("script");
+      sh.src = src.replace(/[^/?#]*([?#].*)?$/, "miniems-shared.js");
+      sh.dataset.miniemsShared = "1";
+      document.head.appendChild(sh);
+    }
+  }
   const TXT = {
     de: { title: "Energieplan", deficit: "Defizit", cost: "Geschätzte Kosten", windows: "Fenster", none: "Nichts geplant.",
           infeasible: "Plan nicht umsetzbar.", notfound: "Entität nicht gefunden:", cheap: "günstig", dear: "teuer", ct: "ct/kWh" },

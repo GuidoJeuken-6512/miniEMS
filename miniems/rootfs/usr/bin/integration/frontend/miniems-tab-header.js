@@ -3,6 +3,17 @@
  * sem-tab-header). Config: tab: home | battery | plan | costs | system.
  */
 (() => {
+  // shared helpers normally load first (see __init__.py); if this card won
+  // the race, or the page was cached, pull them in next to this script
+  if (!window.MiniEMS && !document.querySelector("script[data-miniems-shared]")) {
+    const src = document.currentScript && document.currentScript.src;
+    if (src) {
+      const sh = document.createElement("script");
+      sh.src = src.replace(/[^/?#]*([?#].*)?$/, "miniems-shared.js");
+      sh.dataset.miniemsShared = "1";
+      document.head.appendChild(sh);
+    }
+  }
   const TXT = {
     de: {
       home: ["Haus", "Energiefluss und Status"],

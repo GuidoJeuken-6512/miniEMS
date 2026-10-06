@@ -67,6 +67,10 @@ _FRONTEND_CARDS = {
 _DASHBOARD_URL_PATH = "miniems"
 _DASHBOARD_STORAGE_KEY = f"lovelace.{_DASHBOARD_URL_PATH}"
 SERVICE_GENERATE_DASHBOARD = "generate_dashboard"
+# Bump when the generated dashboard's layout changes: an install that has the
+# dashboard option on then regenerates it once (tabs, new cards) instead of
+# keeping the stored old layout forever.
+_DASHBOARD_LAYOUT = 2
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -335,7 +339,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # lets them restart on their own schedule instead.
     if (
         entry.options.get(CONF_GENERATE_DASHBOARD, DEFAULT_GENERATE_DASHBOARD)
-        and not entry.options.get("_dashboard_generated", False)
+        and (
+            not entry.options.get("_dashboard_generated", False)
+            or entry.options.get("_dashboard_layout") != _DASHBOARD_LAYOUT
+        )
     ):
         async def _generate_dashboard_task() -> None:
             try:
@@ -369,7 +376,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "(repair issue created)"
             )
             hass.config_entries.async_update_entry(
-                entry, options={**entry.options, "_dashboard_generated": True}
+                entry,
+                options={
+                    **entry.options,
+                    "_dashboard_generated": True,
+                    "_dashboard_layout": _DASHBOARD_LAYOUT,
+                },
             )
 
         entry.async_create_background_task(
