@@ -33,6 +33,21 @@
       return v !== null && v !== undefined ? Number(v).toFixed(dec) : '–';
     }
 
+    // The API sends timestamps as ISO 8601 with a UTC offset
+    // (event_log.py/store.py persist in UTC) – rendered as-is, that read as
+    // misleadingly "wrong by 2 hours" (CEST) to anyone not mentally adding
+    // the +00:00 offset. toLocaleString() converts to the browser's own
+    // timezone, same approach as dashboard.html's fmtTime(), just with the
+    // date included since this table spans more than one day.
+    function fmtDateTime(iso) {
+      if (!iso) return '–';
+      const d = new Date(iso);
+      return isNaN(d) ? '–' : d.toLocaleString([], {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      });
+    }
+
     function fmtMode(m) {
       if (!m) return '';
       // Export first: classification is by substring, so this must not be
@@ -153,7 +168,7 @@
           <tbody>
             ${entries.map(e => `<tr>
               ${renderEntryMode(e)}
-              <td>${e.timestamp}</td>
+              <td>${fmtDateTime(e.timestamp)}</td>
               ${renderEntryReason(e)}
               ${renderEntryPrice(e)}
               <td>${fmt(e.battery_kwh_freetochange, 2)}</td>

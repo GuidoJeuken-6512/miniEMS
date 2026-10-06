@@ -1,5 +1,29 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.2.4
+
+### Fixed
+
+- **Protokoll- und Dashboard-Seite zeigten Zeitstempel als rohes UTC
+  (`+00:00`) statt lokaler Zeit an.** Live auf der Produktivinstanz
+  aufgefallen: ein Moduswechsel um 14:00 Uhr lokal stand im Protokoll als
+  „12:00:00+00:00" — korrekt (12:00 UTC = 14:00 CEST), aber leicht als
+  Fehler lesbar, wenn man die Zeitzone nicht im Kopf mitrechnet.
+  `event_log.py`/`store.py` persistieren bewusst in UTC (richtig so, siehe
+  deren eigene Kommentare) — der rohe ISO-String wurde aber unverändert
+  in `templates/log.html` und im Log-Vorschau-Widget auf
+  `templates/dashboard.html` ausgegeben, statt wie an anderer Stelle im
+  selben Dashboard (die Preisfenster-Anzeige) bereits üblich über
+  `toLocaleString()`/`toLocaleTimeString()` in die Zeitzone des Browsers
+  umzurechnen.
+  - `dashboard.html`: Log-Vorschau nutzt jetzt die bereits vorhandene
+    `fmtTime()`.
+  - `log.html`: neue `fmtDateTime()` (Datum **und** Uhrzeit, da die
+    Tabelle mehrere Tage umfasst), ersetzt die rohe Zeitstempel-Spalte.
+  - Die fünf Dashboard-Karten der Integration (`miniems-flow-card`,
+    `-plan-card`) rechneten bereits korrekt über `toLocaleTimeString()`
+    um — dort war nichts zu ändern.
+
 ## 3.2.3
 
 ### Fixed
