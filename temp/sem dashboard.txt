@@ -1,0 +1,137 @@
+views:
+  - title: Haus
+    path: home
+    icon: mdi:home-lightning-bolt
+    type: panel
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:sem-tab-header
+            tab: home
+          - type: custom:sem-onboarding-banner
+          - type: custom:sem-price-card
+            entity: sensor.sem_tariff_current_import_rate
+            compact: true
+          - type: custom:sem-today-plan-card
+            entity: sensor.sem_charging_state
+          - type: custom:sem-system-diagram-card
+            entity_prefix: sensor.sem_
+            show_ev: false
+          - type: custom:sem-home-status-card
+            entity_prefix: sensor.sem_
+          - type: custom:sem-solar-card
+            entity_prefix: sensor.sem_
+          - type: custom:sem-weather-card
+            entity: weather.openweathermap
+          - type: custom:sem-chart-card
+            preset: energy
+            title: Letzte 7 Tage
+  - title: Energie
+    path: energy
+    icon: mdi:lightning-bolt
+    type: panel
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:sem-tab-header
+            tab: energy
+          - type: custom:sem-require
+            requires: sankey-chart
+            name: Sankey Chart
+            card:
+              type: energy-sankey
+          - type: horizontal-stack
+            cards:
+              - type: custom:sem-gauge-card
+                entity: sensor.sem_self_consumption_rate
+                name: Eigenverbrauch
+                color: '#4db6ac'
+              - type: custom:sem-gauge-card
+                entity: sensor.sem_autarky_rate
+                name: Autarkie
+                color: '#8DC892'
+          - type: custom:sem-chart-card
+            preset: power
+            title: 24h Leistung
+          - type: custom:sem-energy-impact-card
+            entity_prefix: sensor.sem_
+          - type: custom:sem-chart-card
+            preset: energy
+            title: Eigenverbrauch — 30-Tage Trend
+  - title: Batterie
+    path: battery
+    icon: mdi:battery-charging-80
+    type: panel
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:sem-tab-header
+            tab: battery
+          - type: custom:sem-battery-card
+            entity_prefix: sensor.sem_
+          - type: custom:sem-chart-card
+            preset: battery
+            title: Batterie 24h
+          - type: custom:sem-battery-zones-card
+  - title: Steuerung
+    path: control
+    icon: mdi:tune-vertical
+    type: panel
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:sem-tab-header
+            tab: control
+          - type: custom:sem-control-card
+            entity_prefix: sensor.sem_
+          - type: custom:sem-energy-plan-card
+          - type: custom:sem-title-card
+            title: Lastmanagement
+            subtitle: Gerätepriorität
+          - type: custom:sem-load-priority-card
+            entity_prefix: sensor.sem_
+  - title: Konfiguration
+    path: config
+    icon: mdi:cog-outline
+    type: panel
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:sem-tab-header
+            tab: config
+          - type: custom:sem-config-card
+            entity_prefix: sensor.sem_
+  - title: Kosten
+    path: costs
+    icon: mdi:cash-multiple
+    type: panel
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:sem-tab-header
+            tab: costs
+          - type: custom:sem-price-card
+            entity: sensor.sem_tariff_current_import_rate
+          - type: custom:sem-costs-card
+          - type: custom:sem-period-selector-card
+            default_period: week
+          - type: custom:sem-chart-card
+            preset: costs
+          - type: custom:sem-chart-card
+            preset: savings
+          - type: custom:sem-costs-detail-card
+            entity_prefix: sensor.sem_
+  - title: System
+    path: system
+    icon: mdi:heart-pulse
+    type: panel
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: custom:sem-tab-header
+            tab: system
+          - type: custom:sem-system-card
+            entity_prefix: sensor.sem_
+          - type: custom:sem-chart-card
+            preset: forecast
+            title: Prognose vs Tatsächlich
