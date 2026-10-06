@@ -94,6 +94,7 @@ _INT_FIELDS = {
     "mode_dwell_sec", "battery_soc_hysteresis_pct",
     "grid_charge_dark_start_hour", "grid_charge_dark_end_hour",
     "sensor_max_age_sec", "forecast_max_age_sec", "price_max_age_sec",
+    "inverter_write_stuck_threshold_sec",
 }
 # NOTE: any float field missing here falls through to str(value) in _coerce()
 # and is persisted as a string, which then raises TypeError on first use.

@@ -115,4 +115,26 @@ def compute_energy_plan(
     feasible = remaining <= 1e-9
     windows.sort(key=lambda w: w.start)   # chronological, for display
     reason = "" if feasible else "available windows before the deadline cannot cover the deficit"
+
+    # Baseline protection (see ha-smart-battery-pilot's optimizer.md, step 7:
+    # "if the finished plan's estimated savings still come out negative, it
+    # is discarded and the all-auto plan is returned instead"). The baseline
+    # here is simpler than SBP's full savings model – not pure arbitrage,
+    # this plan exists to cover a forecasted shortfall – but the same
+    # question applies: is pre-charging now actually cheaper than just
+    # letting the deficit happen and buying it at whatever price would
+    # otherwise be in effect once the deadline passes? curve.window_at()
+    # already answers "what rate applies at a given moment" for exactly
+    # this kind of lookup (see its other callers in ems_controller.py).
+    if feasible and windows:
+        baseline_window = curve.window_at(deadline)
+        if baseline_window is not None:
+            baseline_cost_eur = deficit_kwh * baseline_window.rate_eur_kwh
+            plan_cost_eur = sum(w.cost_eur for w in windows)
+            if plan_cost_eur > baseline_cost_eur:
+                return EnergyPlan(
+                    now, deficit_kwh, feasible=False,
+                    reason="planned windows not cheaper than charging at the deadline price",
+                )
+
     return EnergyPlan(now, deficit_kwh, windows, feasible, reason)

@@ -1,5 +1,5 @@
 name: miniEMS
-version: "2.6.2"
+version: "3.2.0"
 slug: miniems
 description: Mini Energy Management System for Deye inverter + Octopus Energy
 url: https://github.com/your-repo/miniEMS

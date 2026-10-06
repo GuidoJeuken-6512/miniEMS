@@ -50,6 +50,17 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         status_key="mode",
         icon="mdi:home-lightning-bolt",
     ),
+    # Current tariff tier – already computed every tick by
+    # cost_optimizer.price_tier() and present in /api/status since
+    # ems_controller.py's result dict, just never bound to a sensor before.
+    MiniEMSSensorDescription(
+        key="miniems_price_tier",
+        translation_key="price_tier",
+        status_key="price_tier",
+        device_class=SensorDeviceClass.ENUM,
+        options=["low", "medium", "high"],
+        icon="mdi:currency-eur",
+    ),
     # ── Today: cost / savings ────────────────────────────────────────────────
     MiniEMSSensorDescription(
         key="miniems_today_grid_cost_eur",
@@ -123,6 +134,19 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
         icon="mdi:lightning-bolt",
+    ),
+    # Already computed by cost_optimizer.summary() (today_grid_import_kwh),
+    # reaches /api/status via ems_controller.py's **summary spread – just
+    # never bound to a sensor before. Lets a dashboard card derive autarky
+    # (1 - grid_import/load_total) without a new backend calculation.
+    MiniEMSSensorDescription(
+        key="miniems_today_grid_import_kwh",
+        translation_key="today_grid_import",
+        status_key="today_grid_import_kwh",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        icon="mdi:transmission-tower-import",
     ),
     MiniEMSSensorDescription(
         key="miniems_today_grid_charge_kwh",
@@ -382,6 +406,22 @@ SENSOR_DESCRIPTIONS: tuple[MiniEMSSensorDescription, ...] = (
     ),
 )
 
+# ── Energy plan (tonight's grid-charge deficit plan, see energy_plan.py) ──
+# Not part of SENSOR_DESCRIPTIONS above: "energy_plan" in /api/status is a
+# nested dict (deficit_kwh/feasible/reason/estimated_cost_eur/windows), not a
+# flat scalar – the generic status_key/attributes_keys mapping MiniEMSSensor
+# uses assumes flat sibling keys, so this gets its own small subclass instead
+# (see MiniEMSEnergyPlanSensor below) rather than widening that mapping for
+# one case.
+ENERGY_PLAN_DESCRIPTION = MiniEMSSensorDescription(
+    key="miniems_energy_plan_deficit_kwh",
+    translation_key="energy_plan_deficit",
+    status_key="energy_plan",
+    native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+    state_class=SensorStateClass.MEASUREMENT,
+    icon="mdi:battery-clock",
+)
+
 
 class MiniEMSSensor(CoordinatorEntity[MiniEMSCoordinator], SensorEntity):
     """A single miniEMS sensor backed by the coordinator."""
@@ -443,6 +483,34 @@ class MiniEMSSensor(CoordinatorEntity[MiniEMSCoordinator], SensorEntity):
         )
 
 
+class MiniEMSEnergyPlanSensor(MiniEMSSensor):
+    """energy_plan is one nested dict, not flat sibling keys – see the
+    comment on ENERGY_PLAN_DESCRIPTION above."""
+
+    def _plan(self) -> dict[str, Any] | None:
+        if not self.coordinator.data:
+            return None
+        return self.coordinator.data.get("energy_plan")
+
+    @property
+    def native_value(self) -> Any:
+        plan = self._plan()
+        return plan.get("deficit_kwh") if plan else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        plan = self._plan()
+        if not plan:
+            return None
+        return {
+            "feasible": plan.get("feasible"),
+            "reason": plan.get("reason"),
+            "estimated_cost_eur": plan.get("estimated_cost_eur"),
+            "windows": plan.get("windows"),
+            "computed_at": plan.get("computed_at"),
+        }
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -458,7 +526,10 @@ async def async_setup_entry(
     )
 
     async_add_entities(
-        MiniEMSSensor(coordinator, description, device_info)
-        for description in SENSOR_DESCRIPTIONS
+        [
+            MiniEMSSensor(coordinator, description, device_info)
+            for description in SENSOR_DESCRIPTIONS
+        ]
+        + [MiniEMSEnergyPlanSensor(coordinator, ENERGY_PLAN_DESCRIPTION, device_info)]
     )
 

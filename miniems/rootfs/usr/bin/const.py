@@ -8,7 +8,7 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "2.6.2"
+VERSION = "3.2.0"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
 CONFIG_SCHEMA_VERSION = 20
@@ -35,6 +35,18 @@ SUPERVISOR_RESTART_URL = "http://supervisor/addons/self/restart"
 # true in config.yaml. Used only for one-shot queries (ha_ws_api.py), never
 # for the per-tick state poll – that stays ha_state_client.py's REST job.
 HA_WEBSOCKET_URL = "ws://hassio/homeassistant/websocket"
+
+# ── MQTT (mqtt_publisher.py – not yet wired into main.py) ────────────────────
+# Supervisor's Services API for the MQTT service add-on (host/port/credentials
+# of the broker, if one is installed). Same http://supervisor/... base as
+# SUPERVISOR_RESTART_URL above.
+SUPERVISOR_MQTT_URL = "http://supervisor/services/mqtt"
+# Home Assistant's default MQTT Discovery prefix (matches HA's own default;
+# not currently exposed as a config option).
+MQTT_DISCOVERY_PREFIX = "homeassistant"
+# Namespace for this add-on's own state topics, separate from the discovery
+# config topics above.
+MQTT_STATE_TOPIC_PREFIX = "miniems"
 
 # ── Polling / timing (seconds) ────────────────────────────────────────────────
 HA_POLL_INTERVAL_SEC  = 15   # how often ha_state_client refreshes HA states
