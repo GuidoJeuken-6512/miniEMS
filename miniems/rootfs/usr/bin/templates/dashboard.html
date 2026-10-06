@@ -287,7 +287,7 @@
           const e = d.log[0];
           return `<div class="log-preview">
             <span class="${e.state === 'on' ? 'log-on' : 'log-off'} log-preview-state">${e.state === 'on' ? '&#9650; ON' : '&#9660; OFF'}</span>
-            <span class="log-preview-time">${e.timestamp}</span>
+            <span class="log-preview-time">${fmtTime(e.timestamp)}</span>
             <span class="log-preview-detail">${T.log_free || 'Free'}: ${fmt(e.battery_kwh_freetochange, 2)} kWh &nbsp;|&nbsp; ${T.log_useable || 'Useable'}: ${fmt(e.battery_kwh_useable, 2)} kWh</span>
             <a href="log" class="log-preview-link">${T.tab_log || 'Log'} (${d.log.length}) &rsaquo;</a>
           </div>`;
