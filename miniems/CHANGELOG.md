@@ -1,12 +1,15 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
-## 3.2.4
+## 3.2.5
 
 ### Changed
 
 - `miniems-costs-card` neu aufgebaut nach SEMs Kosten-Karte: Netto-Hero,
   je eine Spalte für Heute/Woche/Monat/Jahr mit Geldfluss und vermiedenen
   Kosten, Tarifvergleich dynamisch gegen Fixpreis und Tarifstufen-Verteilung.
+
+## 3.2.4
+
 ### Fixed
 
 - **Protokoll- und Dashboard-Seite zeigten Zeitstempel als rohes UTC
