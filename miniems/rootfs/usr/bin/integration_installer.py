@@ -1,7 +1,17 @@
 """integration_installer.py – copies bundled integration files to /config/custom_components/miniems/.
 
-Called once at addon startup. Compares source vs. installed manifest.json version to
-decide whether a copy is needed. Falls back to file-hash comparison for individual files.
+Called once at addon startup. Always walks every bundled file and compares
+its hash against the installed copy – manifest.json's version is used only
+for the restart-marker's version string and the log line, never as a
+short-circuit to skip the walk. A version-based short-circuit used to skip
+the walk whenever src/dst versions matched, which silently stopped copying
+any file changed without also bumping manifest.json – observed live twice
+in a row on 2026-10-06 (a redesigned frontend card, then a larger __init__.py
+rewrite, both committed upstream without a version bump): the add-on logged
+nothing, and the stale old file just kept being served. The per-file hash
+walk below already skips genuinely unchanged files on its own, just as
+cheaply, so the only thing the version check skipped that the walk doesn't
+is the hashing itself – a handful of small files, once per addon start.
 After a successful update, triggers a reload of the integration via the HA API.
 """
 from __future__ import annotations
@@ -50,18 +60,6 @@ async def install_integration() -> None:
     src_version = _manifest_version(INTEGRATION_SOURCE_DIR)
     dst_version = _manifest_version(INTEGRATION_TARGET_DIR)
 
-    if src_version and src_version == dst_version:
-        _LOGGER.debug("Integration v%s already installed – skipping copy", src_version)
-        await _reload_integration()
-        return
-
-    _LOGGER.info(
-        "Installing miniEMS integration v%s (was: v%s) → %s",
-        src_version,
-        dst_version or "none",
-        INTEGRATION_TARGET_DIR,
-    )
-
     try:
         INTEGRATION_TARGET_DIR.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
@@ -86,15 +84,21 @@ async def install_integration() -> None:
         except OSError as exc:
             _LOGGER.error("Failed to copy %s → %s: %s", src, dst, exc)
 
+    if files_written == 0:
+        _LOGGER.debug("Integration v%s already installed – nothing to copy", src_version)
+        await _reload_integration()
+        return
+
     _LOGGER.info(
-        "Integration install complete: %d written, %d unchanged",
+        "Installing miniEMS integration v%s (was: v%s) → %s: %d written, %d unchanged",
+        src_version,
+        dst_version or "none",
+        INTEGRATION_TARGET_DIR,
         files_written,
         files_skipped,
     )
-
-    if files_written > 0:
-        _write_restart_marker(src_version)
-        await _reload_integration()
+    _write_restart_marker(src_version)
+    await _reload_integration()
 
 
 def _write_restart_marker(version: str | None) -> None:
