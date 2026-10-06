@@ -5,7 +5,7 @@
 (() => {
   const TXT = {
     de: {
-      home: ["Übersicht", "Energiefluss und Status"],
+      home: ["Haus", "Energiefluss und Status"],
       battery: ["Batterie", "Kapazität und Ladereserve"],
       plan: ["Energieplan", "Geplante Netzladung für die Nacht"],
       costs: ["Kosten", "Netzkosten, Ersparnis und Tarifvergleich"],
@@ -15,7 +15,7 @@
       saved: "Ersparnis", feedIn: "Einspeisung", inverter: "Wechselrichter", eff: "Wirkungsgrad", tier: "Tarifstufe",
     },
     en: {
-      home: ["Overview", "Energy flow and status"],
+      home: ["Home", "Energy flow and status"],
       battery: ["Battery", "Capacity and charge reserve"],
       plan: ["Energy plan", "Planned grid charging for tonight"],
       costs: ["Costs", "Grid cost, savings and tariff comparison"],

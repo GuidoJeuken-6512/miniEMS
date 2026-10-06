@@ -166,9 +166,11 @@ async def async_generate_dashboard(hass: HomeAssistant, entry: ConfigEntry) -> N
         "title": "miniEMS",
         "views": [
             _tab(
-                "Übersicht" if de else "Overview", "home", "mdi:home-lightning-bolt", "home",
+                "Haus" if de else "Home", "home", "mdi:home-lightning-bolt", "home",
                 [
                     flow_card,
+                    {"type": "custom:miniems-plan-card",
+                     "entity": "sensor.miniems_energy_plan_deficit_kwh"},
                     {"type": "custom:miniems-status-card"},
                     {"type": "custom:miniems-solar-card", "pv_entity": pv_entity},
                 ],
