@@ -1,5 +1,31 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.2.3
+
+### Fixed
+
+- **`integration_installer.py` konnte Dateiänderungen stillschweigend
+  überspringen, wenn `manifest.json`s Version nicht mitgezogen wurde.**
+  Traf live zweimal hintereinander zu (06.10.2026): ein überarbeitetes
+  Frontend-Karten-Set und danach ein größerer `__init__.py`-Umbau wurden
+  jeweils upstream committet, ohne die Integrations-Version zu bumpen — der
+  alte Kurzschluss `if src_version == dst_version: skip` übersprang damit
+  den gesamten Datei-Kopiervorgang (inklusive des eigentlich korrekten
+  Datei-Hash-Vergleichs darunter, der nie erreicht wurde), und die alten
+  Dateien blieben im HA-Container liegen, ohne jede Log-Zeile dazu.
+
+  Der Versionsvergleich entscheidet nicht mehr, ob überhaupt kopiert wird —
+  nur noch den Text der Log-Zeile und den im Reparatur-Hinweis angezeigten
+  Versionsstring. Der Datei-für-Datei-Hash-Abgleich läuft jetzt immer; er
+  überspringt unveränderte Dateien ohnehin genauso günstig, bei ein paar
+  kleinen Dateien einmal pro Add-on-Start keine spürbare Mehrarbeit.
+
+  Live gegen die lokale Testinstanz verifiziert: die zuvor steckengebliebenen
+  Karten-Dateien wurden beim nächsten Start korrekt übernommen (Hash jetzt
+  identisch zur Quelle), ohne die Integrations-Version anzufassen. 15
+  bestehende Tests in `test_integration_installer.py` weiterhin unverändert
+  grün, 693 Tests insgesamt.
+
 ## 3.2.2
 
 ### Changed
