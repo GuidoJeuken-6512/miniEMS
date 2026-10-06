@@ -22,7 +22,11 @@
       "init": {
         "title": "miniEMS Options",
         "data": {
-          "poll_interval": "Poll interval (seconds, 10–300)"
+          "poll_interval": "Poll interval (seconds, 10–300)",
+          "generate_dashboard": "Install the bundled dashboard"
+        },
+        "data_description": {
+          "generate_dashboard": "Creates a \"miniEMS\" dashboard with all five bundled cards. Needs a Home Assistant restart to appear – a repair notice will ask you to restart once it's ready. Turning this off again does not remove an already-created dashboard."
         }
       }
     }
@@ -31,6 +35,10 @@
     "restart_required": {
       "title": "miniEMS integration updated",
       "description": "miniEMS integration was updated to v{version}. Please restart Home Assistant to apply all changes."
+    },
+    "dashboard_restart_required": {
+      "title": "miniEMS dashboard ready",
+      "description": "The miniEMS dashboard was created. Please restart Home Assistant so Lovelace picks it up and shows it in the sidebar."
     }
   },
   "entity": {

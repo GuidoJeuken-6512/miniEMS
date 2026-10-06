@@ -1,5 +1,53 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.2.1
+
+### Fixed
+
+- **Das mitgelieferte Dashboard (5 Karten) wurde zwar gebaut, war aber auf
+  einer echten Installation nie sichtbar.** Live auf der Devcontainer-
+  Testinstanz untersucht: der automatische Einmal-Trigger lief bei JEDEM
+  frischen Setup der Config-Entry, auch direkt während das Add-on selbst
+  noch hochfuhr — ein sehr üblicher Moment für
+  `coordinator.async_config_entry_first_refresh()`, am Anfang derselben
+  Funktion, fehlzuschlagen (`ConfigEntryNotReady`), was die gesamte
+  `async_setup_entry()` abbricht, **bevor** der Dashboard-Code überhaupt
+  erreicht wird — lautlos, ohne Fehlermeldung.
+
+  Der Trigger ist jetzt **opt-in** über einen neuen Schalter in der
+  Options-Flow der Integration ("Mitgeliefertes Dashboard installieren"),
+  statt blind bei jedem Setup zu feuern. Das verschiebt den Zeitpunkt auf
+  einen, den die Nutzerin bewusst wählt — im laufenden Normalbetrieb, wenn
+  das Add-on längst stabil läuft —, wodurch das Rennen in der Praxis nicht
+  mehr auftritt.
+
+  Zusätzlich entfernt: der automatische, unangekündigte
+  `homeassistant.restart`-Aufruf direkt nach dem Erzeugen des Dashboards.
+  Lovelace braucht zwar wirklich einen Neustart, um das neu angelegte
+  Dashboard aus dem reinen Storage-Write zu übernehmen (keine Live-Reload-
+  Möglichkeit für einen rohen Storage-Write) — aber ein Neustart, den eine
+  Integration einfach selbst auslöst, ist die falsche UX. Stattdessen legt
+  die Integration jetzt eine Reparatur-Meldung an (derselbe Mechanismus wie
+  die bestehende `restart_required`-Meldung bei einem Versions-Update), die
+  Nutzer:innen bitten, selbst neu zu starten, wann es passt.
+
+  Dabei einen zweiten, subtileren Race gefunden und behoben: das Setzen des
+  `_dashboard_generated`-Flags löst über den bestehenden
+  Options-Update-Listener einen Reload **derselben** Config-Entry aus — und
+  da der Hintergrund-Task über `entry.async_create_background_task()` an
+  genau diese Entry gebunden ist, kann der Reload den eigenen, noch
+  laufenden Task mittendrin abbrechen. Reihenfolge getauscht: die
+  Reparatur-Meldung wird jetzt **vor** dem Flag-Update erzeugt, damit ein
+  Abbruch an dieser Stelle höchstens das Flag-Update selbst verschluckt
+  (der nächste Reload versucht es dann einfach erneut), nie aber die
+  nutzersichtbare Meldung.
+
+  Live gegen die lokale Testinstanz vollständig durchgespielt: Schalter an
+  → Dashboard wird erzeugt (`lovelace.miniems`-Storage + Sidebar-Eintrag),
+  kein automatischer Neustart mehr, nach einem manuellen Neustart
+  erscheint das Dashboard korrekt in der Seitenleiste und bleibt über
+  weitere Neustarts hinweg bestehen (keine erneute Generierung).
+
 ## 2.6.2
 
 ### Fixed

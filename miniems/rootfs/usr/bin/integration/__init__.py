@@ -24,8 +24,13 @@ DOMAIN = "miniems"
 PLATFORMS = ["sensor"]
 CONF_BASE_URL = "base_url"
 CONF_POLL_INTERVAL = "poll_interval"
+CONF_GENERATE_DASHBOARD = "generate_dashboard"
 DEFAULT_BASE_URL = "http://homeassistant:8080"
 DEFAULT_POLL_INTERVAL = 30
+# Opt-in, not opt-out: generating the dashboard needs a full HA restart to
+# become visible (see async_generate_dashboard's docstring) - an existing
+# install must never be surprised by that on its next unrelated update.
+DEFAULT_GENERATE_DASHBOARD = False
 
 _RESTART_MARKER = Path(__file__).parent / ".restart_required"
 
@@ -42,15 +47,18 @@ _FRONTEND_CARDS = {
     "miniems-costs-card.js": f"/{DOMAIN}/miniems-costs-card.js",
 }
 
-# Auto-generated dashboard (Schritt B3) – same raw-storage-write approach as
-# the SEM Community integration's features/dashboard_generator.py (no
-# official "create a Lovelace dashboard" API exists), but through HA's own
-# Store helper instead of manual open()/json.dump() for atomic, correctly
-# JSON-encoded writes. Store is a generic file helper, though – it knows
-# nothing about Lovelace's own in-memory DashboardsCollection cache, so a
-# running HA instance still won't see the new entry until that cache is
-# rebuilt. SEM's own conclusion (and the one followed here): that requires
-# an HA restart, there is no live-reload path for a raw storage write.
+# Opt-in generated dashboard (Schritt B3, made opt-in after a live-observed
+# race – see async_setup_entry's comment on CONF_GENERATE_DASHBOARD) – same
+# raw-storage-write approach as the SEM Community integration's
+# features/dashboard_generator.py (no official "create a Lovelace
+# dashboard" API exists), but through HA's own Store helper instead of
+# manual open()/json.dump() for atomic, correctly JSON-encoded writes.
+# Store is a generic file helper, though – it knows nothing about
+# Lovelace's own in-memory DashboardsCollection cache, so a running HA
+# instance still won't see the new entry until that cache is rebuilt.
+# SEM's own conclusion (and the one followed here): that requires an HA
+# restart, there is no live-reload path for a raw storage write – see the
+# dashboard_restart_required repair issue this creates once it's done.
 _DASHBOARD_URL_PATH = "miniems"
 _DASHBOARD_STORAGE_KEY = f"lovelace.{_DASHBOARD_URL_PATH}"
 SERVICE_GENERATE_DASHBOARD = "generate_dashboard"
@@ -273,33 +281,66 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(entry.add_update_listener(_reload_on_options_update))
 
-    # One-shot: create the bundled dashboard the first time this entry is
-    # ever set up. Gated on an entry.options flag (not e.g. the storage file's
-    # existence) so a user who deleted the generated dashboard on purpose
-    # doesn't get it silently recreated on the next HA restart – re-adding it
-    # is what the generate_dashboard service is for.
-    if not entry.options.get("_dashboard_generated", False):
-        async def _generate_and_restart() -> None:
+    # Opt-in (CONF_GENERATE_DASHBOARD, set via the options flow – see
+    # config_flow.py): create the bundled dashboard once, the first time the
+    # toggle is on. Gated on an entry.options flag, not e.g. the storage
+    # file's existence, so a user who deletes the generated dashboard on
+    # purpose doesn't get it silently recreated on the next HA restart –
+    # re-adding it is what the generate_dashboard service is for.
+    #
+    # Deliberately does NOT restart HA itself anymore (see CHANGELOG): the
+    # original one-shot ran unconditionally on every fresh entry, including
+    # right as the addon container itself was still starting up – a very
+    # common moment for coordinator.async_config_entry_first_refresh() just
+    # above to fail, which raises ConfigEntryNotReady and aborts this whole
+    # function *before* ever reaching this block, silently. Making the
+    # trigger opt-in moves it to a moment the user chooses deliberately
+    # (normal operation, addon already up), which sidesteps that race in
+    # practice; an unconditional background `homeassistant.restart` call was
+    # also simply the wrong UX for an integration to spring on a user
+    # unannounced – a repair issue (same pattern as restart_required above)
+    # lets them restart on their own schedule instead.
+    if (
+        entry.options.get(CONF_GENERATE_DASHBOARD, DEFAULT_GENERATE_DASHBOARD)
+        and not entry.options.get("_dashboard_generated", False)
+    ):
+        async def _generate_dashboard_task() -> None:
             try:
                 await async_generate_dashboard(hass, entry)
             except Exception as err:  # noqa: BLE001 – never crash the entry over this
                 _LOGGER.error("miniEMS: dashboard generation failed: %s", err)
                 return
-            # Setting this triggers _reload_on_options_update above, which
-            # re-enters async_setup_entry and (seeing the flag now set)
-            # skips this block on that pass – see async_generate_dashboard's
-            # docstring for why a restart is still needed to actually show it.
+            # Issue first, flag update last: async_update_entry() below
+            # triggers _reload_on_options_update above, which reloads this
+            # very entry – and entry.async_create_background_task() ties
+            # this task's lifecycle to that entry, so the reload can cancel
+            # this task mid-flight. Observed live: with the flag set first,
+            # the issue and the log line after it never ran, no exception
+            # anywhere (a cancelled task raises CancelledError, which isn't
+            # an Exception and the bare `return` above doesn't catch it
+            # either). Ordering the one-time irreversible side effect
+            # (the issue) before the cancellation-risking call means a
+            # mid-flight cancellation can only ever skip the flag update,
+            # which just makes the *next* reload retry this block – never
+            # silently skips the user-facing notice.
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                "dashboard_restart_required",
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="dashboard_restart_required",
+            )
+            _LOGGER.info(
+                "miniEMS dashboard created – restart Home Assistant to see it "
+                "(repair issue created)"
+            )
             hass.config_entries.async_update_entry(
                 entry, options={**entry.options, "_dashboard_generated": True}
             )
-            _LOGGER.info(
-                "miniEMS dashboard created – restarting Home Assistant so "
-                "Lovelace picks it up"
-            )
-            await hass.services.async_call("homeassistant", "restart", {}, blocking=False)
 
         entry.async_create_background_task(
-            hass, _generate_and_restart(), "miniems_generate_dashboard"
+            hass, _generate_dashboard_task(), "miniems_generate_dashboard"
         )
 
     return True

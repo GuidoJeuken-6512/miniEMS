@@ -22,7 +22,11 @@
       "init": {
         "title": "miniEMS Optionen",
         "data": {
-          "poll_interval": "Abfrageintervall (Sekunden, 10–300)"
+          "poll_interval": "Abfrageintervall (Sekunden, 10–300)",
+          "generate_dashboard": "Mitgeliefertes Dashboard installieren"
+        },
+        "data_description": {
+          "generate_dashboard": "Legt ein „miniEMS“-Dashboard mit allen fünf mitgelieferten Karten an. Erscheint erst nach einem Neustart von Home Assistant – ein Reparaturhinweis fordert dich dazu auf, sobald es bereit ist. Ausschalten entfernt ein bereits angelegtes Dashboard nicht wieder."
         }
       }
     }
@@ -31,6 +35,10 @@
     "restart_required": {
       "title": "miniEMS Integration aktualisiert",
       "description": "Die miniEMS Integration wurde auf v{version} aktualisiert. Bitte starte Home Assistant neu, um alle Änderungen zu übernehmen."
+    },
+    "dashboard_restart_required": {
+      "title": "miniEMS-Dashboard bereit",
+      "description": "Das miniEMS-Dashboard wurde angelegt. Bitte starte Home Assistant neu, damit Lovelace es übernimmt und in der Seitenleiste anzeigt."
     }
   },
   "entity": {

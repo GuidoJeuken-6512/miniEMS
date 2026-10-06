@@ -9,8 +9,10 @@ from homeassistant.data_entry_flow import FlowResult
 
 from . import (
     CONF_BASE_URL,
+    CONF_GENERATE_DASHBOARD,
     CONF_POLL_INTERVAL,
     DEFAULT_BASE_URL,
+    DEFAULT_GENERATE_DASHBOARD,
     DEFAULT_POLL_INTERVAL,
     DOMAIN,
 )
@@ -82,12 +84,24 @@ class MiniEMSOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        current = self._entry.options.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
+        current_poll = self._entry.options.get(CONF_POLL_INTERVAL, DEFAULT_POLL_INTERVAL)
+        current_dashboard = self._entry.options.get(
+            CONF_GENERATE_DASHBOARD, DEFAULT_GENERATE_DASHBOARD
+        )
         schema = vol.Schema(
             {
-                vol.Required(CONF_POLL_INTERVAL, default=current): vol.All(
+                vol.Required(CONF_POLL_INTERVAL, default=current_poll): vol.All(
                     int, vol.Range(min=10, max=300)
-                )
+                ),
+                # A one-shot trigger, not a persistent mode switch: turning
+                # this on generates the bundled dashboard once (if it hasn't
+                # been already – see __init__.py's "_dashboard_generated"
+                # flag) and creates a repair issue asking for a restart to
+                # see it. Turning it back off does not remove an
+                # already-generated dashboard.
+                vol.Required(
+                    CONF_GENERATE_DASHBOARD, default=current_dashboard
+                ): bool,
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)
