@@ -62,13 +62,13 @@ nav = [
     { "Datenspeicher" = "technical/data-storage.md" },
     { "API-Referenz" = "technical/api.md" },
     { "HA-Sensor-Referenz" = "technical/sensors.md" },
+    { "Sensor-Staleness" = "technical/sensor-staleness.md" },
     { "Devcontainer-Supervisor-Patches" = "technical/devcontainer-supervisor-patches.md" },
   ]},
   { "Roadmap" = [
     { "v3.0 – Geräteprofile" = "roadmap/v3.0-geraeteprofile.md" },
-    { "Netzdienliches Laden" = "roadmap/netzdienliches-laden.md" },
+    { "Energiefahrplan" = "roadmap/energiefahrplan.md" },
     { "Tageswechsel & Energiezählung" = "roadmap/tageswechsel-energiezaehlung.md" },
-    { "Sensor-Staleness" = "roadmap/sensor-staleness.md" },
     { "Lehren aus Akkudoktor-EOS" = "roadmap/eos-learnings.md" },
   ]},
   { "User Guide (EN)" = [
@@ -88,9 +88,7 @@ nav = [
     { "Data Storage" = "en/technical/data-storage.md" },
     { "API Reference" = "en/technical/api.md" },
     { "HA Sensor Reference" = "en/technical/sensors.md" },
-  ]},
-  { "Roadmap (EN)" = [
-    { "Sensor Staleness" = "en/roadmap/sensor-staleness.md" },
+    { "Sensor Staleness" = "en/technical/sensor-staleness.md" },
   ]},
 ]
 
