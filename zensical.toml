@@ -69,6 +69,7 @@ nav = [
     { "Netzdienliches Laden" = "roadmap/netzdienliches-laden.md" },
     { "Tageswechsel & Energiezählung" = "roadmap/tageswechsel-energiezaehlung.md" },
     { "Sensor-Staleness" = "roadmap/sensor-staleness.md" },
+    { "Lehren aus Akkudoktor-EOS" = "roadmap/eos-learnings.md" },
   ]},
   { "User Guide (EN)" = [
     { "Getting Started" = "en/user/index.md" },
