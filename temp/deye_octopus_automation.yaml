@@ -1,0 +1,264 @@
+alias: Deye_Octopus_steuerung_mit_PV_Forecast
+description: >-
+  02/12 Uhr Grid-Laden nur wenn PV-Forecast abzgl. Verbrauch nicht reicht.
+  Stopp bei Ziel-SoC (80/90 %) oder sobald PV den Rest deckt.
+  06/16/18/21 Uhr und HA-Start ausserhalb der Billigfenster:
+  Entladen frei + Grid AUS. Jede Aktion wird geloggt.
+mode: queued
+variables:
+  kapazitaet: 25   # kWh Akku
+  verbrauch: 6     # kWh erwarteter Verbrauch tagsueber inkl. WP (auch im Trigger pv_reicht anpassen!)
+  soc: "{{ states('sensor.deye8k_battery') }}"
+  pv: "{{ states('sensor.solcast_pv_forecast_prognose_verbleibende_leistung_heute') }}"
+triggers:
+  - trigger: time
+    at: "02:00:00"
+    id: "2"
+  - trigger: time
+    at: "06:00:00"
+    id: "aus"
+  - trigger: time
+    at: "12:00:00"
+    id: "12"
+  - trigger: time
+    at: "16:00:00"
+    id: "aus"
+  - trigger: time
+    at: "18:00:00"
+    id: "aus"
+  - trigger: time
+    at: "21:00:00"
+    id: "aus"
+  - trigger: homeassistant
+    event: start
+    id: "start"
+  - trigger: numeric_state
+    entity_id: sensor.deye8k_battery
+    above: 79
+    id: "soc80"
+  - trigger: numeric_state
+    entity_id: sensor.deye8k_battery
+    above: 89
+    id: "soc90"
+  # Trigger-Templates sehen die variables oben nicht -> Zahlen hier direkt
+  # (25 = kapazitaet, 6 bzw. 3 = verbrauch ganzer/halber Tag)
+  - trigger: template
+    id: "pv_reicht"
+    value_template: >-
+      {% set h = now().hour %}
+      {% set ziel = 0.8 if h < 12 else 0.9 %}
+      {% set vb = 6 if h < 12 else 3 %}
+      {% set batt = states('sensor.deye8k_battery') | float(0) / 100 * 25 %}
+      {% set pv = states('sensor.solcast_pv_forecast_prognose_verbleibende_leistung_heute') | float(0) %}
+      {{ (pv - vb) >= (ziel * 25 - batt) + 1 }}
+conditions: []
+actions:
+  - choose:
+      # 02:00 - Laden, wenn PV abzgl. Verbrauch nicht bis 80 % reicht
+      - conditions:
+          - condition: trigger
+            id: "2"
+          - condition: numeric_state
+            entity_id: sensor.deye8k_battery
+            below: 80
+          - condition: template
+            value_template: >-
+              {% set batt = soc | float(0) / 100 * kapazitaet %}
+              {{ (pv | float(0) - verbrauch) < (0.8 * kapazitaet - batt) }}
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.deye8k_battery_max_discharging_current
+            data:
+              value: 0
+          - action: switch.turn_on
+            target:
+              entity_id: switch.deye8k_battery_grid_charging
+          - variables:
+              msg: >-
+                02:00 Netzladen EIN, Entladen gesperrt (Ziel 80 %).
+                SoC {{ soc }} %, PV-Rest {{ pv }} kWh, Verbrauch {{ verbrauch }} kWh
+          - action: logbook.log
+            data:
+              name: Deye Octopus
+              message: "{{ msg }}"
+              entity_id: switch.deye8k_battery_grid_charging
+          - action: system_log.write
+            data:
+              message: "Deye Octopus: {{ msg }}"
+              level: warning
+              logger: automation.deye_octopus
+
+      # 12:00 - Laden, wenn PV abzgl. halbem Verbrauch nicht bis 90 % reicht
+      - conditions:
+          - condition: trigger
+            id: "12"
+          - condition: numeric_state
+            entity_id: sensor.deye8k_battery
+            below: 90
+          - condition: template
+            value_template: >-
+              {% set batt = soc | float(0) / 100 * kapazitaet %}
+              {{ (pv | float(0) - verbrauch / 2) < (0.9 * kapazitaet - batt) }}
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.deye8k_battery_max_discharging_current
+            data:
+              value: 0
+          - action: switch.turn_on
+            target:
+              entity_id: switch.deye8k_battery_grid_charging
+          - variables:
+              msg: >-
+                12:00 Netzladen EIN, Entladen gesperrt (Ziel 90 %).
+                SoC {{ soc }} %, PV-Rest {{ pv }} kWh, Verbrauch {{ verbrauch / 2 }} kWh
+          - action: logbook.log
+            data:
+              name: Deye Octopus
+              message: "{{ msg }}"
+              entity_id: switch.deye8k_battery_grid_charging
+          - action: system_log.write
+            data:
+              message: "Deye Octopus: {{ msg }}"
+              level: warning
+              logger: automation.deye_octopus
+
+      # 02:00 / 12:00 ohne Laden - Begruendung loggen
+      - conditions:
+          - condition: or
+            conditions:
+              - condition: trigger
+                id: "2"
+              - condition: trigger
+                id: "12"
+        sequence:
+          - variables:
+              msg: >-
+                {{ trigger.id }}:00 KEIN Netzladen (PV reicht oder SoC hoch genug).
+                SoC {{ soc }} %, PV-Rest {{ pv }} kWh
+          - action: logbook.log
+            data:
+              name: Deye Octopus
+              message: "{{ msg }}"
+              entity_id: switch.deye8k_battery_grid_charging
+          - action: system_log.write
+            data:
+              message: "Deye Octopus: {{ msg }}"
+              level: warning
+              logger: automation.deye_octopus
+
+      # Stopp: Ziel-SoC erreicht oder PV deckt den Rest.
+      # Entladen bleibt bis Fensterende gesperrt (Haus laeuft guenstig aus dem Netz).
+      - conditions:
+          - condition: or
+            conditions:
+              - condition: and
+                conditions:
+                  - condition: trigger
+                    id: "soc80"
+                  - condition: time
+                    after: "02:00:00"
+                    before: "06:00:00"
+              - condition: and
+                conditions:
+                  - condition: trigger
+                    id: "soc90"
+                  - condition: time
+                    after: "12:00:00"
+                    before: "16:00:00"
+              - condition: and
+                conditions:
+                  - condition: trigger
+                    id: "pv_reicht"
+                  - condition: or
+                    conditions:
+                      - condition: time
+                        after: "02:00:00"
+                        before: "06:00:00"
+                      - condition: time
+                        after: "12:00:00"
+                        before: "16:00:00"
+          - condition: state
+            entity_id: switch.deye8k_battery_grid_charging
+            state: "on"
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: switch.deye8k_battery_grid_charging
+          - variables:
+              msg: >-
+                Netzladen AUS ({{ 'PV deckt Rest' if trigger.id == 'pv_reicht' else 'Ziel-SoC erreicht' }}),
+                Entladen bleibt bis Fensterende gesperrt. SoC {{ soc }} %, PV-Rest {{ pv }} kWh
+          - action: logbook.log
+            data:
+              name: Deye Octopus
+              message: "{{ msg }}"
+              entity_id: switch.deye8k_battery_grid_charging
+          - action: system_log.write
+            data:
+              message: "Deye Octopus: {{ msg }}"
+              level: warning
+              logger: automation.deye_octopus
+
+      # Fensterende, oder HA-Start ausserhalb der Billigfenster: Normalbetrieb
+      - conditions:
+          - condition: or
+            conditions:
+              - condition: trigger
+                id: "aus"
+              - condition: and
+                conditions:
+                  - condition: trigger
+                    id: "start"
+                  - condition: not
+                    conditions:
+                      - condition: time
+                        after: "02:00:00"
+                        before: "06:00:00"
+                      - condition: time
+                        after: "12:00:00"
+                        before: "16:00:00"
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.deye8k_battery_max_discharging_current
+            data:
+              value: 185
+          - action: switch.turn_off
+            target:
+              entity_id: switch.deye8k_battery_grid_charging
+          - variables:
+              msg: >-
+                {{ 'HA-Start' if trigger.id == 'start' else now().strftime('%H:%M') }}:
+                Normalbetrieb - Netzladen AUS, Entladen 185 A. SoC {{ soc }} %
+          - action: logbook.log
+            data:
+              name: Deye Octopus
+              message: "{{ msg }}"
+              entity_id: switch.deye8k_battery_grid_charging
+          - action: system_log.write
+            data:
+              message: "Deye Octopus: {{ msg }}"
+              level: warning
+              logger: automation.deye_octopus
+
+      # HA-Start innerhalb eines Billigfensters: nichts aendern, nur loggen
+      - conditions:
+          - condition: trigger
+            id: "start"
+        sequence:
+          - variables:
+              msg: >-
+                HA-Start im Billigfenster - Zustand unveraendert
+                (Netzladen {{ states('switch.deye8k_battery_grid_charging') }}). SoC {{ soc }} %
+          - action: logbook.log
+            data:
+              name: Deye Octopus
+              message: "{{ msg }}"
+              entity_id: switch.deye8k_battery_grid_charging
+          - action: system_log.write
+            data:
+              message: "Deye Octopus: {{ msg }}"
+              level: warning
+              logger: automation.deye_octopus
