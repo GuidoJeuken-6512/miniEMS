@@ -122,6 +122,9 @@ kommt aus der gelernten, nach SoC gestaffelten Historie, sonst aus
 
 ## Überbrückungsplanung (ab v3.3.0)
 
+Konzept, Entscheidungen und offene Punkte:
+[Roadmap v3.3 – Bedarfsprognose](../roadmap/v3.3-bedarfsprognose.md).
+
 Aktiv, wenn `load_forecast_enabled` an ist, mindestens
 `load_forecast_min_days` Tage Stundenhistorie vorliegen und alle Eingaben
 da sind. Code: `bridge_planner.py`, `load_forecast.py`,

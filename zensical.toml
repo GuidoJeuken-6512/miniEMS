@@ -71,6 +71,7 @@ nav = [
     { "Energiefahrplan" = "roadmap/energiefahrplan.md" },
     { "Tageswechsel & Energiezählung" = "roadmap/tageswechsel-energiezaehlung.md" },
     { "Lehren aus Akkudoktor-EOS" = "roadmap/eos-learnings.md" },
+    { "v3.3 – Bedarfsprognose" = "roadmap/v3.3-bedarfsprognose.md" },
   ]},
   { "User Guide (EN)" = [
     { "Getting Started" = "en/user/index.md" },
