@@ -63,6 +63,7 @@ nav = [
     { "API-Referenz" = "technical/api.md" },
     { "HA-Sensor-Referenz" = "technical/sensors.md" },
     { "Sensor-Staleness" = "technical/sensor-staleness.md" },
+    { "Netzladen-Entscheidung" = "technical/netzladen-entscheidung.md" },
     { "Devcontainer-Supervisor-Patches" = "technical/devcontainer-supervisor-patches.md" },
   ]},
   { "Roadmap" = [
