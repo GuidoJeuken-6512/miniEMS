@@ -51,24 +51,45 @@ class _Window:
 class PriceCurve:
     """Read-only view of the upcoming tariff, in local time."""
 
-    def __init__(self, windows: list[_Window], source: str) -> None:
+    def __init__(
+        self,
+        windows: list[_Window],
+        source: str,
+        dated: list[tuple[datetime, datetime, float]] | None = None,
+    ) -> None:
         self._windows = windows
         self.source = source
+        # Dated slots of a market tariff (v3.3.0), merged where consecutive
+        # slots share a rate: [(start, end, €/kWh)], tz-aware, sorted. When
+        # set, it replaces the recurring `_windows` calendar entirely.
+        self._dated = dated or []
+
+    @property
+    def is_dated(self) -> bool:
+        return bool(self._dated)
 
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_entity(cls, ws: "HAStateClient", entity_id: str) -> "PriceCurve | None":
-        """Build from a price entity, or None when it carries no calendar."""
+    def from_entity(
+        cls, ws: "HAStateClient", entity_id: str, source: str = "auto"
+    ) -> "PriceCurve | None":
+        """Build from a price entity, or None when it carries no calendar.
+
+        `source` (config `tariff_source`): "auto" tries dated market rates
+        first and falls back to the time-of-use calendar; "rates" and
+        "timeslots" use only that one.
+        """
         if not entity_id:
             return None
 
-        for attr in ("rates", "unit_rate_forecast"):
-            if ws.get_state_attribute(entity_id, attr):
-                _LOGGER.debug(
-                    "PriceCurve: %s carries %s, but market-tariff parsing is not "
-                    "implemented yet – falling through to the ToU calendar", entity_id, attr,
-                )
+        if source in ("auto", "rates"):
+            for attr in ("rates", "unit_rate_forecast", "prices", "forecast"):
+                dated = _parse_dated_rates(ws.get_state_attribute(entity_id, attr))
+                if dated:
+                    return cls([], source=f"{attr}({entity_id})", dated=dated)
+            if source == "rates":
+                return None
 
         timeslots = ws.get_state_attribute(entity_id, "timeslots")
         if not isinstance(timeslots, list) or not timeslots:
@@ -102,6 +123,12 @@ class PriceCurve:
 
     def window_at(self, moment: datetime) -> _Window | None:
         """The window covering `moment`, or None if the calendar has a hole."""
+        if self._dated:
+            slot = self._dated_slot(moment)
+            if slot is None:
+                return None
+            return _Window(slot[0].timetz().replace(tzinfo=None),
+                           slot[1].timetz().replace(tzinfo=None), slot[2], "rate")
         t = moment.timetz().replace(tzinfo=None)
         for w in self._windows:
             if w.contains(t):
@@ -114,6 +141,9 @@ class PriceCurve:
         Returned as an absolute datetime so a window running past midnight
         yields tomorrow's date rather than a time that looks like the past.
         """
+        if self._dated:
+            slot = self._dated_slot(moment)
+            return slot[1].astimezone(moment.tzinfo) if slot else None
         w = self.window_at(moment)
         if w is None:
             return None
@@ -121,6 +151,17 @@ class PriceCurve:
         if end <= moment:
             end += timedelta(days=1)
         return end
+
+    def rate_at(self, moment: datetime) -> float | None:
+        """€/kWh at `moment`, or None when the calendar does not cover it."""
+        w = self.window_at(moment)
+        return w.rate_eur_kwh if w is not None else None
+
+    def _dated_slot(self, moment: datetime) -> tuple[datetime, datetime, float] | None:
+        for start, end, rate in self._dated:
+            if start <= moment < end:
+                return start, end, rate
+        return None
 
     def cheapest_rate_between(self, start: datetime, deadline: datetime) -> float | None:
         """Lowest rate occurring in [start, deadline), or None when unknown."""
@@ -240,3 +281,70 @@ def _parse_time(raw: object) -> time | None:
         except ValueError:
             continue
     return None
+
+
+_RATE_START_KEYS = ("start", "period_start", "startsAt", "start_time", "from")
+_RATE_END_KEYS = ("end", "period_end", "endsAt", "end_time", "to")
+_RATE_VALUE_KEYS = ("value_inc_vat", "total", "price", "value", "rate")
+
+
+def _to_dt(raw: object) -> datetime | None:
+    if isinstance(raw, datetime):
+        dt = raw
+    elif isinstance(raw, str):
+        try:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+    return dt if dt.tzinfo else None   # a naive time is ambiguous – reject
+
+
+def _parse_dated_rates(raw: object) -> list[tuple[datetime, datetime, float]]:
+    """Market-tariff price list -> merged [(start, end, €/kWh)].
+
+    Accepts the common shapes (Octopus `rates[]` with value_inc_vat, Tibber
+    `startsAt`/`total`, generic start/end/price). A missing end is taken
+    from the next entry's start (else +1 h). Values above 2 are read as
+    ct/kWh – no retail tariff costs 2 €/kWh, and no ct value is below 2
+    outside negative-price hours, where the sign alone already decides.
+    Empty list whenever the shape is not recognised.
+    """
+    if not isinstance(raw, list) or not raw:
+        return []
+    parsed: list[tuple[datetime, datetime | None, float]] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        start = next((_to_dt(entry[k]) for k in _RATE_START_KEYS if k in entry), None)
+        if start is None:
+            continue
+        end = next((_to_dt(entry[k]) for k in _RATE_END_KEYS if k in entry), None)
+        value = None
+        for k in _RATE_VALUE_KEYS:
+            if k in entry:
+                try:
+                    value = float(entry[k])
+                except (TypeError, ValueError):
+                    value = None
+                break
+        if value is None:
+            continue
+        if value > 2.0:
+            value /= 100.0
+        parsed.append((start, end, value))
+    if not parsed:
+        return []
+    parsed.sort(key=lambda p: p[0])
+    slots: list[tuple[datetime, datetime, float]] = []
+    for i, (start, end, value) in enumerate(parsed):
+        if end is None:
+            end = parsed[i + 1][0] if i + 1 < len(parsed) else start + timedelta(hours=1)
+        if end <= start:
+            continue
+        if slots and slots[-1][1] == start and abs(slots[-1][2] - value) < 1e-9:
+            slots[-1] = (slots[-1][0], end, value)
+        else:
+            slots.append((start, end, value))
+    return slots

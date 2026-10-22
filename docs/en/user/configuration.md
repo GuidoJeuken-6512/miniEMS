@@ -190,9 +190,28 @@ The prediction model uses historical consumption data from similar-temperature d
 
 ---
 
+## Hourly Load Forecast & Bridging Plan (since v3.3.0)
+
+Replaces the grid-charge rule of thumb "remaining PV forecast vs. free capacity" with a calculation in 30-minute slots: **how much must be charged in the current cheap tariff window to bridge the next expensive one – and does it pay?** It uses the hourly household load (incl. heat pump, driven by outdoor temperature), Solcast's 30-minute forecast and the tariff. Details: [grid charging decision](../../technical/netzladen-entscheidung.md) (German).
+
+The hourly history is **always** recorded, even with the switch off, so history is already there when you enable it.
+
+| Setting | Default | Description |
+|---|---|---|
+| `load_forecast_enabled` | `false` | Master switch. Off = grid charging decides as before. |
+| `load_forecast_min_days` | `14` | Days of hourly history before the plan decides. Until then it is computed and shown, the old logic decides. 1–60. |
+| `heat_pump_power_entity` | empty | Heat pump power in W, optional. Several comma-separated entities are summed (e.g. the three phases of a Shelly 3EM). Empty = temperature dependence learned from the total load. |
+| `outdoor_temp_entity` | empty | Outdoor temperature in °C, optional. Empty = current hour from `weather_entity`'s hourly forecast. |
+| `heating_limit_temp_c` | `15.0` | Heating limit: above it the heat pump does not heat. Hot water is learned as a flat share. 5–25. |
+| `pv_forecast_scenario` | `blend` | Solcast scenario: `estimate`, `estimate10` (pessimistic) or `blend`. |
+| `pv_forecast_blend_weight` | `0.7` | For `blend`: weight of `estimate`, rest `estimate10`. |
+| `tariff_source` | `auto` | Tariff calendar: `auto` (dated `rates[]` if present, else `timeslots[]`), `timeslots` or `rates`. |
+
+---
+
 ## Solcast PV Forecast
 
-[Solcast](https://solcast.com/) provides highly accurate rooftop PV forecasts. Install the Solcast HA integration and configure the entities here.
+**Required.** [Solcast](https://solcast.com/) provides rooftop PV forecasts. Install the Solcast HA integration, enable the **detailed forecast** option (attribute `detailedForecast` with 30-minute values on the "forecast today/tomorrow" sensors) and configure the entities here.
 
 | Setting | Default | Description |
 |---|---|---|

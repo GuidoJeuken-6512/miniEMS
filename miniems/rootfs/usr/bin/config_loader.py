@@ -183,6 +183,42 @@ class Config:
     # installs); True only for a genuinely new install with no config.json
     # yet, so it never inherits the five historically-wrong Deye defaults.
     device_detection_enabled: bool = False
+    # --- Stündliche Bedarfsprognose / Überbrückungsplanung (v3.3.0) ------
+    # docs/technical/netzladen-entscheidung.md. Master switch: OFF = the
+    # grid-charge decision stays exactly as before. ON = once enough hourly
+    # history exists (load_forecast_min_days), grid charging buys exactly the
+    # energy needed to bridge the next expensive tariff period, computed per
+    # 30-min slot from a temperature-driven load forecast, the Solcast
+    # detailedForecast and the tariff calendar.
+    load_forecast_enabled: bool = False
+    # Days of hourly history before the forecast may drive decisions. Until
+    # then it is computed and shown, but the old logic decides.
+    load_forecast_min_days: int = 14
+    # Optional power sensor(s) of a heat pump, in W. Several entities (e.g.
+    # the three phases of a Shelly 3EM) may be given comma-separated and are
+    # summed. Empty = no separate heat-pump meter: the temperature dependence
+    # is then learned from the total household load.
+    heat_pump_power_entity: str = ""
+    # Optional outdoor temperature sensor (°C). Empty = the current hour's
+    # value from the weather entity's hourly forecast is recorded instead.
+    outdoor_temp_entity: str = ""
+    # Heating limit temperature: above it the heat pump does not heat (only
+    # hot water, which the model learns as a flat base).
+    heating_limit_temp_c: float = 15.0
+    # Which Solcast scenario feeds the plan: "estimate" (median), "estimate10"
+    # (pessimistic) or "blend" = w × estimate + (1−w) × estimate10. Under-
+    # charging costs the full tariff spread per kWh, over-charging only the
+    # round-trip losses – hence the default leans pessimistic.
+    pv_forecast_scenario: str = "blend"
+    pv_forecast_blend_weight: float = 0.7
+    # Tariff calendar source: "auto" (dated rates[] if present, else the
+    # time-of-use timeslots[]), "timeslots" or "rates".
+    tariff_source: str = "auto"
+
+    @property
+    def heat_pump_entities(self) -> list[str]:
+        """heat_pump_power_entity split on commas, blanks dropped."""
+        return [e.strip() for e in (self.heat_pump_power_entity or "").split(",") if e.strip()]
 
     @property
     def monitored_entities(self) -> list[str]:
@@ -245,7 +281,10 @@ class Config:
             ]
             if e
         ]
-        return base + solcast + optional + scenario2 + control
+        forecast = [
+            e for e in [*self.heat_pump_entities, self.outdoor_temp_entity] if e
+        ]
+        return base + solcast + optional + scenario2 + control + forecast
 
 
 def _defaults() -> dict:
@@ -314,6 +353,9 @@ def _validate(cfg: "Config") -> None:
         ("grid_charge_dark_end_hour", 0, 23),
         ("mode_dwell_sec", 0, 3600),
         ("export_hold_charge_current_a", 0, BATTERY_MAX_CURRENT_A),
+        ("load_forecast_min_days", 1, 60),
+        ("heating_limit_temp_c", 5.0, 25.0),
+        ("pv_forecast_blend_weight", 0.0, 1.0),
     )
     for name, lo, hi in clamps:
         value = getattr(cfg, name)
@@ -322,6 +364,14 @@ def _validate(cfg: "Config") -> None:
             _LOGGER.warning("%s = %r is out of range (%s–%s) – clamped to %s",
                             name, value, lo, hi, clamped)
             setattr(cfg, name, clamped)
+
+    if cfg.pv_forecast_scenario not in ("estimate", "estimate10", "blend"):
+        _LOGGER.warning("pv_forecast_scenario = %r is unknown – using 'blend'",
+                        cfg.pv_forecast_scenario)
+        cfg.pv_forecast_scenario = "blend"
+    if cfg.tariff_source not in ("auto", "timeslots", "rates"):
+        _LOGGER.warning("tariff_source = %r is unknown – using 'auto'", cfg.tariff_source)
+        cfg.tariff_source = "auto"
 
     if cfg.pv_export_priority_enabled and not cfg.battery_control_enabled:
         _LOGGER.warning(

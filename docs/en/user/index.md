@@ -26,8 +26,10 @@ revision_date: 2026-04-07
 | Home Assistant OS or Supervised | The add-on uses the Supervisor API |
 | Deye inverter + ha-solarman integration | Provides PV, battery, grid, and load power sensors |
 | Dynamic electricity price sensor | e.g. Tibber or Octopus Energy integration |
-| (Optional) Solcast integration | For accurate PV forecast data |
-| (Optional) Weather integration | For temperature-based load prediction |
+| **Solcast integration (required)** | PV forecast; the **detailed forecast** option must be enabled (`detailedForecast`) |
+| Weather integration with hourly forecast | For the temperature-based load forecast |
+| (Optional) Heat pump power meter | e.g. Shelly 3EM – separates heat pump and base load |
+| (Optional) Outdoor temperature sensor | Otherwise the weather forecast temperature is used |
 
 ## Quick Start
 

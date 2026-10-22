@@ -77,6 +77,7 @@ def load_translations(lang: str) -> dict:
 _BOOL_FIELDS = {
     "battery_control_enabled", "battery_control_simulation",
     "pv_export_priority_enabled", "device_detection_enabled",
+    "load_forecast_enabled",
 }
 # Dict-valued fields never have a settings.html form control (no free-text
 # input can represent a dict safely) – but /api/config's merge loop below
@@ -95,6 +96,7 @@ _INT_FIELDS = {
     "grid_charge_dark_start_hour", "grid_charge_dark_end_hour",
     "sensor_max_age_sec", "forecast_max_age_sec", "price_max_age_sec",
     "inverter_write_stuck_threshold_sec",
+    "load_forecast_min_days",
 }
 # NOTE: any float field missing here falls through to str(value) in _coerce()
 # and is persisted as a string, which then raises TypeError on first use.
@@ -103,6 +105,8 @@ _FLOAT_FIELDS = {
     "feed_in_tariff_eur_kwh", "fix_price",
     "daily_base_price_eur", "avg_discharge_tariff_eur_kwh",
     "pv_charge_margin_factor", "pv_charge_hysteresis_frac", "grid_charge_min_free_kwh",
+    "grid_charge_min_margin_eur_kwh",
+    "heating_limit_temp_c", "pv_forecast_blend_weight",
 }
 
 

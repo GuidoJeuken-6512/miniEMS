@@ -205,3 +205,19 @@ def test_migration_is_idempotent():
     once = migrate({})
     twice = migrate(dict(once))
     assert once == twice
+
+
+def test_v20_to_v21_adds_load_forecast_defaults_off():
+    from migration import _v20_to_v21
+    result = _v20_to_v21({})
+    assert result["load_forecast_enabled"] is False
+    assert result["load_forecast_min_days"] == 14
+    assert result["heat_pump_power_entity"] == ""
+    assert result["tariff_source"] == "auto"
+
+
+def test_v20_to_v21_keeps_explicit_values():
+    from migration import _v20_to_v21
+    result = _v20_to_v21({"load_forecast_enabled": True, "heating_limit_temp_c": 12.0})
+    assert result["load_forecast_enabled"] is True
+    assert result["heating_limit_temp_c"] == 12.0

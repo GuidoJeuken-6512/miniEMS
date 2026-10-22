@@ -239,3 +239,59 @@ class TestLaterWindowAsCheap:
         now = _dt(13, 0, day=15)   # NIEDRIG 12-16
         deadline = _dt(16, 0, day=15)   # window_end(now) itself
         assert curve.later_window_as_cheap(now, deadline, timedelta(hours=0)) is False
+
+
+# --- dated market rates (v3.3.0) ---------------------------------------------
+
+from datetime import timezone  # noqa: E402
+
+_TZ1 = timezone(timedelta(hours=1))
+
+
+def _hourly_rates(values_ct: list[float]) -> dict:
+    t0 = datetime(2026, 12, 1, 0, 0, tzinfo=_TZ1)
+    return {"rates": [
+        {"start": (t0 + timedelta(hours=i)).isoformat(),
+         "end": (t0 + timedelta(hours=i + 1)).isoformat(),
+         "value_inc_vat": v}
+        for i, v in enumerate(values_ct)
+    ]}
+
+
+class TestDatedRates:
+    def test_parses_and_converts_ct(self):
+        curve = PriceCurve.from_entity(_AttrWS(_hourly_rates([30, 25, 25, 40])), "sensor.p")
+        assert curve.is_dated
+        assert curve.rate_at(datetime(2026, 12, 1, 0, 30, tzinfo=_TZ1)) == pytest.approx(0.30)
+        assert curve.rate_at(datetime(2026, 12, 1, 5, 0, tzinfo=_TZ1)) is None
+
+    def test_merges_equal_neighbours_for_window_end(self):
+        curve = PriceCurve.from_entity(_AttrWS(_hourly_rates([30, 25, 25, 40])), "sensor.p")
+        assert curve.window_end(datetime(2026, 12, 1, 1, 15, tzinfo=_TZ1)) == \
+            datetime(2026, 12, 1, 3, 0, tzinfo=_TZ1)
+
+    def test_euro_values_kept(self):
+        attrs = {"rates": [{"startsAt": "2026-12-01T00:00:00+01:00", "total": 0.2512}]}
+        curve = PriceCurve.from_entity(_AttrWS(attrs), "sensor.p")
+        assert curve.rate_at(datetime(2026, 12, 1, 0, 59, tzinfo=_TZ1)) == pytest.approx(0.2512)
+
+    def test_auto_falls_back_to_timeslots(self):
+        attrs = {**_octopus_timeslots(), "rates": []}
+        curve = PriceCurve.from_entity(_AttrWS(attrs), "sensor.p")
+        assert curve is not None and not curve.is_dated
+
+    def test_source_timeslots_ignores_rates(self):
+        attrs = {**_octopus_timeslots(), **_hourly_rates([30])}
+        curve = PriceCurve.from_entity(_AttrWS(attrs), "sensor.p", source="timeslots")
+        assert not curve.is_dated
+
+    def test_source_rates_without_rates_is_none(self):
+        assert PriceCurve.from_entity(_AttrWS(_octopus_timeslots()), "sensor.p", source="rates") is None
+
+    def test_naive_timestamps_rejected(self):
+        attrs = {"rates": [{"start": "2026-12-01T00:00:00", "value": 30}]}
+        assert PriceCurve.from_entity(_AttrWS(attrs), "sensor.p", source="rates") is None
+
+    def test_timeslots_rate_at(self):
+        curve = PriceCurve.from_entity(_AttrWS(_octopus_timeslots()), "sensor.p")
+        assert curve.rate_at(datetime(2026, 12, 1, 3, 0, tzinfo=_TZ1)) == pytest.approx(0.274414)

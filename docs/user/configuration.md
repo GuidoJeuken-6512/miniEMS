@@ -190,9 +190,41 @@ Das Vorhersagemodell verwendet historische Verbrauchsdaten von Tagen mit ähnlic
 
 ---
 
+## Stündliche Bedarfsprognose & Überbrückungsplanung (seit v3.3.0)
+
+Ersetzt beim Netzladen die Faustregel „PV-Restprognose gegen freien Speicher“
+durch eine Rechnung in 30-Minuten-Schritten: **Wie viel muss im aktuellen
+günstigen Tarif-Fenster geladen werden, um das nächste teure Fenster zu
+überbrücken – und lohnt sich das?** Berücksichtigt werden der stündliche
+Hausverbrauch (inkl. Wärmepumpe, abhängig von der Außentemperatur), die
+Solcast-Prognose je 30 Minuten und der Tarif. Ablauf und Diagramm:
+[Netzladen-Entscheidung](../technical/netzladen-entscheidung.md).
+
+Der Stundenverlauf wird **immer** aufgezeichnet, auch wenn der Schalter aus
+ist – so ist beim Einschalten schon Historie da.
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `load_forecast_enabled` | `false` | Hauptschalter. Aus = Netzladen entscheidet wie bisher. |
+| `load_forecast_min_days` | `14` | Tage mit Stundenhistorie, bevor die Planung entscheidet. Vorher wird sie berechnet und angezeigt, die alte Logik entscheidet. 1–60. |
+| `heat_pump_power_entity` | leer | Leistung der Wärmepumpe in W, optional. Mehrere Entities kommagetrennt werden addiert (z. B. die drei Phasen eines Shelly 3EM). Leer = Temperaturabhängigkeit wird aus dem Gesamtverbrauch gelernt. |
+| `outdoor_temp_entity` | leer | Außentemperatur in °C, optional. Leer = Wert der laufenden Stunde aus der Stundenprognose von `weather_entity`. |
+| `heating_limit_temp_c` | `15.0` | Heizgrenze: darüber heizt die Wärmepumpe nicht. Warmwasser wird pauschal als fester Anteil gelernt. 5–25. |
+| `pv_forecast_scenario` | `blend` | Solcast-Szenario: `estimate` (Mittel), `estimate10` (pessimistisch) oder `blend`. |
+| `pv_forecast_blend_weight` | `0.7` | Bei `blend`: Anteil von `estimate`, Rest `estimate10`. Zu wenig laden kostet die volle Tarifspanne je kWh, zu viel nur die Umwandlungsverluste – deshalb leicht pessimistisch. |
+| `tariff_source` | `auto` | Tarifkalender: `auto` (datierte Preise `rates[]` falls vorhanden, sonst feste Zeitfenster `timeslots[]`), `timeslots` oder `rates`. |
+
+!!! note "Was sich mit dem Schalter ändert"
+    - Die absolute Billig-Schwelle `cheap_rate_threshold_eur` spielt fürs Netzladen keine Rolle mehr – entscheidend ist, ob sich eine gespeicherte kWh gegenüber den teuren Stunden lohnt (`grid_charge_min_margin_eur_kwh`).
+    - Geladen wird nur die geplante Menge, nicht mehr bis `battery_max_soc`. Start ab `grid_charge_min_free_kwh`, Stopp wenn der Restbedarf unter 0,2 kWh fällt.
+    - Ein kleiner PV-Überschuss verhindert ein nötiges Netzladen nicht mehr.
+    - Fehlt eine Eingabe (Solcast-Detailprognose, Tarifkalender, Preis, SoC), entscheidet die bisherige Logik.
+
+---
+
 ## Solcast PV-Prognose
 
-[Solcast](https://solcast.com/) liefert hochgenaue Dachanlagen-PV-Prognosen. Installiere die Solcast HA-Integration und konfiguriere die Entitäten hier.
+**Erforderlich.** [Solcast](https://solcast.com/) liefert Dachanlagen-PV-Prognosen. Installiere die Solcast-HA-Integration, schalte in ihren Optionen die **detaillierte Prognose** ein (Attribut `detailedForecast` mit 30-Minuten-Werten an den Sensoren „Prognose heute/morgen“) und konfiguriere die Entitäten hier.
 
 | Einstellung | Standard | Beschreibung |
 |---|---|---|

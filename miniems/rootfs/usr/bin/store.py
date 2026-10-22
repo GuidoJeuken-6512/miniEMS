@@ -63,6 +63,23 @@ CREATE TABLE IF NOT EXISTS daily_stats (
 """
 
 
+# One row per local clock hour (docs/technical/netzladen-entscheidung.md,
+# "Bedarfsprognose"). hour_start is the local ISO timestamp of the hour's
+# start incl. offset ("2026-10-22T14:00:00+02:00"), so DST days keep 23/25
+# distinct rows. heat_pump_kwh / outdoor_temp_c are NULL when not measured.
+_CREATE_HOURLY_TABLE = """
+CREATE TABLE IF NOT EXISTS hourly_stats (
+    hour_start      TEXT PRIMARY KEY,
+    date            TEXT NOT NULL,
+    hour            INTEGER NOT NULL,
+    load_kwh        REAL NOT NULL DEFAULT 0,
+    heat_pump_kwh   REAL,
+    outdoor_temp_c  REAL,
+    ticks           INTEGER NOT NULL DEFAULT 0
+)
+"""
+
+
 class EnergyStore:
     """Async SQLite wrapper for daily energy statistics."""
 
@@ -100,6 +117,7 @@ class EnergyStore:
                 await self._db.execute(f"ALTER TABLE daily_stats ADD COLUMN {col_def}")
             except Exception:
                 pass   # column already exists – ignore
+        await self._db.execute(_CREATE_HOURLY_TABLE)
         await self._db.execute(_CREATE_CAPABILITY_TODAY_TABLE)
         await self._db.execute(_CREATE_CAPABILITY_HISTORY_TABLE)
         await self._db.execute(_CREATE_EVENT_LOG_TABLE)
@@ -140,6 +158,35 @@ class EnergyStore:
         )
         await self._db.execute(sql, [str(day), *fields.values()])
         await self._db.commit()
+
+    async def upsert_hour(self, hour_start: str, fields: dict[str, Any]) -> None:
+        """Insert or update one hour's row in hourly_stats.
+
+        `fields` must carry `date` and `hour` on first insert; later updates
+        may send only the changing columns.
+        """
+        if not self._db:
+            return
+        cols = ", ".join(fields.keys())
+        placeholders = ", ".join("?" * len(fields))
+        updates = ", ".join(f"{k} = excluded.{k}" for k in fields)
+        sql = (
+            f"INSERT INTO hourly_stats (hour_start, {cols}) VALUES (?, {placeholders}) "
+            f"ON CONFLICT(hour_start) DO UPDATE SET {updates}"
+        )
+        await self._db.execute(sql, [hour_start, *fields.values()])
+        await self._db.commit()
+
+    async def query_hours_since(self, since_date: date) -> list[dict[str, Any]]:
+        """Every hourly_stats row with date >= since_date, oldest first."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM hourly_stats WHERE date >= ? ORDER BY hour_start ASC",
+            [str(since_date)],
+        ) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
 
     # ------------------------------------------------------------------
     # Read

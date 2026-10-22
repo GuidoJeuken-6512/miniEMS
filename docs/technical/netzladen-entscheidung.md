@@ -9,6 +9,15 @@ Grundprinzip: **Jede fehlende oder veraltete Eingabe führt zu „nicht laden“
 (fail closed). Einzige bewusste Ausnahme ist die Wirtschaftlichkeitsprüfung,
 die bei fehlender Historie übersprungen wird (siehe Schritt 7).
 
+Seit v3.3.0 gibt es zwei Verfahren:
+
+- **Überbrückungsplanung** (`load_forecast_enabled: true`, genug Historie):
+  rechnet in 30-Minuten-Schritten, wie viel geladen werden muss, um das
+  nächste teure Tarif-Fenster zu überbrücken. Siehe
+  [unten](#uberbruckungsplanung-ab-v330).
+- **Bisherige Regel** (Standard, und Rückfall bei fehlenden Eingaben):
+  der folgende Ablauf.
+
 ## Ablauf pro Takt
 
 `EMSController.update()` liest die Sensoren, rechnet den freien Speicher
@@ -111,13 +120,71 @@ Die benötigte Ladedauer ist `bat_kwh_free / Ladeleistung`. Die Ladeleistung
 kommt aus der gelernten, nach SoC gestaffelten Historie, sonst aus
 `battery_max_charge_current_a × Batteriespannung`.
 
+## Überbrückungsplanung (ab v3.3.0)
+
+Aktiv, wenn `load_forecast_enabled` an ist, mindestens
+`load_forecast_min_days` Tage Stundenhistorie vorliegen und alle Eingaben
+da sind. Code: `bridge_planner.py`, `load_forecast.py`,
+`EMSController._update_bridge_plan()`.
+
+```mermaid
+flowchart TD
+    A([Takt]) --> R["Stundenhistorie schreiben<br/>(Hauslast, WP-Leistung, Außentemperatur)"]
+    A --> M{"Verbrauchsmodell<br/>≥ min_days Historie?"}
+    M -- nein --> OLD["bisherige Regel<br/>(Status: learning)"]
+    M -- ja --> I{"Solcast detailedForecast,<br/>Tarifkalender, Preis, SoC<br/>vorhanden?"}
+    I -- nein --> OLD
+    I -- ja --> S["Slots à 30 min bis 36 h<br/>(höchstens bis Ende Solcast-Prognose)"]
+    S --> S1["je Slot: Last aus Temperatur-Modell,<br/>PV aus Solcast (Szenario),<br/>Preis aus Tarifkalender"]
+    S1 --> N["Nowcasting: Ist-PV / Prognose<br/>skaliert die nächsten 2 h"]
+    N --> W["günstiges Fenster jetzt =<br/>Slots mit Preis ≤ aktuellem Preis"]
+    W --> B["Überbrückung = Slots danach<br/>bis zum nächsten ebenso günstigen"]
+    B --> P{"lohnt sich je Slot?<br/>η × Preis_Slot − Preis_jetzt<br/>> Mindestmarge"}
+    P -- "kein Slot" --> NO["nicht laden"]
+    P -- ja --> SIM["Akku simulieren:<br/>PV-Überschuss lädt, Defizit entlädt<br/>(bis min_soc)"]
+    SIM --> F{"Fehlmenge in<br/>lohnenden Slots?"}
+    F -- nein --> NO
+    F -- ja --> NEED["Lademenge = kleinste Menge,<br/>die die Fehlmenge schließt<br/>(max. freier Platz, max. Ladezeit)"]
+    NEED --> CH{"später im selben Fenster<br/>noch billiger?"}
+    CH -- ja --> REST["nur den Teil, den das billigere<br/>Fenster nicht schafft"]
+    CH -- nein --> T
+    REST --> T{"Lademenge ><br/>grid_charge_min_free_kwh?<br/>(läuft schon: > 0,2 kWh)"}
+    T -- nein --> NO
+    T -- ja --> GC(["GRID_CHARGING<br/>Leistung = Lademenge / Rest des Fensters"])
+```
+
+### Verbrauchsmodell
+
+Je Stunde: `Last(h, T) = Grundlast[h] + WP_pauschal + k × max(0, Heizgrenze − T)`
+
+| Größe | Herkunft |
+|---|---|
+| `Grundlast[h]` | Median je Tagesstunde. Mit WP-Zähler: Hauslast ohne WP. |
+| `WP_pauschal` | Mit WP-Zähler: fester Anteil (Warmwasser, Standby) aus der Regression. Ohne: 0, steckt in der Grundlast. |
+| `k` | kWh je Stunde und Kelvin unter der Heizgrenze. Regression mit eigenem Grundwert je Tagesstunde, damit Tagesrhythmus und Temperatur sich nicht vermischen. |
+| `T` | Stundenprognose der `weather_entity`; fehlt sie, mittlere Heizgradzahl der Historie. |
+
+Eine Stunde zählt nur, wenn mindestens 75 % von ihr gemessen wurden; ein Tag
+zählt für `load_forecast_min_days`, wenn mindestens 18 Stunden vollständig
+sind. Neu angepasst wird höchstens einmal pro Stunde, Rückblick 60 Tage.
+
+### Beispiel Octopus Heat
+
+NIEDRIG 02–06 und 12–16 Uhr, sonst STANDARD:
+
+- **02:00:** Überbrückung = 06–12 Uhr. Geladen wird, was der Akku plus
+  Vormittags-PV für den Vormittagsverbrauch nicht schafft.
+- **12:00:** Überbrückung = 16–02 Uhr. Am Wintertag mit wenig Sonne und hoher
+  Wärmepumpenlast entsprechend viel, im Sommer meist nichts.
+
 ## Was im Modus GRID_CHARGING passiert
 
 `InverterController.apply_mode()`:
 
 1. Netzladeschalter (`grid_charge_switch_entity`) wird eingeschaltet.
 2. Ladestrom: Leistung gestreckt auf das restliche Tariffenster (V1,
-   `_grid_charge_power_w()`): `bat_kwh_free / (Restdauer × 0,8)`. Ohne
+   `_grid_charge_power_w()`): `bat_kwh_free / (Restdauer × 0,8)`, mit
+   Überbrückungsplanung `Lademenge / (Restdauer × 0,8)`. Ohne
    Tarifkalender gilt der konfigurierte Maximalstrom.
 3. Entladen wird gesperrt, damit die gekaufte Energie nicht sofort wieder
    verbraucht wird.

@@ -8,10 +8,10 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "3.2.5"
+VERSION = "3.3.0"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
-CONFIG_SCHEMA_VERSION = 20
+CONFIG_SCHEMA_VERSION = 21
 
 # ── Battery current limits ────────────────────────────────────────────────────
 # The Deye inverter exposes battery limits as CURRENT in amperes
@@ -146,6 +146,24 @@ BATTERY_CAPABILITY_LOOKBACK_DAYS = 14
 # every 30s tick: display-only, and price/PV forecasts don't change on a
 # tick's timescale – see docs/roadmap/energiefahrplan.md, "Trigger".
 ENERGY_PLAN_RECOMPUTE_SEC = 3600
+
+# ── Stündliche Bedarfsprognose / Überbrückungsplanung (v3.3.0) ────────────────
+# docs/technical/netzladen-entscheidung.md, "Bedarfsprognose". The load model is
+# refit at most this often – hourly history only grows by one row per hour.
+LOAD_MODEL_REFIT_SEC = 3600
+# How far back the load model looks. Long enough to span a cold snap and a
+# mild spell, short enough to follow the season.
+LOAD_MODEL_LOOKBACK_DAYS = 60
+# Planning grid and horizon of the bridging planner. 30 min matches Solcast's
+# detailedForecast and half-hourly tariffs; 36 h always reaches past the next
+# cheap window of a daily time-of-use tariff.
+PLAN_SLOT_MIN = 30
+PLAN_HORIZON_H = 36
+# The hourly weather forecast is fetched at most this often.
+WEATHER_HOURLY_CACHE_SEC = 1800
+# Once grid charging runs, keep going until the remaining planned need drops
+# below this (kWh) – stops a charge from ending on rounding noise.
+PLAN_STOP_BELOW_KWH = 0.2
 
 # ── Custom integration installer ──────────────────────────────────────────────
 from pathlib import Path

@@ -537,3 +537,43 @@ class TestUpdateBatteryCapabilityWiring:
         })
         await ctrl.update()
         assert ctrl._learned_charge_kw is None
+
+
+@pytest.mark.asyncio
+async def test_update_runs_bridge_plan_and_records_hour(make_config, fake_ws):
+    """v3.3.0 end-to-end: update() refreshes the forecaster, builds the plan,
+    decides GRID_CHARGING from it, passes the planned power to the inverter
+    and feeds the hourly history."""
+    from test_ems_bridge import FakeForecaster, _solcast, _timeslots
+
+    ctrl, optimizer, inverter, model = build_controller(
+        make_config, fake_ws, mode_dwell_sec=0, load_forecast_enabled=True,
+        solcast_today_entity="sensor.st", solcast_tomorrow_entity="sensor.sm",
+        solcast_last_fetch_entity="", battery_voltage_entity="",
+        battery_capacity_kwh=20.0, pv_forecast_scenario="estimate",
+    )
+    recorded = []
+
+    class Rec:
+        async def record_tick(self, now, load_w, hp_w, temp):
+            recorded.append((load_w, hp_w, temp))
+
+    fc = FakeForecaster()
+    ctrl._forecaster = fc
+    ctrl._recorder = Rec()
+    fake_ws.values.update({
+        "sensor.pv": 0.0, "sensor.load": 1000.0, "sensor.grid": 1000.0,
+        "sensor.soc": 30.0, "sensor.batp": 0.0, "sensor.price": 0.2744,
+    })
+    fake_ws.attributes["sensor.price"] = _timeslots()
+    with freeze_time("2026-12-10 02:00:00"):
+        day = datetime.now().astimezone().replace(hour=0)
+        fake_ws.attributes["sensor.st"] = {"detailedForecast": _solcast(day)}
+        fake_ws.attributes["sensor.sm"] = {"detailedForecast": _solcast(day + timedelta(days=1))}
+        ctrl._learned_charge_kw = 5.0
+        result = await ctrl.update()
+    assert fc.refreshed == 1
+    assert result["bridge_plan"]["in_control"] is True
+    assert result["mode"] == EMSMode.GRID_CHARGING.value
+    assert inverter.last_grid_charge_power_w is not None
+    assert recorded == [(1000.0, None, None)]

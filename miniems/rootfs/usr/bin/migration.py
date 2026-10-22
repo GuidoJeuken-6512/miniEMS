@@ -107,6 +107,9 @@ def migrate(data: dict, *, is_fresh: bool = False) -> dict:
     if version < 20:
         data = _v19_to_v20(data, is_fresh)
 
+    if version < 21:
+        data = _v20_to_v21(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -337,6 +340,32 @@ def _v19_to_v20(data: dict, is_fresh: bool) -> dict:
         data["device_detection_enabled"] = is_fresh
         _LOGGER.info("Migration v19→v20: set device_detection_enabled = %r (fresh install: %s)",
                      is_fresh, is_fresh)
+    return data
+
+
+_V21_DEFAULTS: dict = {
+    "load_forecast_enabled": False,
+    "load_forecast_min_days": 14,
+    "heat_pump_power_entity": "",
+    "outdoor_temp_entity": "",
+    "heating_limit_temp_c": 15.0,
+    "pv_forecast_scenario": "blend",
+    "pv_forecast_blend_weight": 0.7,
+    "tariff_source": "auto",
+}
+
+
+def _v20_to_v21(data: dict) -> dict:
+    """v20 → v21: stündliche Bedarfsprognose + Überbrückungsplanung.
+
+    Every new key is added with a default that keeps the old behaviour:
+    `load_forecast_enabled` is False, so the grid-charge decision stays
+    exactly as before until the user switches it on.
+    """
+    for key, default in _V21_DEFAULTS.items():
+        if key not in data:
+            data[key] = default
+            _LOGGER.info("Migration v20→v21: set %s = %r", key, default)
     return data
 
 

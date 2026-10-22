@@ -131,3 +131,34 @@ class TestFetchForecast:
             m.post(f"{_HA_FORECAST_URL}?return_response=true", payload=payload)
             summary = await client.fetch_forecast()
         assert summary is not None
+
+
+class TestHourlyTemps:
+    @pytest.mark.asyncio
+    async def test_hourly_temps_keyed_by_utc_hour(self):
+        client = WeatherClient("weather.test", supervisor_token="tok")
+        payload = {"service_response": {"weather.test": {"forecast": [
+            {"datetime": "2026-12-01T10:00:00+01:00", "temperature": -2.5},
+            {"datetime": "2026-12-01T11:00:00+01:00", "temperature": -1.0},
+            {"datetime": "2026-12-01T12:00:00+01:00"},
+        ]}}}
+        with aioresponses() as m:
+            m.post(f"{_HA_FORECAST_URL}?return_response=true", payload=payload)
+            temps = await client.fetch_hourly_temps()
+        assert temps[datetime(2026, 12, 1, 9, tzinfo=timezone.utc)] == -2.5
+        tz1 = timezone(timedelta(hours=1))
+        assert client.hourly_temp_at(datetime(2026, 12, 1, 11, 45, tzinfo=tz1)) == -1.0
+        assert client.hourly_temp_at(datetime(2026, 12, 1, 12, 0, tzinfo=tz1)) is None
+
+    @pytest.mark.asyncio
+    async def test_hourly_error_keeps_cache_and_throttles(self):
+        client = WeatherClient("weather.test", supervisor_token="tok")
+        with aioresponses() as m:
+            m.post(f"{_HA_FORECAST_URL}?return_response=true", status=500, body="boom")
+            assert await client.fetch_hourly_temps() == {}
+            # second call within the cache window does not hit HA again
+            assert await client.fetch_hourly_temps() == {}
+
+    @pytest.mark.asyncio
+    async def test_hourly_disabled(self):
+        assert await WeatherClient("").fetch_hourly_temps() == {}

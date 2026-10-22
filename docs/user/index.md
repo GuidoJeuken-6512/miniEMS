@@ -26,8 +26,10 @@ revision_date: 2026-04-07
 | Home Assistant OS oder Supervised | Das Add-on verwendet die Supervisor-API |
 | Deye-Wechselrichter + ha-solarman-Integration | Stellt Sensoren für PV-, Batterie-, Netz- und Lastleistung bereit |
 | Dynamischer Strompreissensor | z.B. Tibber- oder Octopus-Energy-Integration |
-| (Optional) Solcast-Integration | Für genaue PV-Prognosedaten |
-| (Optional) Wetter-Integration | Für temperaturbasierte Lastvorhersage |
+| **Solcast-Integration (erforderlich)** | PV-Prognose; Option **detaillierte Prognose** muss aktiv sein (`detailedForecast`) |
+| Wetter-Integration mit Stundenprognose | Für die temperaturbasierte Bedarfsprognose |
+| (Optional) Leistungsmesser Wärmepumpe | z. B. Shelly 3EM – trennt Wärmepumpe und Hausgrundlast |
+| (Optional) Außentemperatursensor | Sonst wird die Temperatur aus der Wettervorhersage genommen |
 
 ## Schnellstart
 

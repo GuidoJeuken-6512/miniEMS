@@ -30,7 +30,13 @@ Die drei Entscheidungen, die es trifft:
 
 - Ein Deye-Hybrid-Wechselrichter, eingebunden über die **Solarman**-Integration
 - Ein Sensor mit dem aktuellen Arbeitspreis in €/kWh
-- Empfohlen: **Solcast**-PV-Prognose für die vorausschauenden Entscheidungen
+- **Erforderlich: Solcast**-PV-Prognose. In den Optionen der Solcast-Integration
+  muss die **detaillierte Prognose** eingeschaltet sein (Attribut
+  `detailedForecast` am Sensor „Prognose heute“) – die Netzladeplanung rechnet
+  in 30-Minuten-Schritten. Ohne Solcast fällt miniEMS auf das einfache
+  Dunkelfenster zurück und meldet das im Warnband.
+- Optional: Leistungsmesser der Wärmepumpe (z. B. Shelly 3EM) und
+  Außentemperatursensor für die stündliche Bedarfsprognose
 
 Alle Entity-IDs sind konfigurierbar. Die Standardwerte entsprechen einer
 Deye-8K-Installation (`sensor.deye8k_*`).
@@ -53,7 +59,8 @@ Unter **Einstellungen** die Abschnitte durchgehen. Wichtig sind:
 | Battery Settings | Kapazität, minimaler und maximaler SoC |
 | Octopus Energy | Preis-Entity und Tarifschwellen |
 | Battery Control | Stellglieder des Wechselrichters (Ströme, Netzlade-Schalter) |
-| Solcast PV Forecast | Prognose-Entities |
+| Load Forecast & Bridging Plan | Stündliche Bedarfsprognose, Wärmepumpe, Tarifquelle |
+| Solcast PV Forecast | Prognose-Entities (erforderlich) |
 
 Das Dashboard zeigt oben ein Warnband, wenn eine Entity fehlt, nicht verfügbar
 oder veraltet ist. Es sollte leer sein, bevor es weitergeht.

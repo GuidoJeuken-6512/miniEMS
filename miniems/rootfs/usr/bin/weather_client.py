@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 
 import aiohttp
 
+from const import WEATHER_HOURLY_CACHE_SEC
+
 _LOGGER = logging.getLogger(__name__)
 
 _CACHE_TTL_SEC = 30 * 60   # 30 minutes
@@ -62,6 +64,9 @@ class WeatherClient:
         self._cache: ForecastSummary | None = None
         self._cache_time: datetime | None = None
         self._lat: float | None = None
+        # Hourly temperatures {hour start (UTC): °C}, v3.3.0
+        self._hourly: dict[datetime, float] = {}
+        self._hourly_time: datetime | None = None
 
     @property
     def enabled(self) -> bool:
@@ -140,6 +145,68 @@ class WeatherClient:
         return summary
 
     # ------------------------------------------------------------------
+
+    async def fetch_hourly_temps(self) -> dict[datetime, float]:
+        """Hourly temperature forecast as {hour start in UTC: °C}.
+
+        Feeds the load forecast (load_forecast.py) – the heat pump's demand is
+        driven by the hourly outdoor temperature, which a daily high cannot
+        represent. Empty dict when the entity offers no hourly forecast; the
+        last good result is kept on transient errors.
+        """
+        if not self.enabled:
+            return {}
+        now = datetime.now(timezone.utc)
+        if (self._hourly_time is not None
+                and (now - self._hourly_time).total_seconds() < WEATHER_HOURLY_CACHE_SEC):
+            return self._hourly
+        self._hourly_time = now   # also throttles retries after an error
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    _HA_FORECAST_URL,
+                    params={"return_response": "true"},
+                    json={"entity_id": self._entity, "type": "hourly"},
+                    headers={
+                        "Authorization": f"Bearer {self._token}",
+                        "Content-Type": "application/json",
+                    },
+                    timeout=aiohttp.ClientTimeout(total=10),
+                ) as resp:
+                    if resp.status != 200:
+                        body = await resp.text()
+                        _LOGGER.warning("weather.get_forecasts hourly %d: %s",
+                                        resp.status, body[:200])
+                        return self._hourly
+                    data = await resp.json()
+        except Exception as exc:
+            _LOGGER.warning("weather.get_forecasts hourly failed: %s", exc)
+            return self._hourly
+
+        raw = data.get("service_response", data).get(self._entity, {}).get("forecast", [])
+        temps: dict[datetime, float] = {}
+        for entry in raw or []:
+            try:
+                dt = datetime.fromisoformat(str(entry["datetime"]).replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                t = entry.get("temperature")
+                if t is None:
+                    continue
+                key = dt.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+                temps[key] = float(t)
+            except Exception as exc:
+                _LOGGER.debug("Skipping hourly forecast slot: %s", exc)
+        if temps:
+            self._hourly = temps
+        else:
+            _LOGGER.warning("weather.get_forecasts: no hourly forecast for %s", self._entity)
+        return self._hourly
+
+    def hourly_temp_at(self, moment: datetime) -> float | None:
+        """Cached hourly forecast temperature for the hour containing `moment`."""
+        key = moment.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        return self._hourly.get(key)
 
     def _parse_slots(self, raw: list[dict]) -> list[WeatherSlot]:
         slots = []

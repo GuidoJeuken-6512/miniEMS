@@ -13,6 +13,7 @@ import const
 from battery_capability import BatteryCapabilityTracker
 from config_loader import load_config
 from consumption_model import ConsumptionModel
+from load_forecast import HourlyLoadRecorder, LoadForecaster
 from cost_optimizer import CostOptimizer
 from ems_controller import EMSController
 from event_log import EventLog
@@ -109,6 +110,9 @@ async def main() -> None:
         solcast=solcast_client,
         event_log=event_log,
         capability=capability,
+        load_forecaster=LoadForecaster(cfg, store),
+        hourly_recorder=HourlyLoadRecorder(store, cfg.update_interval_sec),
+        weather=weather_client if weather_client.enabled else None,
     )
     app = create_app(status_store, cfg, supervisor_token, store)
 

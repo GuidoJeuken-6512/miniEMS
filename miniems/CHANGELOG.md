@@ -1,5 +1,52 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.3.0
+
+### Added
+
+- **Netzladen mit stündlicher Bedarfsprognose und Überbrückungsplanung**
+  (`load_forecast_enabled`, standardmäßig aus). Statt „PV-Restprognose gegen
+  freien Speicher“ rechnet miniEMS in 30-Minuten-Schritten, wie viel im
+  aktuellen günstigen Tarif-Fenster geladen werden muss, um das nächste teure
+  Fenster zu überbrücken – und lädt nur, wenn sich das je Slot lohnt
+  (`η × Preis_teuer − Preis_jetzt > grid_charge_min_margin_eur_kwh`).
+  Geladen wird genau diese Menge, gestreckt über das restliche Fenster, statt
+  pauschal bis `battery_max_soc`. Doku:
+  `docs/technical/netzladen-entscheidung.md`.
+  - **Verbrauchsmodell** (`load_forecast.py`): Grundlast je Tagesstunde plus
+    Heizgradstunden-Anteil `k × max(0, Heizgrenze − T)`, Warmwasser pauschal.
+    Mit optionalem Wärmepumpen-Zähler (`heat_pump_power_entity`, mehrere
+    Phasen kommagetrennt) werden Haus und Wärmepumpe getrennt gelernt.
+  - **Neue Tabelle `hourly_stats`**: Hausverbrauch, Wärmepumpe und
+    Außentemperatur je Stunde. Wird immer aufgezeichnet, damit beim
+    Einschalten schon Historie da ist. Entscheidet erst ab
+    `load_forecast_min_days` (Standard 14) Tagen.
+  - **Solcast 30-Minuten-Werte** (`detailedForecast`) mit wählbarem Szenario
+    (`pv_forecast_scenario`, `pv_forecast_blend_weight`) und Nowcasting:
+    das Verhältnis Ist-PV zu Prognose skaliert die nächsten 2 Stunden.
+  - **Stündliche Temperaturvorhersage** aus der `weather_entity`; optional
+    eigener Außentemperatursensor (`outdoor_temp_entity`).
+  - **Dynamische Tarife:** der Tarifkalender liest neben festen Zeitfenstern
+    (`timeslots[]`) jetzt auch datierte Preise (`rates[]`, Tibber
+    `startsAt`/`total` u. ä.); Auswahl über `tariff_source`.
+  - Ein kleiner PV-Überschuss blockiert ein nötiges Netzladen nicht mehr,
+    wenn die Planung entscheidet.
+  - Dashboard-Daten: neues Feld `bridge_plan` (Status, Modell, Plan).
+- Einstellungen: neuer Abschnitt „Load Forecast & Bridging Plan“.
+
+### Changed
+
+- **Solcast ist jetzt erforderlich** (README, DOCS, Benutzerdoku), inklusive
+  der Option „detaillierte Prognose“ in der Solcast-Integration.
+- Config-Schema v21 (Migration setzt alle neuen Felder auf Werte, die das
+  bisherige Verhalten beibehalten).
+
+### Fixed
+
+- `grid_charge_min_margin_eur_kwh` fehlte in der Float-Feldliste von
+  `web_server.py` und wurde beim Speichern über die Einstellungsseite als
+  Text abgelegt.
+
 ## 3.2.5
 
 ### Changed

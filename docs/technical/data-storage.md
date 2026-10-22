@@ -62,7 +62,7 @@ Supervisor-Neuladen und Neustarts.
 
 ### Schema-Versionierung
 
-`_version` wird von `migration.py` geschrieben. Die aktuelle Version ist **10**.
+`_version` wird von `migration.py` geschrieben. Die aktuelle Version ist **21** (v3.3.0: Felder der stündlichen Bedarfsprognose).
 
 Bei einer Schema-Änderung:
 
@@ -70,7 +70,7 @@ Bei einer Schema-Änderung:
 2. Eine Migrationsfunktion `_vN_to_vN1(data: dict) -> dict` hinzufügen
 3. In `migration.py` registrieren
 
-Migrationskette: v0 → v1 → v2 → v3 → v4 → v5 → v6 → v7 → v8 → v9 → v10
+Migrationskette: v0 → v1 → … → v20 → v21
 
 ---
 
@@ -127,6 +127,25 @@ WHERE strftime('%Y-%m', date) = strftime('%Y-%m', 'now')
 ```
 
 ---
+
+### Tabelle `hourly_stats` (seit v3.3.0)
+
+Eine Zeile je lokaler Uhrstunde, Grundlage der stündlichen Bedarfsprognose
+(`load_forecast.py`). Wird bei jedem Takt aktualisiert – unabhängig davon, ob
+`load_forecast_enabled` an ist.
+
+| Spalte | Typ | Inhalt |
+|---|---|---|
+| `hour_start` | TEXT PK | Stundenbeginn, lokal mit Offset (`2026-10-22T14:00:00+02:00`) |
+| `date` / `hour` | TEXT / INT | Datum und Stunde (0–23) für Abfragen |
+| `load_kwh` | REAL | Hausverbrauch der Stunde, integriert aus `load_power_entity` |
+| `heat_pump_kwh` | REAL, NULL | Verbrauch Wärmepumpe (`heat_pump_power_entity`), NULL ohne Zähler |
+| `outdoor_temp_c` | REAL, NULL | Mittlere Außentemperatur (Sensor oder Stundenprognose) |
+| `ticks` | INT | Anzahl Messtakte – Stunden unter 75 % Abdeckung ignoriert das Modell |
+
+Ticks mit nicht verfügbarem Sensor werden mit dem Mittel der übrigen Takte
+derselben Stunde aufgefüllt. Nach einem Neustart innerhalb einer Stunde wird
+die gespeicherte Zeile fortgesetzt, nicht überschrieben.
 
 ### Tabelle `event_log`
 

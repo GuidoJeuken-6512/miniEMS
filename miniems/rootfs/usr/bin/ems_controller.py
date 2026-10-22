@@ -6,10 +6,14 @@ from typing import TYPE_CHECKING
 
 from battery_capability import BatteryCapabilityTracker
 from battery_model import BatteryModel
+from bridge_planner import BridgePlan, PlanSlot, plan_bridge
 from const import (
     DAILY_VALUE_GRACE_SEC,
     ENERGY_PLAN_RECOMPUTE_SEC,
     FORECAST_MAX_AGE_SEC,
+    PLAN_HORIZON_H,
+    PLAN_SLOT_MIN,
+    PLAN_STOP_BELOW_KWH,
     PRICE_MAX_AGE_SEC,
     SENSOR_MAX_AGE_SEC,
     SOLCAST_DATA_MAX_AGE_SEC,
@@ -26,9 +30,21 @@ if TYPE_CHECKING:
     from event_log import EventLog
     from ha_state_client import HAStateClient
     from inverter_controller import InverterController
+    from load_forecast import HourlyLoadRecorder, LoadForecaster
     from solcast_client import SolcastClient
+    from weather_client import WeatherClient
 
 _LOGGER = logging.getLogger(__name__)
+
+# Round-trip efficiency assumed by the bridging planner until the optimizer
+# has measured one (fresh install).
+_DEFAULT_ETA = 0.9
+# Nowcasting: how far the measured/forecast PV ratio of the current slot is
+# carried forward, and how far it may scale the forecast.
+_NOWCAST_HORIZON_H = 2.0
+_NOWCAST_MIN_FORECAST_KW = 0.2
+_NOWCAST_RATIO_MIN = 0.3
+_NOWCAST_RATIO_MAX = 1.5
 
 
 @dataclass(frozen=True)
@@ -53,6 +69,9 @@ class EMSController:
         solcast: "SolcastClient | None" = None,
         event_log: "EventLog | None" = None,
         capability: "BatteryCapabilityTracker | None" = None,
+        load_forecaster: "LoadForecaster | None" = None,
+        hourly_recorder: "HourlyLoadRecorder | None" = None,
+        weather: "WeatherClient | None" = None,
     ) -> None:
         self._cfg = config
         self._ws = ws_client
@@ -89,6 +108,14 @@ class EMSController:
         # display-only (see energy_plan.py). None until the first tick has run.
         self._energy_plan: "EnergyPlan | None" = None
         self._last_energy_plan_at: datetime | None = None
+        # Stündliche Bedarfsprognose / Überbrückungsplanung (v3.3.0). The plan
+        # is recomputed every tick (cheap: ~72 slots); it only drives the
+        # decision when load_forecast_enabled and the model is ready.
+        self._forecaster = load_forecaster
+        self._recorder = hourly_recorder
+        self._weather = weather
+        self._bridge_plan: BridgePlan | None = None
+        self._bridge_status: str = "disabled"
 
     # ------------------------------------------------------------------
     # Public API
@@ -159,8 +186,14 @@ class EMSController:
             self._learned_charge_kw = None
 
         now = datetime.now().astimezone()
+        if self._weather is not None:
+            # Hourly temperatures feed both the load forecast and – without an
+            # outdoor sensor – the hourly history. Cached for 30 min inside.
+            await self._weather.fetch_hourly_temps()
+        await self._update_bridge_plan(pv_w, price, bat_kwh_free, bat_kwh_use, now)
         prev_mode = self._mode
         self._mode = self._determine_mode(pv_w, load_w, bat_soc, price, bat_kwh_free, now)
+        await self._record_hourly(now, load_w)
 
         today = date.today()
 
@@ -420,6 +453,7 @@ class EMSController:
             result["temp_today_c"] = self._prediction.temp_today_c
             result["temp_tomorrow_c"] = self._prediction.temp_tomorrow_c
         result["remaining_load_kwh"] = self._remaining_load_kwh
+        result["bridge_plan"] = self._bridge_plan_dict()
 
         if self._energy_plan is not None:
             plan = self._energy_plan
@@ -503,6 +537,16 @@ class EMSController:
                 and not self._is_stale(cfg.load_power_entity, cfg.sensor_max_age_sec)):
             surplus_w = pv_w - load_w
 
+        # 3a. Überbrückungsplanung: a small PV surplus must not block a grid
+        #     charge the plan needs (winter noon: 300 W surplus, 15 kWh
+        #     evening deficit). GRID_CHARGING still stores the PV as well.
+        if (self._bridge_in_control()
+                and self._should_grid_charge(price, bat_kwh_free, now)):
+            plan = self._bridge_plan
+            until = plan.cheap_until.strftime("%H:%M") if plan.cheap_until else "?"
+            return ModeDecision(EMSMode.GRID_CHARGING,
+                                f"bridge plan: {plan.need_kwh:.1f} kWh by {until}")
+
         if surplus_w is not None and surplus_w > cfg.pv_surplus_threshold_w:
             hold, reason = self._should_hold_pv_charge(bat_soc, bat_kwh_free, now)
             if hold:
@@ -517,6 +561,13 @@ class EMSController:
 
         # 4. Cheap dynamic tariff → charge from the grid.
         if self._should_grid_charge(price, bat_kwh_free, now):
+            if self._bridge_in_control():
+                plan = self._bridge_plan
+                until = plan.cheap_until.strftime("%H:%M") if plan.cheap_until else "?"
+                return ModeDecision(
+                    EMSMode.GRID_CHARGING,
+                    f"bridge plan: {plan.need_kwh:.1f} kWh by {until}",
+                )
             return ModeDecision(EMSMode.GRID_CHARGING, "cheap rate, pv cannot fill battery")
 
         return ModeDecision(EMSMode.IDLE, "no action")
@@ -694,6 +745,19 @@ class EMSController:
 
         if price is None or self._is_stale(cfg.electricity_price_entity, cfg.price_max_age_sec):
             return False                                   # no price → no charge
+
+        # Überbrückungsplanung (v3.3.0): when active, the plan alone decides –
+        # it already contains the economics (per slot), PV, the household
+        # load and the deferral to a cheaper window. Start above
+        # grid_charge_min_free_kwh, keep going until the remaining need is
+        # down to PLAN_STOP_BELOW_KWH (hysteresis against flapping).
+        if self._bridge_in_control():
+            if bat_kwh_free is None or bat_kwh_free <= 0:
+                return False
+            threshold = (PLAN_STOP_BELOW_KWH if self._mode is EMSMode.GRID_CHARGING
+                         else cfg.grid_charge_min_free_kwh)
+            return self._bridge_plan.need_kwh > threshold   # type: ignore[union-attr]
+
         if not self._optimizer.is_cheap_rate(price):
             return False
         if not self._grid_charge_pays(price):
@@ -776,7 +840,16 @@ class EMSController:
         if bat_kwh_free is None or bat_kwh_free <= 0:
             return None
 
-        curve = PriceCurve.from_entity(self._ws, cfg.electricity_price_entity)
+        if self._bridge_in_control() and self._bridge_plan.cheap_until is not None:  # type: ignore[union-attr]
+            # Only the planned energy, over the rest of the cheap window.
+            plan = self._bridge_plan
+            remaining_h = (plan.cheap_until - now).total_seconds() / 3600.0 * 0.8  # type: ignore[union-attr]
+            if remaining_h <= 0:
+                return None
+            energy = min(plan.need_kwh, bat_kwh_free)  # type: ignore[union-attr]
+            return energy / remaining_h * 1000.0
+
+        curve = PriceCurve.from_entity(self._ws, cfg.electricity_price_entity, cfg.tariff_source)
         if curve is None:
             return None
         window_end = curve.window_end(now)
@@ -792,6 +865,159 @@ class EMSController:
 
         p_soll_kw = bat_kwh_free / remaining_h
         return p_soll_kw * 1000.0
+
+    # ------------------------------------------------------------------
+    # Überbrückungsplanung (v3.3.0)
+    # ------------------------------------------------------------------
+
+    def _bridge_in_control(self) -> bool:
+        """Does the bridging plan decide grid charging right now?"""
+        return (self._cfg.load_forecast_enabled
+                and self._bridge_plan is not None
+                and self._forecaster is not None
+                and self._forecaster.ready)
+
+    def _bridge_plan_dict(self) -> dict:
+        model = self._forecaster.model if self._forecaster is not None else None
+        return {
+            "enabled": self._cfg.load_forecast_enabled,
+            "status": self._bridge_status,
+            "in_control": self._bridge_in_control(),
+            "min_days": self._cfg.load_forecast_min_days,
+            "model": model.as_dict() if model is not None else None,
+            "plan": self._bridge_plan.as_dict() if self._bridge_plan is not None else None,
+        }
+
+    async def _update_bridge_plan(
+        self,
+        pv_w: float | None,
+        price: float | None,
+        bat_kwh_free: float | None,
+        bat_kwh_use: float | None,
+        now: datetime,
+    ) -> None:
+        """Recompute the bridging plan. Every missing input → no plan, and
+        _should_grid_charge() falls back to the previous logic."""
+        self._bridge_plan = None
+        if not self._cfg.load_forecast_enabled or self._forecaster is None:
+            self._bridge_status = "disabled"
+            return
+        await self._forecaster.refresh(now)
+        if self._forecaster.model is None:
+            self._bridge_status = "no load history yet"
+            return
+        if bat_kwh_free is None or bat_kwh_use is None:
+            self._bridge_status = "soc unavailable"
+            return
+        if price is None:
+            self._bridge_status = "price unavailable"
+            return
+        slots = self._build_plan_slots(now, price, pv_w)
+        if slots is None:
+            return   # _build_plan_slots set the status
+        eta = self._optimizer.today_efficiency()
+        if eta is None or eta <= 0:
+            eta = _DEFAULT_ETA
+        self._bridge_plan = plan_bridge(
+            slots,
+            stored_kwh=bat_kwh_use,
+            free_kwh=bat_kwh_free,
+            eta=eta,
+            min_margin_eur_kwh=self._cfg.grid_charge_min_margin_eur_kwh,
+            charge_kw=self._charge_power_kw(),
+        )
+        self._bridge_status = "active" if self._forecaster.ready else (
+            f"learning ({self._forecaster.model.days}/{self._cfg.load_forecast_min_days} days)"
+        )
+
+    def _build_plan_slots(
+        self, now: datetime, price: float, pv_w: float | None
+    ) -> list[PlanSlot] | None:
+        cfg = self._cfg
+        curve = PriceCurve.from_entity(self._ws, cfg.electricity_price_entity, cfg.tariff_source)
+        if curve is None:
+            self._bridge_status = "no tariff calendar on price entity"
+            return None
+        if self._solcast is None:
+            self._bridge_status = "solcast not configured"
+            return None
+        if self._solcast_data_stale():
+            self._bridge_status = "solcast data stale"
+            return None
+        pv = self._solcast.pv_slots(cfg.pv_forecast_scenario, cfg.pv_forecast_blend_weight)
+        if not pv:
+            self._bridge_status = "solcast detailedForecast missing"
+            return None
+        pv_items = sorted((s, e, kwh) for s, (e, kwh) in pv.items())
+        pv_end = pv_items[-1][1]
+
+        def pv_between(a: datetime, b: datetime) -> float:
+            total = 0.0
+            for s, e, kwh in pv_items:
+                if e <= a or s >= b:
+                    continue
+                overlap = (min(b, e) - max(a, s)).total_seconds()
+                total += kwh * overlap / (e - s).total_seconds()
+            return total
+
+        step = timedelta(minutes=PLAN_SLOT_MIN)
+        slot_start = now.replace(second=0, microsecond=0)
+        slot_start -= timedelta(minutes=slot_start.minute % PLAN_SLOT_MIN)
+
+        # Nowcasting: scale the next hours by measured / forecast PV now.
+        ratio = 1.0
+        fc_kw = pv_between(slot_start, slot_start + step) / (step.total_seconds() / 3600.0)
+        if (pv_w is not None and fc_kw >= _NOWCAST_MIN_FORECAST_KW
+                and not self._is_stale(cfg.pv_power_entity, cfg.sensor_max_age_sec)):
+            ratio = max(_NOWCAST_RATIO_MIN, min(_NOWCAST_RATIO_MAX, (pv_w / 1000.0) / fc_kw))
+
+        horizon = min(now + timedelta(hours=PLAN_HORIZON_H), pv_end)
+        slots: list[PlanSlot] = []
+        start = slot_start
+        while start < horizon:
+            end = start + step
+            a = max(start, now)
+            if end <= a:
+                start = end
+                continue
+            minutes = (end - a).total_seconds() / 60.0
+            temp = self._weather.hourly_temp_at(a) if self._weather is not None else None
+            load = self._forecaster.predict_kwh(a, minutes, temp)  # type: ignore[union-attr]
+            pv_kwh = pv_between(a, end)
+            ahead_h = (a - now).total_seconds() / 3600.0
+            if ahead_h < _NOWCAST_HORIZON_H:
+                pv_kwh *= 1.0 + (ratio - 1.0) * (1.0 - ahead_h / _NOWCAST_HORIZON_H)
+            rate = price if not slots else curve.rate_at(a)
+            slots.append(PlanSlot(a, end, rate, load or 0.0, pv_kwh))
+            start = end
+        if not slots:
+            self._bridge_status = "no planning horizon"
+            return None
+        return slots
+
+    async def _record_hourly(self, now: datetime, load_w: float | None) -> None:
+        """Feed the hourly history (always on – the model needs history
+        before the user switches the forecast on)."""
+        if self._recorder is None:
+            return
+        cfg = self._cfg
+        hp_w: float | None = None
+        hp_entities = cfg.heat_pump_entities
+        if hp_entities:
+            values = [self._ws.get_state_value(e) for e in hp_entities]
+            if all(v is not None for v in values):
+                hp_w = sum(values)   # type: ignore[arg-type]
+        temp: float | None = None
+        if cfg.outdoor_temp_entity:
+            temp = self._ws.get_state_value(cfg.outdoor_temp_entity)
+        elif self._weather is not None:
+            temp = self._weather.hourly_temp_at(now)
+        if self._is_stale(cfg.load_power_entity, cfg.sensor_max_age_sec):
+            load_w = None
+        try:
+            await self._recorder.record_tick(now, load_w, hp_w, temp)
+        except Exception as exc:   # history is best-effort, never block control
+            _LOGGER.warning("Hourly history write failed: %s", exc)
 
     def _plan_deadline(self, now: datetime) -> datetime:
         """When the battery must be full again by, for the Energiefahrplan.
@@ -829,7 +1055,7 @@ class EMSController:
                 and not self._is_stale_daily(cfg.solcast_tomorrow_entity)):
             tomorrow_pv = self._solcast.tomorrow_kwh
 
-        curve = PriceCurve.from_entity(self._ws, cfg.electricity_price_entity)
+        curve = PriceCurve.from_entity(self._ws, cfg.electricity_price_entity, cfg.tariff_source)
         self._energy_plan = compute_energy_plan(
             now=now,
             deadline=self._plan_deadline(now),
@@ -849,7 +1075,7 @@ class EMSController:
         could strand the battery empty; not deferring only ever means
         charging somewhat earlier than strictly necessary.
         """
-        curve = PriceCurve.from_entity(self._ws, self._cfg.electricity_price_entity)
+        curve = PriceCurve.from_entity(self._ws, self._cfg.electricity_price_entity, self._cfg.tariff_source)
         if curve is None:
             return False
         deadline = self._next_peak_time(now)

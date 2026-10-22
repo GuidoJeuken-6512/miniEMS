@@ -84,7 +84,11 @@ Die vollständige Referenz aller Felder steht in der Dokumentation.
 - Home Assistant mit Supervisor (Add-on-fähige Installation)
 - Ein Deye-Hybrid-Wechselrichter, eingebunden über die Solarman-Integration
 - Ein Sensor mit dem aktuellen Arbeitspreis (dynamischer Tarif)
-- Optional: Solcast-PV-Prognose für die vorausschauenden Entscheidungen
+- **Erforderlich:** Solcast-PV-Prognose (HA-Integration *Solcast PV Forecast*) mit
+  aktivierter **detaillierter Prognose** (Attribut `detailedForecast`) – ohne sie
+  fällt die Netzladeplanung auf das einfache Dunkelfenster zurück
+- Optional: Leistungsmesser der Wärmepumpe (z. B. Shelly 3EM) und
+  Außentemperatursensor für die stündliche Bedarfsprognose
 
 Alle Entity-IDs sind konfigurierbar; die Standardwerte entsprechen einer
 Deye-8K-Installation.
