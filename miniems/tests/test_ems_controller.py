@@ -38,6 +38,9 @@ class FakeOptimizer:
     def get_startup_warnings(self):
         return list(self.startup_warnings)
 
+    def clear_startup_warnings(self):
+        self.startup_warnings = []
+
     async def summary_with_db(self):
         return {}
 
@@ -869,3 +872,99 @@ class TestBuildSensorWarnings:
             fake_ws.ages[e] = 1.0
             fake_ws.stale[e] = False
         assert ctrl._build_sensor_warnings() == []
+
+
+class TestRecordHeatPump:
+    """_record_heat_pump()'s mode_code() helper – docs/roadmap/v3.4-warmwasser.md.
+
+    Regression for a bug found live 2026-10-29 against the production Lambda
+    heat pump integration: heat_pump_mode_entity there (sensor.eu08l_hp1_
+    operating_state) reports a translated enum string ("STBY", "DHW", ...),
+    not the raw Modbus register code HeatPumpRecorder.record_tick()/
+    hp_mode_hot_water_code expect. get_state_value()'s plain float(raw)
+    silently returned None for every tick (caught ValueError) - which in
+    turn made _is_heating() return None unconditionally whenever
+    heat_pump_mode_entity was configured (see its own "have_mode and mode is
+    None -> return None" guard, independent of what request_type said), so
+    no standby-loss segment or hot-water draw was ever recorded, and every
+    hourly row landed in the single UNKNOWN_MODE bucket instead of being
+    split per mode - exactly the data the COP(outdoor, boil, mode) model
+    needs.
+    """
+
+    class _SpyRecorder:
+        """Stand-in for HeatPumpRecorder – records.record_tick()'s kwargs,
+        enabled=True unconditionally so _record_heat_pump() doesn't bail
+        before calling it."""
+
+        def __init__(self) -> None:
+            self.enabled = True
+            self.calls: list[dict] = []
+
+        async def record_tick(self, now, **kwargs):
+            self.calls.append(kwargs)
+
+    def _controller(self, make_config, fake_ws, recorder):
+        from ems_controller import EMSController
+
+        class _FakeOptimizer:
+            def is_cheap_rate(self, price):
+                return False
+
+            def price_tier(self, price):
+                return "high"
+
+        cfg = make_config(
+            heat_pump_cop_entity="sensor.cop",
+            heat_pump_mode_entity="sensor.mode",
+            heat_pump_request_type_entity="sensor.req",
+            boil_temp_entity="sensor.boil",
+        )
+        return EMSController(cfg, fake_ws, _FakeOptimizer(), heat_pump_recorder=recorder)
+
+    async def test_enum_string_mode_resolves_via_options_attribute(self, make_config, fake_ws, utcnow):
+        """The exact live case: state "DHW", options list with DHW at index 2 -
+        matches the default hp_mode_hot_water_code=2."""
+        fake_ws.state_cache["sensor.mode"] = {"state": "DHW"}
+        fake_ws.attributes["sensor.mode"] = {
+            "options": ["STBY", "CH", "DHW", "CC", "CIRCULATE", "DEFROST", "OFF"]
+        }
+        recorder = self._SpyRecorder()
+        ctrl = self._controller(make_config, fake_ws, recorder)
+
+        await ctrl._record_heat_pump(utcnow)
+
+        assert len(recorder.calls) == 1
+        assert recorder.calls[0]["mode"] == 2.0
+
+    async def test_unknown_string_not_in_options_is_none_not_a_crash(self, make_config, fake_ws, utcnow):
+        fake_ws.state_cache["sensor.mode"] = {"state": "SOME_NEW_FIRMWARE_STATE"}
+        fake_ws.attributes["sensor.mode"] = {"options": ["STBY", "CH", "DHW"]}
+        recorder = self._SpyRecorder()
+        ctrl = self._controller(make_config, fake_ws, recorder)
+
+        await ctrl._record_heat_pump(utcnow)
+
+        assert recorder.calls[0]["mode"] is None
+
+    async def test_unavailable_state_is_none(self, make_config, fake_ws, utcnow):
+        fake_ws.state_cache["sensor.mode"] = {"state": "unavailable"}
+        fake_ws.attributes["sensor.mode"] = {"options": ["STBY", "CH", "DHW"]}
+        recorder = self._SpyRecorder()
+        ctrl = self._controller(make_config, fake_ws, recorder)
+
+        await ctrl._record_heat_pump(utcnow)
+
+        assert recorder.calls[0]["mode"] is None
+
+    async def test_numeric_mode_entity_still_works_unchanged(self, make_config, fake_ws, utcnow):
+        """A sensor that already reports the raw numeric code (no options
+        attribute at all) must keep working exactly as before - this helper
+        is a fallback path, not a replacement for the plain numeric case."""
+        fake_ws.values["sensor.mode"] = 2.0
+        recorder = self._SpyRecorder()
+        ctrl = self._controller(make_config, fake_ws, recorder)
+
+        await ctrl._record_heat_pump(utcnow)
+
+        assert recorder.calls[0]["mode"] == 2.0

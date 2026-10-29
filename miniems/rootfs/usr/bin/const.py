@@ -8,10 +8,10 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "3.3.0"
+VERSION = "3.4.1"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
-CONFIG_SCHEMA_VERSION = 21
+CONFIG_SCHEMA_VERSION = 22
 
 # ── Battery current limits ────────────────────────────────────────────────────
 # The Deye inverter exposes battery limits as CURRENT in amperes
@@ -140,6 +140,19 @@ INVERTER_WRITE_STUCK_THRESHOLD_SEC = 1800   # 30 min – provisional, see above
 BATTERY_CAPABILITY_MIN_SAMPLES_PER_DAY = 6   # ~3 min of GRID_CHARGING at a 30s tick
 BATTERY_CAPABILITY_MIN_DAYS = 3              # qualifying days needed before trusting history
 BATTERY_CAPABILITY_LOOKBACK_DAYS = 14
+
+# ── Wärmepumpe / Warmwasser – Datensammlung (heat_pump_recorder.py) ───────────
+# Plausible COP band; readings outside it (defrost, sensor glitches) are dropped.
+HP_COP_MIN = 0.5
+HP_COP_MAX = 10.0
+# Standby segments shorter than this are discarded: at a 0.5 K sensor
+# resolution a shorter span says nothing about the loss rate.
+HW_LOSS_MIN_SEGMENT_H = 1.0
+# Window in which a drop of hw_draw_drop_k counts as a draw (tapping).
+HW_DRAW_WINDOW_SEC = 600
+# A gap between valid ticks longer than this many tick intervals ends a
+# segment without scoring it (restart, sensor unavailable).
+HW_GAP_FACTOR = 3
 
 # ── Energiefahrplan (energy_plan.py) ──────────────────────────────────────────
 # Recompute interval for the proactive tomorrow-deficit plan. Hourly, not

@@ -1,6 +1,6 @@
 """EMS decision logic – determines operating mode and triggers cost accounting."""
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import date, datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
@@ -22,6 +22,7 @@ from const import (
 from energy_plan import EnergyPlan, compute_energy_plan
 from event_log import EventLog, LogEntry
 from price_curve import PriceCurve
+from sensor_availability import SensorAvailabilityMonitor
 
 if TYPE_CHECKING:
     from config_loader import Config
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
     from event_log import EventLog
     from ha_state_client import HAStateClient
     from inverter_controller import InverterController
+    from heat_pump_recorder import HeatPumpRecorder
     from load_forecast import HourlyLoadRecorder, LoadForecaster
     from solcast_client import SolcastClient
     from weather_client import WeatherClient
@@ -72,6 +74,7 @@ class EMSController:
         load_forecaster: "LoadForecaster | None" = None,
         hourly_recorder: "HourlyLoadRecorder | None" = None,
         weather: "WeatherClient | None" = None,
+        heat_pump_recorder: "HeatPumpRecorder | None" = None,
     ) -> None:
         self._cfg = config
         self._ws = ws_client
@@ -114,6 +117,8 @@ class EMSController:
         self._forecaster = load_forecaster
         self._recorder = hourly_recorder
         self._weather = weather
+        self._hp_recorder = heat_pump_recorder
+        self._availability = SensorAvailabilityMonitor()
         self._bridge_plan: BridgePlan | None = None
         self._bridge_status: str = "disabled"
 
@@ -142,6 +147,7 @@ class EMSController:
         bat_soc = ws.get_state_value(cfg.battery_soc_entity)
         bat_w = ws.get_state_value(cfg.battery_power_entity)
         price = ws.get_state_value(cfg.electricity_price_entity)
+        self._check_sensor_availability()
 
         # Prefer the live capacity sensor so the decision and the dashboard agree.
         # Reject implausible scales (e.g. an Ah reading) via a plausibility band.
@@ -194,6 +200,7 @@ class EMSController:
         prev_mode = self._mode
         self._mode = self._determine_mode(pv_w, load_w, bat_soc, price, bat_kwh_free, now)
         await self._record_hourly(now, load_w)
+        await self._record_heat_pump(now)
 
         today = date.today()
 
@@ -381,6 +388,10 @@ class EMSController:
         # Build warnings list
         warnings = list(self._optimizer.get_startup_warnings())
         warnings.extend(self._build_sensor_warnings())
+        # The downtime-gap warning describes the past: shown once, then dropped
+        # as soon as this tick has been accounted with real readings again.
+        if None not in (pv_w, load_w, grid_w, bat_w):
+            self._optimizer.clear_startup_warnings()
 
         result = {
             "mode": self._mode.value,
@@ -454,6 +465,8 @@ class EMSController:
             result["temp_tomorrow_c"] = self._prediction.temp_tomorrow_c
         result["remaining_load_kwh"] = self._remaining_load_kwh
         result["bridge_plan"] = self._bridge_plan_dict()
+        if self._hp_recorder is not None and self._hp_recorder.enabled:
+            result["heat_pump"] = self._hp_recorder.status()
 
         if self._energy_plan is not None:
             plan = self._energy_plan
@@ -1001,23 +1014,85 @@ class EMSController:
         if self._recorder is None:
             return
         cfg = self._cfg
-        hp_w: float | None = None
-        hp_entities = cfg.heat_pump_entities
-        if hp_entities:
-            values = [self._ws.get_state_value(e) for e in hp_entities]
-            if all(v is not None for v in values):
-                hp_w = sum(values)   # type: ignore[arg-type]
-        temp: float | None = None
-        if cfg.outdoor_temp_entity:
-            temp = self._ws.get_state_value(cfg.outdoor_temp_entity)
-        elif self._weather is not None:
-            temp = self._weather.hourly_temp_at(now)
         if self._is_stale(cfg.load_power_entity, cfg.sensor_max_age_sec):
             load_w = None
         try:
-            await self._recorder.record_tick(now, load_w, hp_w, temp)
+            await self._recorder.record_tick(
+                now, load_w, self._heat_pump_power_w(), self._outdoor_temp_c(now)
+            )
         except Exception as exc:   # history is best-effort, never block control
             _LOGGER.warning("Hourly history write failed: %s", exc)
+
+    async def _record_heat_pump(self, now: datetime) -> None:
+        """Feed the heat-pump / hot-water history (docs/roadmap/v3.4-warmwasser.md)."""
+        rec = self._hp_recorder
+        if rec is None or not rec.enabled:
+            return
+        cfg = self._cfg
+
+        def value(entity: str) -> float | None:
+            return self._ws.get_state_value(entity) if entity else None
+
+        def mode_code(entity: str) -> float | None:
+            """Like value(), but resolves an enum-valued sensor's string
+            state to its ordinal via the entity's `options` attribute first.
+
+            Needed for lambda_heat_pumps' operating_state sensor: its state
+            is the translated string ("STBY", "DHW", ...), not the raw
+            Modbus register code value() expects - plain float(raw) always
+            failed for it, silently poisoning every tick's mode (get_state_
+            value() catches the ValueError and returns None), which in turn
+            made _is_heating() return None unconditionally whenever
+            heat_pump_mode_entity was configured (regardless of what
+            heat_pump_request_type_entity said) - no hot-water-loss segment
+            or draw was ever recorded, and every hourly row fell into the
+            single UNKNOWN_MODE bucket instead of being split per mode.
+            `options`' list order is exactly the register's own enum, so its
+            index is the same code the config's hp_mode_hot_water_code
+            compares against - confirmed live: DHW sits at index 2, matching
+            the default hp_mode_hot_water_code=2.
+            """
+            numeric = value(entity)
+            if numeric is not None or not entity:
+                return numeric
+            raw = self._ws.get_state_raw(entity)
+            if raw is None or raw in ("unavailable", "unknown", ""):
+                return None
+            options = self._ws.get_state_attribute(entity, "options")
+            if isinstance(options, list) and raw in options:
+                return float(options.index(raw))
+            return None
+
+        try:
+            await rec.record_tick(
+                now,
+                cop=value(cfg.heat_pump_cop_entity),
+                mode=mode_code(cfg.heat_pump_mode_entity),
+                request_type=value(cfg.heat_pump_request_type_entity),
+                boil_temp_c=value(cfg.boil_temp_entity),
+                # Measured sensor only – a forecast value would distort COP(outdoor).
+                outdoor_temp_c=value(cfg.outdoor_temp_entity),
+                heat_pump_w=self._heat_pump_power_w(),
+            )
+        except Exception as exc:   # history is best-effort, never block control
+            _LOGGER.warning("Heat-pump history write failed: %s", exc)
+
+    def _heat_pump_power_w(self) -> float | None:
+        """Sum of the configured heat-pump power entities; None if any is missing."""
+        entities = self._cfg.heat_pump_entities
+        if not entities:
+            return None
+        values = [self._ws.get_state_value(e) for e in entities]
+        if any(v is None for v in values):
+            return None
+        return sum(values)   # type: ignore[arg-type]
+
+    def _outdoor_temp_c(self, now: datetime) -> float | None:
+        if self._cfg.outdoor_temp_entity:
+            return self._ws.get_state_value(self._cfg.outdoor_temp_entity)
+        if self._weather is not None:
+            return self._weather.hourly_temp_at(now)
+        return None
 
     def _plan_deadline(self, now: datetime) -> datetime:
         """When the battery must be full again by, for the Energiefahrplan.
@@ -1259,6 +1334,30 @@ class EMSController:
     # ------------------------------------------------------------------
     # Warnings
     # ------------------------------------------------------------------
+
+    def _check_sensor_availability(self) -> None:
+        """Log every monitored sensor that drops out or comes back."""
+        cfg = self._cfg
+        monitored = set(cfg.monitored_entities)
+        labels: dict[str, str] = {}
+        for f in fields(cfg):
+            value = getattr(cfg, f.name)
+            if not f.name.endswith("_entity") or not isinstance(value, str):
+                continue
+            label = f.name[: -len("_entity")].replace("_", " ")
+            for entity in (e.strip() for e in value.split(",")):
+                if entity in monitored:
+                    labels.setdefault(entity, label)
+        counted_as_zero = "energy accounting counts 0 W meanwhile"
+        impact = {
+            e: counted_as_zero
+            for e in (cfg.pv_power_entity, cfg.load_power_entity,
+                      cfg.grid_power_entity, cfg.battery_power_entity)
+            if e
+        }
+        self._availability.update(
+            datetime.now().astimezone(), labels, self._ws.get_state_raw, impact
+        )
 
     def _build_sensor_warnings(self) -> list[str]:
         """Return warnings for required sensors that are unavailable or stale."""

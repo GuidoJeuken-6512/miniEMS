@@ -1,5 +1,77 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.4.1
+
+### Fixed
+
+- **`heat_pump_mode_entity` landete bei einer Lambda-Wärmepumpe immer im
+  UNKNOWN_MODE-Eimer — keine Modus-Aufschlüsselung, keine Standby-Verlust-
+  Segmente, keine Zapf-Erkennung.** Live auf der Devcontainer-Testinstanz
+  gefunden: `sensor.eu08l_hp1_operating_state` liefert einen übersetzten
+  Enum-String ("STBY", "DHW", ...), nicht den rohen Modbus-Register-Code,
+  den `hp_mode_hot_water_code` erwartet. `HAStateClient.get_state_value()`s
+  `float(raw)` scheiterte deshalb bei jedem Tick (abgefangener
+  `ValueError`, stiller Rückfall auf `None`) — und weil
+  `_is_heating()` bei konfiguriertem `heat_pump_mode_entity` grundsätzlich
+  `None` zurückgibt, sobald der Modus nicht lesbar ist (unabhängig davon,
+  was `heat_pump_request_type_entity` sagt), wurde dadurch **nie** ein
+  Standby-Verlust-Segment oder ein Zapf-Ereignis aufgezeichnet, und jede
+  Stundenzeile landete im `UNKNOWN_MODE`-Eimer (`mode: -1`) statt nach
+  Betriebsmodus getrennt — genau die Aufschlüsselung, die das
+  COP(Außentemperatur, Kessel, Modus)-Modell braucht
+  (docs/roadmap/v3.4-warmwasser.md).
+
+  `ems_controller._record_heat_pump()` löst den String jetzt zusätzlich
+  über das `options`-Attribut der Entity auf, bevor auf `None`
+  zurückgefallen wird — dessen Reihenfolge ist exakt der Register-Code
+  (live bestätigt: "DHW" steht an Index 2, passend zum
+  `hp_mode_hot_water_code`-Standardwert). Ein Sensor, der direkt den
+  numerischen Code liefert, funktioniert unverändert weiter (reiner
+  Fallback-Pfad, keine Verhaltensänderung für diesen Fall).
+
+  4 neue Tests. Live verifiziert: direkter Vorher/Nachher-Vergleich in
+  `heat_pump_hourly` — die alte Zeile `mode=-1` (55 Ticks, vor dem Fix)
+  steht neben einer frischen Zeile `mode=0`/STBY (ab dem Fix), `/api/status`
+  liefert jetzt `heating_hot_water: false` statt `null`.
+
+## 3.4.0
+
+### Added
+
+- **Wärmepumpe / Warmwasser – Datensammlung (Schritt 1)**, noch ohne Steuerung.
+  Doku: `docs/roadmap/v3.4-warmwasser.md`. Config-Schema v22, alle neuen
+  Entities standardmäßig leer (dann wird nichts aufgezeichnet).
+  - Neue Sensoren: `heat_pump_cop_entity` (Live-COP), `heat_pump_mode_entity`,
+    `heat_pump_request_type_entity` (numerische Codes), `boil_temp_entity`
+    (WW-Speicher). WW-Codes konfigurierbar (`hp_mode_hot_water_code` = 2,
+    `hp_request_hot_water_code` = 4); `hot_water_min_temp_c` (45 °C).
+  - **COP-Normalisierung:** die ersten `hp_cop_settle_sec` (300 s) nach
+    Kompressorstart oder Moduswechsel und Werte außerhalb 0,5–10 werden verworfen.
+  - **Tabelle `heat_pump_hourly`:** je Stunde und Betriebsmodus Ø COP,
+    Ø Außentemperatur, Ø Boiler-Temperatur, WP-Strom (kWh).
+  - **Tabelle `hot_water_loss_segments`:** Wärmeverlust in K/h über
+    Standby-Phasen ≥ 1 h (weder Modus noch Request = WW).
+  - **Tabelle `hot_water_draws`:** Zapfungen (Abfall ≥ `hw_draw_drop_k`
+    binnen 10 min) getrennt erfasst, verfälschen den Verlust nicht.
+  - Außentemperatur für die WP-Historie nur vom Sensor `outdoor_temp_entity`,
+    nie aus der Wetterprognose.
+  - `/api/status` enthält einen Block `heat_pump`.
+- **Log-Meldung bei Sensorausfall:** Fällt ein überwachter Sensor aus, steht das
+  jetzt im Add-on-Log, mit Name, Entity-ID, Zustand und Beginn. Der Eintrag kommt
+  nach zwei Ticks in Folge, ein einzelner Aussetzer zählt nicht. Bei
+  PV/Last/Netz/Batterie steht zusätzlich der Hinweis, dass die Abrechnung solange
+  mit 0 W zählt. Kommt der Sensor zurück, steht das mit der Ausfalldauer im Log.
+
+### Fixed
+
+- **Gap-Warnung blieb den ganzen Tag in der GUI:** „Data gap detected“ wird jetzt
+  einmal angezeigt. Sie verschwindet, sobald ein Tick mit gültigen PV-, Last-,
+  Netz- und Batteriewerten abgerechnet wurde. Die Meldung nennt die Uhrzeit, ab
+  der nichts mehr gezählt wurde.
+- **EMS-Schleife brach mit `'>' not supported between 'float' and 'str'` ab:**
+  Numerische Werte, die als Text in `/data/config.json` gespeichert waren, werden
+  beim Laden in den richtigen Typ umgewandelt und korrigiert zurückgeschrieben.
+
 ## 3.3.0
 
 ### Added
