@@ -6,18 +6,24 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 import logging
+from pathlib import Path, PurePath
 from typing import Any
 
 import aiohttp
 from aiohttp import hdrs
 from awesomeversion import AwesomeVersion
 from multidict import MultiMapping
+from yarl import URL
 
-from ..const import SOCKET_CORE
+from ..const import SERVER_SOFTWARE, SOCKET_NAME_CORE
 from ..coresys import CoreSys, CoreSysAttributes
 from ..docker.const import ENV_CORE_API_SOCKET, ContainerState
 from ..docker.monitor import DockerContainerStateEvent
-from ..exceptions import HomeAssistantAPIError, HomeAssistantAuthError
+from ..exceptions import (
+    HomeAssistantAPIError,
+    HomeAssistantAuthError,
+    HomeAssistantWSConnectionError,
+)
 from ..utils import version_is_new_enough
 from .const import LANDINGPAGE
 from .websocket import WSClient
@@ -28,6 +34,10 @@ CORE_UNIX_SOCKET_MIN_VERSION: AwesomeVersion = AwesomeVersion(
     "2026.4.0.dev202603250907"
 )
 GET_CORE_STATE_MIN_VERSION: AwesomeVersion = AwesomeVersion("2023.8.0.dev20230720")
+# First nightly after https://github.com/home-assistant/core/pull/176976
+# added the endpoint. Requesting it from a dev build without the endpoint
+# fails gracefully (404 -> None).
+HTTP_CONFIG_MIN_VERSION: AwesomeVersion = AwesomeVersion("2026.8.0.dev202607280000")
 
 
 @dataclass(frozen=True)
@@ -36,6 +46,16 @@ class APIState:
 
     core_state: str
     offline_db_migration: bool
+
+
+@dataclass(frozen=True)
+class CoreHTTPConfig:
+    """Live HTTP server configuration reported by Core."""
+
+    port: int
+    ssl: bool
+    ssl_peer_certificate: bool
+    server_host: list[str]
 
 
 class HomeAssistantAPI(CoreSysAttributes):
@@ -51,13 +71,23 @@ class HomeAssistantAPI(CoreSysAttributes):
         self._token_lock: asyncio.Lock = asyncio.Lock()
         self._unix_session: aiohttp.ClientSession | None = None
         self._core_connected: bool = False
+        self._core_container_running: bool | None = None
 
     @property
     def supports_unix_socket(self) -> bool:
         """Return True if the installed Core version supports Unix socket communication.
 
+        Enabled by default for Core >= CORE_UNIX_SOCKET_MIN_VERSION.
+
         Used to decide whether to configure the env var when starting Core.
+
+        PATCHED (miniEMS devcontainer, see docs/technical/devcontainer-supervisor-patches.md,
+        section 3): force TCP transport when SUPERVISOR_DEV=1. The devcontainer's supervisor
+        container does not have /run/supervisor in its bind-mount list, so the Unix socket
+        Core creates there is invisible to it - only TCP on the hassio bridge network works.
         """
+        if self.sys_dev:
+            return False
         return (
             self.sys_homeassistant.version is not None
             and self.sys_homeassistant.version != LANDINGPAGE
@@ -66,29 +96,49 @@ class HomeAssistantAPI(CoreSysAttributes):
             )
         )
 
+    def _supervisor_view_of_core_socket(self, core_path: str) -> Path:
+        """Map Core's view of its socket path to Supervisor's view of the same file."""
+        # Core mounts the run folder at the same path as on the host
+        try:
+            relative = PurePath(core_path).relative_to(self.sys_config.path_extern_run)
+        except ValueError:
+            return self.sys_config.path_run / SOCKET_NAME_CORE
+        return self.sys_config.path_run / relative
+
     @property
-    def use_unix_socket(self) -> bool:
-        """Return True if the running Core container is configured for Unix socket.
+    def core_socket_path(self) -> Path | None:
+        """Return the running Core container's Unix socket path, None for TCP.
 
         Checks both version support and that the container was actually started
-        with the SUPERVISOR_CORE_API_SOCKET env var. This prevents failures
-        during Supervisor upgrades where Core is still running with a container
-        started by the old Supervisor.
+        with the SUPERVISOR_CORE_API_SOCKET env var. The path is read from that
+        env var, so it always matches how the running container was started,
+        even when Core is still running with a container started by an older
+        Supervisor.
 
-        Requires container metadata to be available (via attach() or run()).
-        Callers should ensure the container is running before using this.
+        Raises HomeAssistantAPIError without container metadata, i.e. when no
+        Core container exists to connect to.
         """
-        if self.sys_dev or not self.supports_unix_socket:
-            return False
+        if not self.supports_unix_socket:
+            return None
         instance = self.sys_homeassistant.core.instance
         if not instance.attached:
             raise HomeAssistantAPIError(
                 "Cannot determine Core connection mode: container metadata not available"
             )
-        return any(
-            env.startswith(f"{ENV_CORE_API_SOCKET}=")
-            for env in instance.meta_config.get("Env", [])
-        )
+        for env in instance.meta_config.get("Env", []):
+            name, _, value = env.partition("=")
+            if name == ENV_CORE_API_SOCKET:
+                return self._supervisor_view_of_core_socket(value)
+        return None
+
+    @property
+    def use_unix_socket(self) -> bool:
+        """Return True if the running Core container is configured for Unix socket.
+
+        Raises HomeAssistantAPIError without container metadata, i.e. when no
+        Core container exists to connect to.
+        """
+        return self.core_socket_path is not None
 
     @property
     def session(self) -> aiohttp.ClientSession:
@@ -103,8 +153,12 @@ class HomeAssistantAPI(CoreSysAttributes):
             return self.sys_websession
 
         if self._unix_session is None or self._unix_session.closed:
+            # Unlike Core's IP over TCP, "localhost" lets a real jar store cookies
+            # from any Core view and replay them on every later request
             self._unix_session = aiohttp.ClientSession(
-                connector=aiohttp.UnixConnector(path=str(SOCKET_CORE))
+                connector=aiohttp.UnixConnector(path=str(self.core_socket_path)),
+                cookie_jar=aiohttp.DummyCookieJar(),
+                headers={hdrs.USER_AGENT: SERVER_SOFTWARE},
             )
         return self._unix_session
 
@@ -126,6 +180,14 @@ class HomeAssistantAPI(CoreSysAttributes):
         """Process Core container state changes."""
         if event.name != self.sys_homeassistant.core.instance.name:
             return
+
+        # A pending or failed healthcheck still means the process is up
+        self._core_container_running = event.state in (
+            ContainerState.RUNNING,
+            ContainerState.STARTING,
+            ContainerState.HEALTHY,
+            ContainerState.UNHEALTHY,
+        )
         if event.state not in (ContainerState.STOPPED, ContainerState.FAILED):
             return
 
@@ -188,6 +250,18 @@ class HomeAssistantAPI(CoreSysAttributes):
                     seconds=tokens["expires_in"]
                 )
 
+    def _request_error[ErrorT: HomeAssistantAPIError](
+        self, url: URL | str, err: Exception, error_type: type[ErrorT]
+    ) -> ErrorT:
+        """Describe a failed request, naming a stopped Core container as the cause."""
+        # Container state comes from Docker events, None until the first one
+        if self._core_container_running is False:
+            _LOGGER.debug("Error on call %s: Core container is not running", url)
+            return error_type("Core container is not running")
+        message = str(err) or type(err).__name__
+        _LOGGER.debug("Error on call %s: %s", url, message)
+        return error_type(message)
+
     async def connect_websocket(self) -> WSClient:
         """Connect a WebSocket to Core, handling auth as appropriate.
 
@@ -199,25 +273,29 @@ class HomeAssistantAPI(CoreSysAttributes):
             HomeAssistantAPIError: On connection or auth failure.
 
         """
-        if not await self.sys_homeassistant.core.instance.is_running():
-            raise HomeAssistantAPIError("Core container is not running", _LOGGER.debug)
+        try:
+            if self.use_unix_socket:
+                return await WSClient.connect(self.session, self.ws_url)
 
-        if self.use_unix_socket:
-            return await WSClient.connect(self.session, self.ws_url)
-
-        for attempt in (1, 2):
-            try:
-                await self._ensure_access_token()
-                assert self._access_token
-                return await WSClient.connect_with_auth(
-                    self.session,
-                    self.ws_url,
-                    self._access_token,
-                )
-            except HomeAssistantAPIError:
-                self._access_token = None
-                if attempt == 2:
-                    raise
+            for attempt in (1, 2):
+                try:
+                    await self._ensure_access_token()
+                    assert self._access_token
+                    return await WSClient.connect_with_auth(
+                        self.session, self.ws_url, self._access_token
+                    )
+                except HomeAssistantAuthError:
+                    self._access_token = None
+                    if attempt == 2:
+                        raise
+        except (
+            HomeAssistantWSConnectionError,
+            TimeoutError,
+            aiohttp.ClientError,
+        ) as err:
+            raise self._request_error(
+                self.ws_url, err, HomeAssistantWSConnectionError
+            ) from err
 
         # Unreachable, but satisfies type checker
         raise RuntimeError("Unreachable")
@@ -249,7 +327,9 @@ class HomeAssistantAPI(CoreSysAttributes):
 
         Args:
             method: HTTP method (get, post, etc.)
-            path: API path relative to Home Assistant base URL
+            path: API path relative to Home Assistant base URL. Sent as-is:
+                it must already be percent-encoded where needed and is not
+                decoded or normalized again.
             json: JSON data to send in request body
             content_type: Override content-type header
             data: Raw data to send in request body
@@ -263,12 +343,15 @@ class HomeAssistantAPI(CoreSysAttributes):
         Raises:
             HomeAssistantAPIError: When request cannot be completed due to
                 network errors, timeouts, or connection failures
+            HomeAssistantAuthError: When Core rejects Supervisor's own
+                credentials (HTTP 401), after one token refresh over TCP
 
         """
-        if not await self.sys_homeassistant.core.instance.is_running():
-            raise HomeAssistantAPIError("Core container is not running", _LOGGER.debug)
-
-        url = f"{self.api_url}/{path}"
+        # encoded=True makes yarl send the path byte-for-byte. Without it, yarl
+        # would normalize percent-encoded unreserved characters (e.g. %5F -> _),
+        # which lets a path that passed a deny check upstream turn into a
+        # different one on the wire.
+        url = URL(f"{self.api_url}/{path}", encoded=True)
         headers = headers or {}
         client_timeout = aiohttp.ClientTimeout(total=timeout)
 
@@ -293,14 +376,25 @@ class HomeAssistantAPI(CoreSysAttributes):
                     if resp.status == 401 and not self.use_unix_socket:
                         self._access_token = None
                         continue
+                    if resp.status == 401:
+                        # Over the Unix socket there is no token to refresh:
+                        # Core does not accept the Supervisor user itself.
+                        _LOGGER.error(
+                            "Home Assistant rejected Supervisor credentials on %s",
+                            path,
+                        )
+                        raise HomeAssistantAuthError
                     yield resp
                     return
-            except TimeoutError as err:
-                _LOGGER.debug("Timeout on call %s.", url)
-                raise HomeAssistantAPIError(str(err)) from err
-            except aiohttp.ClientError as err:
-                _LOGGER.debug("Error on call %s: %s", url, err)
-                raise HomeAssistantAPIError(str(err)) from err
+            except (TimeoutError, aiohttp.ClientError) as err:
+                raise self._request_error(url, err, HomeAssistantAPIError) from err
+
+        # Core still answered 401 with a freshly refreshed token.
+        _LOGGER.error(
+            "Home Assistant rejected Supervisor credentials on %s after token refresh",
+            path,
+        )
+        raise HomeAssistantAuthError
 
     async def _get_json(self, path: str) -> dict[str, Any]:
         """Return Home Assistant get API."""
@@ -322,6 +416,65 @@ class HomeAssistantAPI(CoreSysAttributes):
         if state is None or not isinstance(state, dict):
             raise HomeAssistantAPIError("No state received from Home Assistant API")
         return state
+
+    async def get_http_config(self) -> CoreHTTPConfig | None:
+        """Return the live HTTP server configuration pulled from Core.
+
+        Only available over the Unix socket on Core versions that provide the
+        endpoint. Returns None when it cannot be fetched, in which case the
+        values pushed by Core via the Supervisor options API remain in effect.
+        """
+        try:
+            if not self.use_unix_socket:
+                return None
+            if not version_is_new_enough(
+                self.sys_homeassistant.version, HTTP_CONFIG_MIN_VERSION
+            ):
+                return None
+            data = await self._get_json("api/core/http_config")
+        except HomeAssistantAPIError as err:
+            _LOGGER.debug("Can't fetch Core HTTP config: %s", err)
+            return None
+
+        try:
+            return CoreHTTPConfig(
+                port=int(data["port"]),
+                ssl=bool(data["ssl"]),
+                ssl_peer_certificate=bool(data["ssl_peer_certificate"]),
+                server_host=[str(host) for host in data["server_host"]],
+            )
+        except (KeyError, TypeError, ValueError) as err:
+            _LOGGER.warning("Malformed Core HTTP config response: %s", err)
+            return None
+
+    async def _update_http_config(self) -> None:
+        """Refresh the connection parameters from Core's HTTP config.
+
+        Replaces relying on Core pushing port/SSL via the Supervisor options
+        API, which races with Supervisor's own startup checks.
+        """
+        config = await self.get_http_config()
+        homeassistant = self.sys_homeassistant
+        # Reset to unknown when the config cannot be fetched (older Core, TCP
+        # fallback), so reachability decisions never use another Core's binds.
+        homeassistant.http_server_host = config.server_host if config else None
+        if not config:
+            return
+
+        if (config.port, config.ssl) == (
+            homeassistant.api_port,
+            homeassistant.api_ssl,
+        ):
+            return
+
+        _LOGGER.info(
+            "Updating Core connection parameters from its HTTP config: port %s, ssl %s",
+            config.port,
+            config.ssl,
+        )
+        homeassistant.api_port = config.port
+        homeassistant.api_ssl = config.ssl
+        await homeassistant.save_data()
 
     async def get_api_state(self) -> APIState | None:
         """Return state of Home Assistant Core or None."""
@@ -347,13 +500,13 @@ class HomeAssistantAPI(CoreSysAttributes):
             if not self._core_connected:
                 self._core_connected = True
                 transport = (
-                    f"Unix socket {SOCKET_CORE}"
+                    f"Unix socket {self.core_socket_path}"
                     if self.use_unix_socket
                     else f"TCP {self.sys_homeassistant.api_url}"
                 )
                 _LOGGER.info("Connected to Core via %s", transport)
+                await self._update_http_config()
 
-            # Older versions of home assistant does not expose the state
             state = data.get("state", "RUNNING")
             # Recorder state was added in HA Core 2024.8
             recorder_state = data.get("recorder_state", {})
@@ -370,32 +523,3 @@ class HomeAssistantAPI(CoreSysAttributes):
         if state := await self.get_api_state():
             return state.core_state == "RUNNING" or state.offline_db_migration
         return False
-
-    async def check_frontend_available(self) -> bool:
-        """Check if the frontend is accessible by fetching the root path.
-
-        Caller should make sure that Home Assistant Core is running before
-        calling this method.
-
-        Returns:
-            True if the frontend responds successfully, False otherwise.
-
-        """
-        try:
-            async with self.make_request("get", "", timeout=30) as resp:
-                # Frontend should return HTML content
-                if resp.status == 200:
-                    content_type = resp.headers.get(hdrs.CONTENT_TYPE, "")
-                    if "text/html" in content_type:
-                        _LOGGER.debug("Frontend is accessible and serving HTML")
-                        return True
-                    _LOGGER.warning(
-                        "Frontend responded but with unexpected content type: %s",
-                        content_type,
-                    )
-                    return False
-                _LOGGER.warning("Frontend returned status %s", resp.status)
-                return False
-        except HomeAssistantAPIError as err:
-            _LOGGER.debug("Cannot reach frontend: %s", err)
-            return False

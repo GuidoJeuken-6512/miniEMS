@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-14
+revision_date: 2026-10-29
 ---
 
 # Devcontainer – Supervisor Patches
@@ -138,6 +138,48 @@ stty: 'standard input': Inappropriate ioctl for device
 **Fix**
 
 Make the call non-fatal: `stty sane 2>/dev/null || true`.
+
+---
+
+## 5. `supervisor_api_patch.py` goes stale and crashes the supervisor on its own
+
+**Symptom**
+
+```
+Traceback (most recent call last):
+  File ".../supervisor/homeassistant/module.py", line 52, in <module>
+    from .api import HomeAssistantAPI
+  File ".../supervisor/homeassistant/api.py", line 16, in <module>
+    from ..const import SOCKET_CORE
+ImportError: cannot import name 'SOCKET_CORE' from 'supervisor.const'
+```
+
+The supervisor exits immediately – Docker itself may even look fine, but `hassio_supervisor` never gets created and nothing else in the stack starts. Observed 2026-10-29 after ~6 weeks without a devcontainer restart (the gap matters – see Root cause).
+
+**Root cause**
+
+Fix 3 above (`supervisor_api_patch.py`) is not a small diff applied at runtime – it is a **full copy** of `supervisor/homeassistant/api.py` from whatever upstream version was current when the patch was written, bind-mounted wholesale over the real file (see "Applying the patches" below). `supervisor_run`'s `common` script always fetches the **latest dev build** (`https://version.home-assistant.io/dev.json`), so every devcontainer start after a gap can pull a materially newer supervisor image than the one the patch file was derived from.
+
+On 2026-10-29 upstream had removed the `SOCKET_CORE` path constant entirely (`supervisor/const.py`), replacing it with a filename-only `SOCKET_NAME_CORE` combined dynamically via `self.sys_config.path_run / SOCKET_NAME_CORE` in a new `_supervisor_view_of_core_socket()` helper – our stale copy still imported the old constant at module load time, so the import failed before any of our dev-mode logic ever ran. The rest of the file had also drifted substantially (518 lines upstream vs. 401 in the stale patch).
+
+**Fix**
+
+Re-derive the patch from the *current* image instead of hand-editing the stale copy – the safest way to be sure nothing else drifted silently:
+
+```bash
+docker create --name tmp_extract ghcr.io/home-assistant/amd64-hassio-supervisor:<current-tag> true
+docker cp tmp_extract:/usr/src/supervisor/supervisor/homeassistant/api.py supervisor_api_patch.py
+docker rm tmp_extract
+```
+
+Then re-apply the one deliberate change by hand: add `if self.sys_dev: return False` at the top of the `supports_unix_socket` property (its name/location can move between versions – e.g. it absorbed what used to be a separate `use_unix_socket` check in October 2026 – so grep for `supports_unix_socket` or `use_unix_socket` rather than assuming a fixed line number). Verify with the *supervisor image's own* Python, not the devcontainer host's – the supervisor runs a newer Python than this devcontainer ships (3.14 vs. the host's 3.11 as of 2026-10), and the file legitimately uses newer syntax (PEP 695 generics) that only the newer interpreter accepts:
+
+```bash
+docker run --rm -v "$(pwd)/supervisor_api_patch.py:/tmp/check.py:ro" \
+  --entrypoint python3 ghcr.io/home-assistant/amd64-hassio-supervisor:<current-tag> -m py_compile /tmp/check.py
+```
+
+`supervisor_firewall_patch.py` (fix 2) is far smaller and apparently still closely tracks upstream (13-line diff as of 2026-10-29, imports unchanged) – it has not needed this treatment yet, but the same re-derive approach applies if it ever does.
 
 ---
 
