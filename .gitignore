@@ -53,7 +53,6 @@ docs/gedanken zu kosten_sensoren.odt
 docs/.~lock.gedanken zu kosten_sensoren.odt#
 docs/roadmap/vergleich-sem-community.md
 # Lokal erzeugte Ordner / Office-Lockdateien
-site/
 .cache/
 miniems/htmlcov/
 .~lock.*
