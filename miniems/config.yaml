@@ -1,14 +1,12 @@
 name: miniEMS
-version: "3.5.0"
+version: "3.6.0"
 slug: miniems
 description: Mini Energy Management System for Deye inverter + Octopus Energy
-url: https://github.com/your-repo/miniEMS
+url: https://github.com/GuidoJeuken-6512/miniEMS
+image: "ghcr.io/guidojeuken-6512/{arch}-addon-miniems"
 arch:
   - aarch64
   - amd64
-  - armhf
-  - armv7
-  - i386
 startup: application
 boot: auto
 homeassistant_api: true
