@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-04-07
+revision_date: 2026-10-31
 ---
 
 # Installation
@@ -15,17 +15,22 @@ miniEMS consists of two parts that must both be installed:
 
 ## 1. Install the Add-on
 
-miniEMS is distributed as a local Home Assistant add-on.
+miniEMS is distributed as a Home Assistant add-on repository. Nothing needs to be copied.
 
-1. Copy the `miniems/` folder into your HA add-on directory via SSH or Samba:
-   ```
-   /addons/local/miniems/
-   ```
-2. In HA go to **Settings → Add-ons → Add-on Store → ⋮ → Check for updates**.
-3. The **miniEMS** add-on will appear under **Local add-ons**.
-4. Click **Install**.
-5. Click **Start**. The add-on will launch on port 8080 (ingress).
-6. Open the sidebar panel — you should see the **miniEMS Dashboard** with `Idle` mode. Warnings are expected at this stage.
+1. Use the **"Add repository"** button, which opens your HA instance directly:
+   [![Add repository](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FGuidoJeuken-6512%2FminiEMS)
+
+   Or manually: **Settings → Add-ons → Add-on Store → ⋮ → Repositories** and add
+   `https://github.com/GuidoJeuken-6512/miniEMS`.
+2. **miniEMS** appears in the add-on store. Open it and click **Install**.
+   HA downloads a ready-made image; nothing is built on your device.
+3. Click **Start**. The add-on will launch on port 8080 (ingress).
+4. Open the sidebar panel — you should see the **miniEMS Dashboard** with `Idle` mode. Warnings are expected at this stage.
+
+Supported architectures: **aarch64** (Raspberry Pi 4/5, HA Green/Yellow) and **amd64**
+(Intel/AMD PCs, VMs). 32-bit systems are not supported.
+
+Updates appear under **Settings → Add-ons → miniEMS** once a new version is released.
 
 ---
 

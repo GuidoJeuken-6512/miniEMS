@@ -3,10 +3,10 @@ name: Lint
 on:
   push:
     branches:
-      - dsfbkjf
+      - main
   pull_request:
     branches:
-      - dsfbkjf
+      - main
 
 jobs:
   find:
