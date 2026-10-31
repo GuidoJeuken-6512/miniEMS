@@ -57,3 +57,4 @@ site/
 .cache/
 miniems/htmlcov/
 .~lock.*
+.claude/settings.local.json
