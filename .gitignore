@@ -52,3 +52,4 @@ site/
 docs/gedanken zu kosten_sensoren.odt
 docs/.~lock.gedanken zu kosten_sensoren.odt#
 docs/roadmap/vergleich-sem-community.md
+.claude/settings.local.json
