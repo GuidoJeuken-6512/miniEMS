@@ -22,10 +22,22 @@ jobs:
     steps:
       - name: Check out the repository
         uses: actions/checkout@v6.0.1
+        with:
+          fetch-depth: 0
 
+      # Plain git instead of jitterbit/get-changed-files: that action fails on any
+      # filename with a space (e.g. "Prompt miniems.docx").
       - name: Get changed files
         id: changed_files
-        uses: jitterbit/get-changed-files@v1
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
+            files=$(git ls-files)            # first push: treat everything as changed
+          else
+            files=$(git diff --name-only "$BASE_SHA" "$GITHUB_SHA")
+          fi
+          echo "all=$(echo "$files" | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
 
       - name: Find add-on directories
         id: addons
