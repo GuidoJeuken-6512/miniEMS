@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>miniEMS – Heat Pump</title>
+  <link rel="icon" type="image/png" href="static/icon.png">
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+  <header>
+    <img src="static/icon.png" alt="miniEMS" style="height:2.2rem;width:2.2rem;vertical-align:middle;">
+    <h1>{{ translations.ui_heatpump or 'Heat Pump – Hot Water' }}</h1>
+    <span class="version-badge">v{{ version }}</span>
+  </header>
+  <nav class="tab-nav">
+    <a href="." class="tab-link">{{ translations.tab_dashboard or 'Dashboard' }}</a>
+    <a href="heatpump" class="tab-link active">{{ translations.tab_heatpump or 'Heat Pump' }}</a>
+    <a href="settings" class="tab-link">{{ translations.tab_settings or 'Settings' }}</a>
+    <a href="log" class="tab-link">{{ translations.tab_log or 'Log' }}</a>
+    <a href="config-json" class="tab-link">{{ translations.tab_config_json or 'config.json' }}</a>
+    <a href="options-json" class="tab-link">{{ translations.tab_options_json or 'options.json' }}</a>
+    <a href="database" class="tab-link">{{ translations.tab_database or 'Database' }}</a>
+    <a href="devices" class="tab-link">{{ translations.tab_devices or 'Devices' }}</a>
+  </nav>
+
+  <p class="raw-file-hint">{{ translations.hw_hint or '' }}</p>
+
+  <div id="hw-content">Loading…</div>
+  <div id="hw-history"></div>
+
+  <footer>{{ translations.footer or 'miniEMS v' }}{{ version }} &middot; Home Assistant Add-on</footer>
+
+  <script>
+    const T = {{ translations | tojson }};
+    let busy = false;
+
+    function esc(s) {
+      return String(s ?? '–').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function fmt(v, dec = 1) {
+      return (v === null || v === undefined || Number.isNaN(v)) ? '–' : Number(v).toFixed(dec);
+    }
+    function hm(iso) {
+      if (!iso) return '–';
+      return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    function dayHm(iso) {
+      if (!iso) return '–';
+      const d = new Date(iso);
+      return d.toLocaleDateString([], { weekday: 'short' }) + ' ' + hm(iso);
+    }
+    function modeClass(m) {
+      if (!m) return 'mode-IDLE';
+      if (m.includes('Protection')) return 'mode-PROTECT';
+      if (m.includes('PV')) return 'mode-PV';
+      if (m.includes('Manual') || m.includes('Plan')) return 'mode-GRID';
+      if (m.includes('Handoff')) return 'mode-EXPORT';
+      return 'mode-IDLE';
+    }
+    function srcLabel(s) {
+      return s === 'pv' ? `☀ ${T.hw_src_pv || 'PV'}` : s === 'battery' ? `🔋 ${T.hw_src_battery || 'Battery'}`
+        : `⚡ ${T.hw_src_grid || 'Grid'}`;
+    }
+    function card(label, value, unit = '', extra = '') {
+      return `<div class="savings-card"><div class="slabel">${label}</div>
+        <div class="svalue">${value}${unit ? ' <span class="unit">' + unit + '</span>' : ''}</div>${extra}</div>`;
+    }
+
+    function rateColor(rate, lo, hi) {
+      const f = hi > lo ? Math.max(0, Math.min(1, (rate - lo) / (hi - lo))) : 0;
+      const hue = 120 - f * 120;   // green → red
+      return `hsl(${hue}, 60%, 45%)`;
+    }
+
+    function renderTimeline(plan) {
+      const proj = plan.projection || [];
+      if (proj.length < 2) return '';
+      const t0 = new Date(proj[0].t).getTime();
+      const t1 = new Date(proj[proj.length - 1].t).getTime();
+      const span = t1 - t0 || 1;
+      const pct = t => ((new Date(t).getTime() - t0) / span * 100);
+      // colour by cost per kWh of heat – what the plan actually compares
+      const costs = (plan.windows || []).map(w => w.cost_th_eur_kwh);
+      const lo = Math.min(...costs, Infinity), hi = Math.max(...costs, -Infinity);
+      let ticks = '';
+      const first = new Date(t0); first.setMinutes(0, 0, 0);
+      for (let t = first.getTime() + 3600000; t < t1; t += 3600000) {
+        const d = new Date(t);
+        const left = (t - t0) / span * 100;
+        const label = d.getHours() % 6 === 0 ? `<em>${String(d.getHours()).padStart(2, '0')}</em>` : '';
+        ticks += `<i style="left:${left}%">${label}</i>`;
+      }
+      const segs = (plan.windows || []).map(w => {
+        const left = pct(w.start), width = Math.max(0.6, pct(w.end) - left);
+        const color = w.source === 'pv' ? '#3fb950' : rateColor(w.cost_th_eur_kwh, lo, hi);
+        const title = `${hm(w.start)}–${hm(w.end)} · ${fmt(w.cost_th_eur_kwh * 100, 1)} ${T.hw_ct_heat || 'ct/kWh heat'} · ` +
+          `${fmt(w.heat_kwh_th, 1)} kWh th · ${fmt(w.energy_kwh, 2)} kWh el · ` +
+          `${fmt(w.rate_eur_kwh * 100, 1)} ct · COP ${fmt(w.cop, 1)} · ${srcLabel(w.source)} · → ${fmt(w.goal_c, 0)} °C`;
+        return `<div class="hw-seg" title="${esc(title)}" style="left:${left}%;width:${width}%;background:${color}"></div>`;
+      }).join('');
+      const reqs = (plan.requirements || []).map(r =>
+        `<div class="hw-req" title="${esc(r.label)} ${fmt(r.min_c, 0)} °C" style="left:${pct(r.at)}%"></div>`).join('');
+      return `<div class="hw-timeline"><div class="hw-axis">${ticks}</div>${segs}${reqs}</div>`;
+    }
+
+    function renderProjection(plan, hw) {
+      const proj = plan.projection || [];
+      if (proj.length < 2) return '';
+      const W = 1000, H = 180;
+      const temps = proj.map(p => p.temp_c);
+      const shutoff = hw.shutoff_c != null ? hw.shutoff_c : hw.morning.target_c;
+      const yMin = Math.floor(Math.min(...temps, hw.min_temp_c - 3));
+      const yMax = Math.ceil(Math.max(...temps, shutoff + 2));
+      const t0 = new Date(proj[0].t).getTime();
+      const t1 = new Date(proj[proj.length - 1].t).getTime();
+      const x = t => ((new Date(t).getTime() - t0) / ((t1 - t0) || 1)) * W;
+      const y = v => H - ((v - yMin) / ((yMax - yMin) || 1)) * H;
+      const line = proj.map(p => `${x(p.t).toFixed(1)},${y(p.temp_c).toFixed(1)}`).join(' ');
+      const hline = (v, cls, label = '') => `<line class="${cls}" x1="0" x2="${W}" y1="${y(v)}" y2="${y(v)}"/>` +
+        `<text class="hw-proj-label" x="4" y="${y(v) - 3}">${fmt(v, 0)} °C${label ? ' ' + esc(label) : ''}</text>`;
+      const reqs = (plan.requirements || []).map(r =>
+        `<circle class="hw-proj-req" cx="${x(r.at)}" cy="${y(r.min_c)}" r="5"/>`).join('');
+      return `<div class="section-title">${T.hw_projection || 'Temperature forecast'}</div>
+        <svg class="hw-proj" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+          ${hline(hw.min_temp_c, 'hw-proj-min')}${hline(hw.day_target_c, 'hw-proj-day')}
+          ${hline(shutoff, 'hw-proj-shutoff', T.hw_shutoff || 'shut-off')}
+          <polyline class="hw-proj-line" points="${line}"/>${reqs}
+        </svg>`;
+    }
+
+    function controlBadge(hw) {
+      if (!hw.control_enabled) return `<span class="sim-badge">${T.hw_control_off || 'Control off'}</span>`;
+      if (hw.simulation) return `<span class="sim-badge">${T.hw_sim || 'Simulation'}</span>`;
+      return `<span class="conf-badge conf-high">${T.hw_live || 'Live'}</span>`;
+    }
+
+    function render(d) {
+      const hw = d.hot_water;
+      if (!hw) return `<div class="warn-item">${T.hw_not_configured || 'Not configured'}</div>`;
+      const hp = d.heat_pump || {};
+      const L = hw.learned || {};
+      const sp = hw.setpoint || {};
+      const plan = hw.plan;
+      const ad = hw.adhoc || {};
+
+      let spState = T.hw_not_written || 'not written';
+      if (hw.control_enabled) spState = sp.confirmed ? (T.hw_confirmed || 'confirmed') : (T.hw_pending || 'pending');
+      const spText = sp.target_c == null ? '–' : `${fmt(sp.target_c, 1)} °C`;
+      const spExtra = `<div class="muted">${esc(spState)}${sp.raw_value != null ? ' · raw ' + sp.raw_value : ''}` +
+        `${sp.read_back_c != null ? ' · HA ' + fmt(sp.read_back_c, 1) + ' °C' : ''}</div>`;
+
+      // One toggle button: pressed while the ad-hoc charge runs (or is being sent).
+      const pressed = busy ? pendingAction === 'start' : !!ad.active;
+      // target_c = shut-off temperature (miniEMS ends the charge there),
+      // setpoint_c = start impulse written to the heat pump.
+      const target = `${T.hw_adhoc_off_at || 'off at'} ${fmt(ad.target_c, 1)} °C`;
+      const impulse = `${T.hw_adhoc_impulse || 'setpoint'} ${fmt(ad.setpoint_c, 1)} °C`;
+      const noWrite = !ad.control_enabled ? (T.hw_adhoc_no_write_off || 'control off – nothing is written')
+        : ad.simulation ? (T.hw_adhoc_no_write_sim || 'simulation – nothing is written') : '';
+      let adhocInfo = '';
+      if (busy) adhocInfo = T.hw_adhoc_sending || 'sending…';
+      else if (ad.active) adhocInfo = `${T.hw_adhoc_active || 'Ad-hoc charge active'} · ${impulse} · ${target} · ` +
+        `${Math.round((ad.elapsed_sec || 0) / 60)} min · ${T.hw_adhoc_click_cancel || 'click again to cancel'}`;
+      else if (hw.boil_temp_c != null && hw.boil_temp_c >= ad.target_c)
+        adhocInfo = `${T.hw_adhoc_already || 'boiler already at shut-off temperature'} (${fmt(ad.target_c, 1)} °C)`;
+      else adhocInfo = `${T.hw_adhoc_start_hint || 'Start'}: ${impulse} (${T.hw_boil || 'Boiler'} + ${fmt(ad.delta_k, 0)} K) · ${target}`;
+      if (noWrite) adhocInfo += ` · ${noWrite}`;
+      const adhocBtn = `<button class="btn-toggle${pressed ? ' pressed' : ''}" aria-pressed="${pressed}"
+          onclick="adhoc('${ad.active ? 'cancel' : 'start'}')" ${busy ? 'disabled' : ''}>
+          <span class="led"></span>${T.hw_adhoc_start || 'Hot water now'}</button>
+        <span class="muted">${esc(adhocInfo)}</span>
+        ${alertMsg ? `<span class="warn-item">${esc(alertMsg)}</span>` : ''}`;
+
+      const copLearned = `${fmt(L.cop_now, 2)}`;
+      const copExtra = `<div class="muted">${L.cop_outdoor_c != null ? fmt(L.cop_outdoor_c, 1) + ' °C' : ''}` +
+        `${L.cop_source === 'prior' ? ' · ' + (T.hw_cop_prior || 'starting value') : ' · ' + fmt(L.cop_hours, 0) + ' h'}</div>`;
+
+      let planHtml = `<div class="muted">${T.hw_no_plan || 'No schedule'}</div>`;
+      if (plan) {
+        const win = (plan.windows || []).map(w => card(
+          `${dayHm(w.start)} – ${hm(w.end)} · ${srcLabel(w.source)}`,
+          fmt(w.cost_th_eur_kwh * 100, 1), T.hw_ct_heat || 'ct/kWh heat',
+          `<div class="muted">${fmt(w.from_c, 1)} → ${fmt(w.goal_c, 0)} °C · ${fmt(w.heat_kwh_th, 1)} kWh th · ` +
+          `${fmt(w.energy_kwh, 2)} kWh el · ${fmt(w.rate_eur_kwh * 100, 1)} ct/kWh el · COP ${fmt(w.cop, 1)}</div>`
+        )).join('');
+        planHtml = `
+          <div class="savings-grid">
+            ${card(T.hw_plan_heat || 'Planned heat', fmt(plan.heat_kwh_th, 1), 'kWh th', `<div class="muted">${fmt(plan.energy_kwh, 2)} kWh el</div>`)}
+            ${card(T.hw_plan_cost || 'Planned cost', fmt(plan.estimated_cost_eur, 2), '€')}
+            ${win}
+          </div>
+          ${plan.reason ? `<div class="${plan.feasible ? 'muted' : 'warn-item'}">${esc(plan.reason)}</div>` : ''}
+          ${renderTimeline(plan)}
+          ${renderProjection(plan, hw)}`;
+      }
+
+      return `
+        <div class="hw-head">
+          <div class="mode-badge ${modeClass(hw.mode)}">${esc(hw.mode)}</div>
+          ${controlBadge(hw)}
+          ${hw.couples_battery_plan ? `<span class="conf-badge conf-low">${T.hw_couples || 'feeds battery plan'}</span>` : ''}
+        </div>
+        <div class="muted hw-reason">${T.hw_decision || 'Decision'}: ${esc(hw.reason)}</div>
+        ${hw.now_cost_th_eur_kwh != null ? `<div class="muted hw-reason">${T.hw_cost_now || 'Heat now would cost'}: ` +
+          `${fmt(hw.now_cost_th_eur_kwh * 100, 1)} ${T.hw_ct_heat || 'ct/kWh heat'}</div>` : ''}
+        <div class="hw-actions">${adhocBtn}</div>
+
+        <div class="savings-grid">
+          ${card(T.hw_boil || 'Boiler temperature', fmt(hw.boil_temp_c, 1), '°C', hp.draw_active
+            ? `<div class="hw-draw">🚿 ${T.hw_draw_active || 'Draw in progress'} ${hm(hp.draw_active.since)}: ` +
+              `${fmt(hp.draw_active.temp_before_c, 1)} → ${fmt(hp.draw_active.temp_now_c, 1)} °C ` +
+              `(−${fmt(hp.draw_active.drop_k, 1)} K)</div>` : '')}
+          ${card(T.hw_min || 'Minimum', fmt(hw.min_temp_c, 0), '°C', `<div class="muted">${T.hw_day_target || 'Day target'} ${fmt(hw.day_target_c, 0)} °C</div>`)}
+          ${card(T.hw_morning || 'Morning target', fmt(hw.morning.target_c, 0), '°C', `<div class="muted">${dayHm(hw.morning.next)}</div>`)}
+          ${card(T.hw_setpoint || 'Setpoint', spText, '', spExtra)}
+          ${card(T.hw_cop_live || 'COP live / filtered', `${fmt(hp.cop_raw, 2)} / ${fmt(hp.cop_filtered, 2)}`)}
+          ${card((T.hw_cop_learned || 'Learned COP at') + ' ' + fmt(hw.outdoor_temp_c, 1) + ' °C', copLearned, '', copExtra)}
+          ${card(T.hw_loss || 'Standby loss at 50 °C', fmt(L.loss_k_per_h_at_50, 2), 'K/h', `<div class="muted">${L.loss_source} · ${L.loss_segments}</div>`)}
+          ${card(T.hw_heat_power || 'Heating power', fmt(L.heat_kw_th, 1), 'kW', `<div class="muted">${esc(L.heat_source)}</div>`)}
+          ${L.draw_learned === false
+            ? card(T.hw_draws || 'Draw profile', T.hw_learning || 'learning', '',
+                `<div class="muted">${L.draw_days} / ${L.draw_min_days} ${T.hw_days_history || 'days of history'}</div>`)
+            : card(T.hw_draws || 'Draw profile', `${fmt(L.draw_k_per_day_workday, 1)} / ${fmt(L.draw_k_per_day_weekend, 1)}`,
+                'K/d', `<div class="muted">${T.hw_workday_weekend || 'workday / weekend'} · ${L.draw_days} d</div>`)}
+        </div>
+
+        <div class="section-title">${T.hw_plan || 'Hot-water schedule'}</div>
+        ${planHtml}`;
+    }
+
+    function renderHistory(h) {
+      const hours = (h.hours || []).slice(-12).reverse().map(r => `<tr>
+        <td>${hm(r.hour_start)}</td><td>${esc(r.mode)}</td><td>${fmt(r.cop_avg, 2)}</td>
+        <td>${fmt(r.outdoor_temp_c, 1)}</td><td>${fmt(r.boil_temp_c, 1)}</td><td>${fmt(r.heat_pump_kwh, 2)}</td></tr>`).join('');
+      // a draw still in progress comes from the live status, before it is stored
+      const act = lastData && lastData.heat_pump && lastData.heat_pump.draw_active;
+      const open = act ? `<tr class="hw-draw-row"><td>${dayHm(act.since)} 🚿 ${T.hw_draw_running || 'running'}</td>` +
+        `<td>${fmt(act.temp_before_c, 1)} → ${fmt(act.temp_now_c, 1)}</td><td>${fmt(act.drop_k, 1)} K</td></tr>` : '';
+      const draws = open + (h.draws || []).slice(0, 10).map(r => `<tr>
+        <td>${dayHm(r.ts)}</td><td>${fmt(r.temp_before_c, 1)} → ${fmt(r.temp_after_c, 1)}</td><td>${fmt(r.drop_k, 1)} K</td></tr>`).join('');
+      const segs = (h.segments || []).slice(0, 10).map(r => `<tr>
+        <td>${dayHm(r.start_ts)}</td><td>${fmt(r.duration_h, 1)} h</td><td>${fmt(r.k_per_h, 2)} K/h</td>
+        <td>${fmt(r.avg_boil_temp_c, 1)} °C</td><td>${esc(r.end_reason)}</td></tr>`).join('');
+      return `
+        <div class="section-title">${T.hw_recent_hours || 'Recent hours'}</div>
+        <table class="log-table"><tr><th>${T.hw_hour || 'Hour'}</th><th>${T.hw_op_mode || 'Mode'}</th><th>COP</th>
+          <th>${T.hw_outdoor || 'Outdoor'} °C</th><th>Boiler °C</th><th>kWh</th></tr>${hours}</table>
+        <div class="section-title">${T.hw_recent_draws || 'Recent draws'}</div>
+        <table class="log-table"><tr><th></th><th>°C</th><th>Δ</th></tr>${draws}</table>
+        <div class="section-title">${T.hw_recent_segments || 'Recent loss measurements'}</div>
+        <table class="log-table"><tr><th></th><th></th><th></th><th>Ø</th><th></th></tr>${segs}</table>`;
+    }
+
+    let lastData = null;
+    let pendingAction = null;
+    let alertMsg = '';
+
+    function paint() {
+      if (lastData) document.getElementById('hw-content').innerHTML = render(lastData);
+    }
+    async function refresh() {
+      if (busy) return;   // don't overwrite the pressed state with an older status
+      try {
+        const r = await fetch('api/status');
+        const prevDraw = lastData && lastData.heat_pump && lastData.heat_pump.draw_active;
+        lastData = await r.json();
+        paint();
+        // a draw started or just got stored: update the draw table at once
+        const nowDraw = lastData.heat_pump && lastData.heat_pump.draw_active;
+        if (Boolean(prevDraw) !== Boolean(nowDraw) || nowDraw) refreshHistory();
+      } catch (e) {
+        document.getElementById('hw-content').innerHTML = `<div class="warn-item">${esc(e)}</div>`;
+      }
+    }
+    async function refreshHistory() {
+      try {
+        const r = await fetch('api/hot_water/history');
+        document.getElementById('hw-history').innerHTML = renderHistory(await r.json());
+      } catch (e) { /* history is optional */ }
+    }
+    async function adhoc(action) {
+      if (busy) return;
+      busy = true;
+      pendingAction = action;
+      alertMsg = '';
+      paint();   // show the pressed / released state at once
+      try {
+        const r = await fetch('api/hot_water/adhoc', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        });
+        const res = await r.json();
+        if (r.ok && lastData && lastData.hot_water) lastData.hot_water.adhoc = res;
+        if (!r.ok) alertMsg = res.error || `HTTP ${r.status}`;
+        else if (res.info) alertMsg = T.hw_adhoc_already || res.info;
+      } catch (e) {
+        alertMsg = String(e);
+      } finally {
+        busy = false;
+        pendingAction = null;
+      }
+      await refresh();   // full status incl. new mode and setpoint
+    }
+
+    window.onload = () => { refresh(); refreshHistory(); };
+    setInterval(refresh, 5000);
+    setInterval(refreshHistory, 60000);
+  </script>
+</body>
+</html>

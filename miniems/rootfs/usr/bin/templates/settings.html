@@ -15,6 +15,7 @@
   </header>
   <nav class="tab-nav">
     <a href="." class="tab-link">{{ translations.tab_dashboard or 'Dashboard' }}</a>
+    <a href="heatpump" class="tab-link">{{ translations.tab_heatpump or 'Heat Pump' }}</a>
     <a href="settings" class="tab-link active">{{ translations.tab_settings or 'Settings' }}</a>
     <a href="log" class="tab-link">{{ translations.tab_log or 'Log' }}</a>
     <a href="config-json" class="tab-link">{{ translations.tab_config_json or 'config.json' }}</a>
@@ -28,7 +29,8 @@
   <script>
     const BOOL_FIELDS = new Set([
       'battery_control_enabled', 'battery_control_simulation',
-      'pv_export_priority_enabled', 'load_forecast_enabled'
+      'pv_export_priority_enabled', 'load_forecast_enabled',
+      'hw_control_enabled', 'hw_control_simulation'
     ]);
     const INT_FIELDS = new Set([
       'battery_min_soc', 'battery_max_soc', 'pv_surplus_threshold_w',
@@ -38,7 +40,9 @@
       'mode_dwell_sec', 'battery_soc_hysteresis_pct',
       'grid_charge_dark_start_hour', 'grid_charge_dark_end_hour',
       'sensor_max_age_sec', 'forecast_max_age_sec', 'price_max_age_sec',
-      'inverter_write_stuck_threshold_sec', 'load_forecast_min_days'
+      'inverter_write_stuck_threshold_sec', 'load_forecast_min_days',
+      'hp_mode_hot_water_code', 'hp_request_hot_water_code', 'hp_cop_settle_sec',
+      'hw_write_scale', 'hw_pv_min_export_w', 'hw_min_off_sec'
     ]);
     const FLOAT_FIELDS = new Set([
       'battery_capacity_kwh', 'cheap_rate_threshold_eur', 'medium_rate_threshold_eur',
@@ -47,6 +51,10 @@
       'pv_charge_margin_factor', 'pv_charge_hysteresis_frac', 'grid_charge_min_free_kwh',
       'grid_charge_min_margin_eur_kwh',
       'heating_limit_temp_c', 'pv_forecast_blend_weight',
+      'hot_water_min_temp_c', 'hw_draw_drop_k',
+      'hw_volume_l', 'hw_day_target_c', 'hw_morning_target_c', 'hw_boost_delta_k', 'hw_idle_setpoint_c',
+      'hw_max_temp_c', 'hw_heat_power_kw', 'hw_cop_prior',
+      'hw_cop_prior_temp_c', 'hw_adhoc_delta_k', 'hw_decision_tolerance_pct',
     ]);
 
     const SECTIONS = [
@@ -145,6 +153,46 @@
         ]
       },
       {
+        title: 'Heat Pump / Hot Water (data collection)',
+        fields: [
+          { key: 'heat_pump_cop_entity',          label: 'COP entity (live, 0 = off)' },
+          { key: 'heat_pump_mode_entity',         label: 'Operating mode entity (numeric code)' },
+          { key: 'heat_pump_request_type_entity', label: 'Request type entity (numeric code)' },
+          { key: 'boil_temp_entity',         label: 'Boiler (hot water) temperature entity (°C)' },
+          { key: 'hp_mode_hot_water_code',        label: 'Operating mode code = hot water' },
+          { key: 'hp_request_hot_water_code',     label: 'Request type code = hot water' },
+          { key: 'hot_water_min_temp_c',          label: 'Minimum hot water temperature (°C)' },
+          { key: 'hp_cop_settle_sec',             label: 'Ignore COP after compressor start (s)' },
+          { key: 'hw_draw_drop_k',                label: 'Drop within 10 min counted as draw (K)' },
+        ]
+      },
+      {
+        title: 'Hot Water Control',
+        fields: [
+          { key: 'hw_control_enabled',    label: 'Enable hot-water control (off = decisions shown only)' },
+          { key: 'hw_control_simulation', label: 'Simulation mode (log only, nothing written)' },
+          { key: 'hw_write_service',      label: 'Write service (domain.service of the heat pump integration)' },
+          { key: 'hw_write_data',         label: 'Service data JSON ({value} = °C × scale)' },
+          { key: 'hw_write_scale',        label: 'Setpoint scale (Lambda: 10)' },
+          { key: 'hw_target_entity',      label: 'Setpoint read-back entity (confirmation)' },
+          { key: 'hw_volume_l',           label: 'Boiler volume (l)' },
+          { key: 'hw_day_target_c',       label: 'Day target (°C, at least the minimum)' },
+          { key: 'hw_morning_target_c',   label: 'Shut-off temperature of every charge = workday morning target (°C)' },
+          { key: 'hw_morning_time',       label: 'Workday morning time (HH:MM)' },
+          { key: 'hw_workday_entity',     label: 'Workday binary sensor (optional, else Mon–Fri)' },
+          { key: 'hw_boost_delta_k',      label: 'Start impulse: setpoint above the boiler (K, at least shut-off + 2)' },
+          { key: 'hw_idle_setpoint_c',    label: 'Setpoint when no charge runs (°C, well below the minimum)' },
+          { key: 'hw_max_temp_c',         label: 'Maximum boiler temperature, shut-off of a PV-surplus charge (°C)' },
+          { key: 'hw_heat_power_kw',      label: 'Heating power until learned (kW thermal)' },
+          { key: 'hw_cop_prior',          label: 'Starting COP (used while history is thin)' },
+          { key: 'hw_cop_prior_temp_c',   label: 'Outdoor temperature of the starting COP (°C)' },
+          { key: 'hw_pv_min_export_w',    label: 'PV export that triggers a surplus charge (W)' },
+          { key: 'hw_min_off_sec',        label: 'Minimum pause between charges (s)' },
+          { key: 'hw_adhoc_delta_k',      label: 'Ad-hoc start impulse: boiler temperature + (K)' },
+          { key: 'hw_decision_tolerance_pct', label: 'Charge now if at most this much dearer per kWh heat than later (%)' },
+        ]
+      },
+      {
         title: 'Forecast & Prediction',
         fields: [
           { key: 'weather_entity', label: 'Weather Entity (e.g. weather.openweathermap)' },
@@ -188,9 +236,94 @@
         </div>`;
     }
 
+    // ── Control mode (top section): applied at once, no save/restart ──
+    // Each top switch mirrors one or more form fields further down, which are
+    // kept in sync so "Save & Restart" never writes a stale value back.
+    const MODE_SWITCHES = [
+      { id: 'simulation',      label: 'Simulation (everything is only simulated, nothing is written)',
+        fields: ['battery_control_simulation', 'hw_control_simulation'] },
+      { id: 'battery_control', label: 'Battery control on/off', fields: ['battery_control_enabled'] },
+      { id: 'hw_control',      label: 'Heat pump (hot water) control on/off', fields: ['hw_control_enabled'] },
+    ];
+    let modeBusy = false;
+
+    function modeBadge(enabled, live) {
+      if (!enabled) return '<span class="sim-badge mode-off">OFF</span>';
+      if (live) return '<span class="conf-badge conf-high">LIVE</span>';
+      return '<span class="sim-badge">SIMULATION</span>';
+    }
+
+    function renderModeSection(m) {
+      const rows = MODE_SWITCHES.map(s => `
+        <div class="field-row">
+          <label class="field-label" for="cm_${s.id}">${s.label}</label>
+          <label class="toggle">
+            <input type="checkbox" id="cm_${s.id}" ${m[s.id] ? 'checked' : ''}
+                   ${modeBusy ? 'disabled' : ''} onchange="setMode('${s.id}', this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>`).join('');
+      return `
+        <h2 class="section-heading">Control Mode</h2>
+        <div class="mode-status">
+          <span>Battery ${modeBadge(m.battery_control, m.battery_live)}</span>
+          <span>Heat pump ${modeBadge(m.hw_control, m.hw_live)}</span>
+          ${m.simulation_mixed ? '<span class="save-msg err">simulation differed between battery and heat pump – the switch sets both</span>' : ''}
+        </div>
+        ${rows}
+        <div class="muted mode-hint">Takes effect immediately, no restart. Leaving LIVE first
+          restores the safe inverter / boiler state.
+          <span id="mode-msg" class="save-msg"></span></div>`;
+    }
+
+    function paintMode(m) {
+      document.getElementById('mode-section').innerHTML = renderModeSection(m);
+      // Keep the form below in step with what is now active.
+      for (const s of MODE_SWITCHES) {
+        for (const key of s.fields) {
+          const el = document.getElementById(key);
+          if (el) el.checked = !!m[s.id];
+          currentConfig[key] = !!m[s.id];
+        }
+      }
+    }
+
+    async function loadMode() {
+      try {
+        const r = await fetch('api/control_mode');
+        if (r.ok) paintMode(await r.json());
+      } catch (e) { /* section stays empty */ }
+    }
+
+    async function setMode(id, value) {
+      if (modeBusy) return;
+      modeBusy = true;
+      const msg = document.getElementById('mode-msg');
+      msg.textContent = 'switching…';
+      msg.className = 'save-msg';
+      document.querySelectorAll('#mode-section input').forEach(el => el.disabled = true);
+      let data = null, err = '';
+      try {
+        const r = await fetch('api/control_mode', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [id]: value }),
+        });
+        data = await r.json();
+        if (!r.ok) err = data.error || `HTTP ${r.status}`;
+      } catch (e) {
+        err = String(e);
+      }
+      modeBusy = false;
+      if (data && data.simulation !== undefined) paintMode(data);
+      else await loadMode();
+      const m2 = document.getElementById('mode-msg');
+      m2.textContent = err ? 'Error: ' + err : '✓ active';
+      m2.className = 'save-msg ' + (err ? 'err' : 'ok');
+    }
+
     function renderForm(cfg) {
       currentConfig = cfg;
-      let html = '';
+      let html = '<div class="settings-section" id="mode-section"></div>';
       for (const section of SECTIONS) {
         html += `<div class="settings-section"><h2 class="section-heading">${section.title}</h2>`;
         for (const f of section.fields) {
@@ -262,6 +395,7 @@
         const r = await fetch('api/config');
         const cfg = await r.json();
         renderForm(cfg);
+        await loadMode();
       } catch(e) {
         document.getElementById('settings-form').textContent = 'Failed to load config: ' + e;
       }

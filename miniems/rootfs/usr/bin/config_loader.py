@@ -14,6 +14,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field, fields
+from typing import Any
 
 from const import (
     BATTERY_MAX_CURRENT_A,
@@ -205,6 +206,69 @@ class Config:
     # Heating limit temperature: above it the heat pump does not heat (only
     # hot water, which the model learns as a flat base).
     heating_limit_temp_c: float = 15.0
+    # --- Wärmepumpe / Warmwasser – Datensammlung (v3.4.0) ------------------
+    # docs/roadmap/v3.4-warmwasser.md, Schritt 1. All empty = nothing recorded.
+    heat_pump_cop_entity: str = ""
+    # Numeric operating-mode / ad-hoc request-type sensors of the heat pump.
+    heat_pump_mode_entity: str = ""
+    heat_pump_request_type_entity: str = ""
+    boil_temp_entity: str = ""
+    # Codes meaning "hot water": the boiler (hot-water storage) is being heated, so no standby loss
+    # can be measured while either matches.
+    hp_mode_hot_water_code: int = 2
+    hp_request_hot_water_code: int = 4
+    hot_water_min_temp_c: float = 45.0
+    # COP readings right after a compressor start / mode change are
+    # unrealistic transients and are discarded for this long.
+    hp_cop_settle_sec: int = 300
+    # A boiler-temperature drop of at least this many K within
+    # HW_DRAW_WINDOW_SEC is a hot-water draw, not standby loss.
+    hw_draw_drop_k: float = 1.5
+    # --- Warmwasser-Steuerung (v3.5.0, docs/roadmap/v3.4-warmwasser.md) ---
+    # Off = decisions are only computed and shown; simulation = logged as
+    # [SIM], never written. Both must be changed on purpose to go live.
+    hw_control_enabled: bool = False
+    hw_control_simulation: bool = True
+    # Read back to confirm a write (°C).
+    hw_target_entity: str = "sensor.eu08l_boil1_target_high_temperature"
+    # "domain.service" of the heat pump integration's write service, and its
+    # JSON data template; {value} is replaced by °C × hw_write_scale.
+    # Lambda: Modbus register 2050 = boiler 1 target high temperature (0.1 °C).
+    hw_write_service: str = "lambda_heat_pumps.write_modbus_register"
+    hw_write_data: str = '{"register_address": 2050, "value": {value}}'
+    hw_write_scale: int = 10
+    hw_volume_l: float = 200.0
+    hw_day_target_c: float = 45.0
+    # Shut-off temperature of every charge except a spontaneous PV-surplus one
+    # (that one runs to hw_max_temp_c), and the workday morning target. The
+    # written setpoint is only a start impulse above it – miniEMS ends the
+    # charge when the measured boiler temperature reaches this value.
+    hw_morning_target_c: float = 50.0
+    hw_morning_time: str = "06:30"
+    # Optional HA binary_sensor (on = workday); empty = Monday–Friday.
+    hw_workday_entity: str = ""
+    # Start impulse: the setpoint is raised this far above the boiler so the
+    # heat pump switches to hot-water mode (at least shut-off + 2 K).
+    hw_boost_delta_k: float = 10.0
+    # Setpoint written when no charge runs (goal reached, cancelled, idle).
+    # Far below the day target so the heat pump's own hysteresis never starts
+    # a charge; the minimum is guarded by miniEMS' protection charge.
+    hw_idle_setpoint_c: float = 35.0
+    hw_max_temp_c: float = 55.0
+    # Thermal heating power until learned from history.
+    hw_heat_power_kw: float = 4.0
+    # Starting point for the learned COP while history is thin.
+    hw_cop_prior: float = 4.77
+    hw_cop_prior_temp_c: float = 8.5
+    hw_pv_min_export_w: int = 1500
+    hw_min_off_sec: int = 1800
+    # Ad-hoc button: setpoint = current boiler temperature + this, written
+    # immediately (capped at 65 °C).
+    hw_adhoc_delta_k: float = 10.0
+    # A charge starts now when that is at most this much dearer (per kWh of
+    # heat) than the best later option – "will I make it to the next cheap
+    # window?" is answered with "no" only when waiting saves more than this.
+    hw_decision_tolerance_pct: float = 5.0
     # Which Solcast scenario feeds the plan: "estimate" (median), "estimate10"
     # (pessimistic) or "blend" = w × estimate + (1−w) × estimate10. Under-
     # charging costs the full tariff spread per kWh, over-charging only the
@@ -284,7 +348,18 @@ class Config:
         forecast = [
             e for e in [*self.heat_pump_entities, self.outdoor_temp_entity] if e
         ]
-        return base + solcast + optional + scenario2 + control + forecast
+        heat_pump = [
+            e for e in [
+                self.heat_pump_cop_entity,
+                self.heat_pump_mode_entity,
+                self.heat_pump_request_type_entity,
+                self.boil_temp_entity,
+                self.hw_target_entity,
+                self.hw_workday_entity,
+            ]
+            if e
+        ]
+        return base + solcast + optional + scenario2 + control + forecast + heat_pump
 
 
 def _defaults() -> dict:
@@ -302,6 +377,18 @@ def _load_json(path: str) -> dict:
         _LOGGER.error("Failed to read %s: %s – ignored", path, exc)
         return {}
 
+
+# Minimum distance of hw_idle_setpoint_c below hot_water_min_temp_c.
+_HW_IDLE_MIN_GAP_K = 5.0
+# Minimum distance of the shut-off temperature (hw_morning_target_c) above the day target.
+_HW_SHUTOFF_MIN_GAP_K = 2.0
+
+# Simulation / control switches. Owned by config.json (settings page, switched
+# at runtime via /api/control_mode); options.json never overrides them.
+CONTROL_MODE_KEYS: frozenset[str] = frozenset({
+    "battery_control_enabled", "battery_control_simulation",
+    "hw_control_enabled", "hw_control_simulation",
+})
 
 _OPTIONS_RENAMES: dict[str, str] = {
     # old options.json key → current Config field name
@@ -356,6 +443,23 @@ def _validate(cfg: "Config") -> None:
         ("load_forecast_min_days", 1, 60),
         ("heating_limit_temp_c", 5.0, 25.0),
         ("pv_forecast_blend_weight", 0.0, 1.0),
+        ("hot_water_min_temp_c", 30.0, 65.0),
+        ("hp_cop_settle_sec", 0, 1800),
+        ("hw_draw_drop_k", 0.5, 10.0),
+        ("hw_write_scale", 1, 1000),
+        ("hw_volume_l", 30.0, 2000.0),
+        ("hw_day_target_c", 30.0, 65.0),
+        ("hw_morning_target_c", 30.0, 65.0),
+        ("hw_boost_delta_k", 2.0, 20.0),
+        ("hw_idle_setpoint_c", 20.0, 60.0),
+        ("hw_max_temp_c", 40.0, 70.0),
+        ("hw_heat_power_kw", 0.5, 20.0),
+        ("hw_cop_prior", 1.5, 8.0),
+        ("hw_cop_prior_temp_c", -20.0, 35.0),
+        ("hw_pv_min_export_w", 0, 20000),
+        ("hw_min_off_sec", 0, 14400),
+        ("hw_adhoc_delta_k", 2.0, 20.0),
+        ("hw_decision_tolerance_pct", 0.0, 50.0),
     )
     for name, lo, hi in clamps:
         value = getattr(cfg, name)
@@ -373,10 +477,74 @@ def _validate(cfg: "Config") -> None:
         _LOGGER.warning("tariff_source = %r is unknown – using 'auto'", cfg.tariff_source)
         cfg.tariff_source = "auto"
 
+    if parse_hhmm(cfg.hw_morning_time) is None:
+        _LOGGER.warning("hw_morning_time = %r is not HH:MM – using '06:30'", cfg.hw_morning_time)
+        cfg.hw_morning_time = "06:30"
+    if cfg.hw_day_target_c < cfg.hot_water_min_temp_c:
+        _LOGGER.warning("hw_day_target_c (%s) below hot_water_min_temp_c (%s) – raised",
+                        cfg.hw_day_target_c, cfg.hot_water_min_temp_c)
+        cfg.hw_day_target_c = cfg.hot_water_min_temp_c
+    # The idle setpoint must stay well below the minimum, or the heat pump's
+    # own hysteresis would start charges miniEMS did not plan.
+    idle_max = cfg.hot_water_min_temp_c - _HW_IDLE_MIN_GAP_K
+    if cfg.hw_idle_setpoint_c > idle_max:
+        _LOGGER.warning("hw_idle_setpoint_c (%s) not at least %s K below hot_water_min_temp_c "
+                        "(%s) – lowered to %s", cfg.hw_idle_setpoint_c, _HW_IDLE_MIN_GAP_K,
+                        cfg.hot_water_min_temp_c, idle_max)
+        cfg.hw_idle_setpoint_c = idle_max
+    # Shut-off must lie above the day target, or every charge would end at once.
+    shutoff_min = cfg.hw_day_target_c + _HW_SHUTOFF_MIN_GAP_K
+    if cfg.hw_morning_target_c < shutoff_min:
+        _LOGGER.warning("hw_morning_target_c (shut-off, %s) not at least %s K above "
+                        "hw_day_target_c (%s) – raised to %s", cfg.hw_morning_target_c,
+                        _HW_SHUTOFF_MIN_GAP_K, cfg.hw_day_target_c, shutoff_min)
+        cfg.hw_morning_target_c = shutoff_min
+    if cfg.hw_max_temp_c < max(cfg.hw_morning_target_c, cfg.hw_day_target_c):
+        new = max(cfg.hw_morning_target_c, cfg.hw_day_target_c)
+        _LOGGER.warning("hw_max_temp_c (%s) below a hot-water target – raised to %s",
+                        cfg.hw_max_temp_c, new)
+        cfg.hw_max_temp_c = new
+
     if cfg.pv_export_priority_enabled and not cfg.battery_control_enabled:
         _LOGGER.warning(
             "pv_export_priority_enabled has no effect while battery_control_enabled is off"
         )
+
+
+def parse_hhmm(value: str) -> tuple[int, int] | None:
+    """"06:30" → (6, 30); None when not a valid time of day."""
+    try:
+        h, m = (int(p) for p in str(value).strip().split(":"))
+    except (TypeError, ValueError):
+        return None
+    if 0 <= h <= 23 and 0 <= m <= 59:
+        return h, m
+    return None
+
+
+def _coerce_to_default_type(key: str, value: Any, default: Any) -> Any:
+    """Bring a stored/option value to the type of the field's default.
+
+    Older versions persisted some numeric fields as strings (a float missing
+    from web_server._FLOAT_FIELDS fell through to str()); those strings would
+    otherwise stay in config.json forever and crash the first comparison.
+    """
+    if value is None or isinstance(default, (str, dict, list)) or default is None:
+        return value
+    try:
+        if isinstance(default, bool):
+            if isinstance(value, bool):
+                return value
+            return str(value).strip().lower() in ("true", "1", "on", "yes")
+        if isinstance(default, int):
+            return value if type(value) is int else int(float(value))
+        if isinstance(default, float):
+            return value if type(value) is float else float(value)
+    except (TypeError, ValueError):
+        _LOGGER.warning("%s = %r is not a valid %s – using default %r",
+                        key, value, type(default).__name__, default)
+        return default
+    return value
 
 
 def load_config() -> Config:
@@ -403,6 +571,17 @@ def load_config() -> Config:
     for key in defs:
         opt_val = options.get(key)  # None = key not present in options.json
 
+        # Switched at runtime from the settings page and persisted to
+        # config.json only – a stale options.json must never flip them back
+        # (e.g. silently going LIVE again after a restart).
+        if key in CONTROL_MODE_KEYS:
+            if opt_val is not None and opt_val != stored.get(key, defs[key]):
+                _LOGGER.warning("options.json %s = %r ignored – control mode is set on the "
+                                "settings page (config.json: %r)",
+                                key, opt_val, stored.get(key, defs[key]))
+            merged[key] = stored.get(key, defs[key])
+            continue
+
         # options.json wins only when the key is explicitly present AND differs
         # from the dataclass default (i.e. the user actively changed it via UI).
         # A missing key (None) must NOT win over a previously saved value.
@@ -411,6 +590,9 @@ def load_config() -> Config:
         else:
             # Fall back to persisted value; use default if not yet stored
             merged[key] = stored.get(key, defs[key])
+
+    for key, value in merged.items():
+        merged[key] = _coerce_to_default_type(key, value, defs[key])
 
     merged["_version"] = CURRENT_VERSION
 

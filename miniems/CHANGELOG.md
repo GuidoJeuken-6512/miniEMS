@@ -1,5 +1,124 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.5.0
+
+### Added
+
+- **Einstellungen: Abschnitt „Control Mode“ ganz oben.** Drei Schalter, die
+  sofort ohne Speichern und Neustart wirken (`POST /api/control_mode`):
+  Simulation (Akku und WP gemeinsam), Batteriesteuerung an/aus,
+  WP-Steuerung an/aus, mit Status-Badge LIVE / SIMULATION / OFF je Teil.
+  - Verlassen von LIVE stellt zuerst den sicheren Zustand her (Wechselrichter
+    ohne Limits, Boiler-Sollwert = Tagesziel). Danach werden die
+    Schreibkanäle zurückgesetzt, damit nach Simulation → LIVE wirklich
+    geschrieben wird.
+  - Restart-sicher: gespeichert in `config.json` (atomar geschrieben).
+    `options.json` überschreibt diese vier Schalter beim Start nicht mehr.
+    Abweichende Werte dort werden ignoriert und im Log gemeldet.
+- **Warmwasser-Steuerung (vorausschauend, analog zum Akku-Netzladen).**
+  Standardmäßig aus (`hw_control_enabled`) und im Simulationsmodus
+  (`hw_control_simulation`). Solange beide nicht bewusst umgestellt sind,
+  wird nur berechnet und angezeigt; geschrieben wird nichts. Config-Schema v23.
+  Doku: `docs/roadmap/v3.4-warmwasser.md`.
+  - **Lernen** (`hot_water_model.py`): COP über der Außentemperatur für den
+    WW-Modus. Dazu kommen der Standby-Verlust in K/h je K über Raumtemperatur,
+    die thermische Heizleistung und ein Zapfprofil je Werktag/Wochenende und
+    Stunde. Solange die Historie dünn ist, gilt der Startwert
+    `hw_cop_prior` = 4,77 bei `hw_cop_prior_temp_c` = 8,5 °C. Er geht als
+    Pseudo-Datenpunkt in die Regression ein und wird nicht in die Datenbank
+    geschrieben. Mit wachsender echter Historie verliert er an Gewicht.
+  - **Fahrplan** (`hot_water_planner.py`): Die Boiler-Temperatur wird für
+    36 h in 30-min-Slots simuliert (Verlust, Zapfprofil). Geplant werden
+    **ganze Ladungen bis zur Abschalttemperatur**, rechtzeitig vor jeder
+    Anforderung: Tagesziel `hw_day_target_c` und an Werktagen frisch geladen
+    um `hw_morning_time`. Bei jedem Tarifwechsel (Slotgrenze) wird neu
+    entschieden: Reicht der Speicher bis ins nächste günstige Fenster? Ja →
+    warten (35 °C), nein → jetzt laden. Bewertet wird nach **Kosten je kWh
+    Wärme** = Strompreis ÷ COP; früheres Laden zahlt den zusätzlichen Verlust
+    mit. „Jetzt“ gewinnt bis 5 % Mehrkosten (`hw_decision_tolerance_pct`).
+    Ohne Tarifkalender wird möglichst spät geladen.
+  - **Akku im Preis** (`battery_projection.py`): Akkustand je Slot wird
+    vorausgerechnet. PV-Überschuss kostet die Einspeisevergütung, bei nicht
+    vollem Akku aber den Nachladepreis (günstigster Tarif danach ÷ Akku-
+    Wirkungsgrad). Hat der Akku Energie, deckt er die WW-Ladung zum
+    Nachladepreis statt zum Netztarif. Im Netzladefenster gilt der Netztarif.
+  - **Ereignisprotokoll:** Jede WW-Entscheidung beim Tarifwechsel und jede Ladung (Start,
+    Ende, Abbruch) wird mit Begründung und angenommenen Kosten in ct/kWh
+    Wärme protokolliert (`entry_type = hw_decision`). Die 5-min-Neuberechnungen
+    erscheinen nicht im Protokoll.
+  - **Tab „Wärmepumpe“:** Fahrplan mit Kosten je kWh Wärme und Quelle
+    (PV/Akku/Netz) je Ladung, Temperaturprognose mit Linie der
+    Abschalttemperatur, Kosten einer Ladung jetzt unter der Entscheidung.
+  - **Geplante Ladungen laufen bis zur Abschalttemperatur**, auch wenn ihre
+    Quelle PV war und zwischendurch wieder Netzbezug auftritt. Nur eine
+    spontane PV-Überschuss-Ladung endet, wenn der Überschuss weg ist.
+  - **PV füllt den Akku wieder auf:** Läuft der Akku später durch PV voll
+    (Überschuss würde eingespeist), kostet eine jetzt entnommene Akku-kWh nur
+    die Einspeisevergütung – sonst günstigster Netztarif danach ÷ Wirkungsgrad.
+    Quelle im Fahrplan: „PV-Akku“.
+  - **Lastprognose vor der WW-Planung:** Der erste Plan nach einem Start sah
+    bisher weder PV-Überschuss noch Akku und rechnete nur mit dem Netztarif.
+  - **Zapfungen sofort sichtbar:** „Zapfung läuft“ im Tab „Wärmepumpe“ und als
+    erste Zeile der Zapf-Tabelle, sobald erkannt; Meldungen „draw detected“ /
+    „draw finished“ im Ereignisprotokoll. Das Zapfprofil zeigt „lernt noch“
+    mit Tagen Historie, bis 7 Tage zusammen sind.
+  - **Diagnose:** `/api/status` → `hot_water.plan.slots` mit der Preisrechnung
+    je Slot (PV-Anteil, Akku, Nachladepreis, Quelle, Kosten je kWh Wärme).
+  - **Entscheidung** (`hot_water_controller.py`), in dieser Reihenfolge:
+    1. Boiler-Temperatur fehlt → Übergabe an die WP (Sollwert = Tagesziel).
+    2. Unter `hot_water_min_temp_c` → Schutzladung.
+    3. Manuelle Ad-hoc-Ladung.
+    4. Fahrplan: Ladung beginnt im aktuellen Slot (reicht nicht bis ins
+       nächste günstige Fenster).
+    5. Realer PV-Export ≥ `hw_pv_min_export_w`.
+    6. Sonst Halten.
+
+    Kurzzyklus-Schutz über `hw_min_off_sec`. Jede Ladung ist auf 3 h begrenzt.
+  - **Aktor:** Gesteuert wird nur der Boiler-Sollwert. Der überhöhte Sollwert
+    ist nur ein **Startimpuls** für den WW-Modus: Ist + `hw_boost_delta_k`,
+    mindestens Abschalttemperatur + 2 K, max. 65 °C. **Abgeschaltet wird von
+    miniEMS**, sobald die gemessene Boiler-Temperatur die Abschalttemperatur
+    `hw_morning_target_c` erreicht. Das gilt für Fahrplan, Schutz und Ad-hoc;
+    bei spontanem PV-Überschuss ist es `hw_max_temp_c`. Der Fahrplan plant nur
+    bis zur Abschalttemperatur. Danach (und bei Abbruch oder Pause) geht der
+    Sollwert auf den festen `hw_idle_setpoint_c` (Standard 35 °C, mindestens
+    5 K unter dem Minimum), damit die WP-eigene Regelung nicht selbst nachheizt.
+    Geschrieben wird über `hw_write_service` mit der JSON-Vorlage
+    `hw_write_data`; `{value}` = °C × `hw_write_scale`, bei Lambda 10. Der
+    Rücklese-Sensor `hw_target_entity` bestätigt jeden Schreibvorgang und wird
+    auch danach jeden Tick geprüft: Weicht er ab (veralteter Wert beim Start,
+    fremder Schreiber), wird der Sollwert erneut geschrieben. Beim
+    Beenden des Add-ons geht der Sollwert auf das Tagesziel zurück.
+  - **Neuer Tab „Wärmepumpe“** mit Entscheidung, Begründung und
+    Simulations-Badge. Er zeigt den geschriebenen Sollwert mit Bestätigung,
+    COP live und gelernt (mit „Startwert“-Markierung), Verlust, Heizleistung
+    und Zapfprofil. Dazu kommen ein Fahrplan-Zeitstrahl (PV grün, Netz nach
+    Preis gefärbt) und die Temperaturprognose mit Min- und Ziel-Linie. Tabellen
+    zeigen die letzten Stunden, Zapfungen und Verlust-Messungen.
+  - **Button „WW Ad-hoc-Bereitung“** (`POST /api/hot_water/adhoc`): Er setzt
+    den Startimpuls Boiler-Ist + `hw_adhoc_delta_k` (Standard 10 K) sofort, ohne
+    Warten auf den nächsten Tick, und schaltet bei Ist ≥ `hw_morning_target_c`
+    ab. Der Button rastet sichtbar ein, solange die Ladung läuft; ein zweiter
+    Klick bricht ab. Ist der Speicher schon auf Abschalttemperatur, startet
+    er nicht. Die Ladung endet spätestens nach 2 h. Die Schutzladung hat Vorrang.
+  - **Integration:** Neuer Sensor `sensor.miniems_hot_water_mode` (WW-Modus,
+    Ad-hoc-Status und Temperaturen als Attribute) und neue Aktion
+    `miniems.hot_water_adhoc` (`start` / `cancel`). Im Dashboard „miniEMS“
+    zeigt die Seite *Haus* den Button „WW Ad-hoc-Bereitung“ im obersten
+    Abschnitt (Tab-Header), mit gleichem Verhalten wie im Add-on.
+  - **Kopplung an die Akku-Planung:** Nur wenn die Steuerung live läuft,
+    ersetzt der WW-Plan im Überbrückungsplan den pauschalen WW-Anteil der
+    Lastprognose. PV, die der WW-Plan vor der Deadline nutzt, erhöht das
+    Defizit im Energiefahrplan und im Netzladen-Fallback für morgen. In der
+    Simulation bleibt die Akku-Planung unverändert, weil die WP dann
+    weiterhin selbst entscheidet.
+
+### Changed
+
+- Service-Aufruf und Schreibbestätigung aus `inverter_controller.py` nach
+  `ha_service.py` extrahiert und vom WW-Aktor mitgenutzt, ohne
+  Verhaltensänderung.
+
 ## 3.4.1
 
 ### Fixed

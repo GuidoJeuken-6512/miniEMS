@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-19
+revision_date: 2026-10-29
 ---
 
 # Home-Assistant-Sensoren
@@ -152,6 +152,26 @@ Aggregiert aus der Datenbanktabelle `daily_stats`.
 | Entität | Zustände | Beschreibung |
 |---|---|---|
 | `sensor.miniems_inverter_write_status` | `ok` / `warning` / `error` | Ob der Wechselrichter gerade zuverlässig auf Befehle reagiert. `error` nur, wenn ein Kanal (Ladestrom/Entladestrom/Netzlade-Schalter) lange genug unbestätigt ist, dass es den realen Betrieb beeinflusst — nicht schon bei jedem kurzen, sich selbst lösenden Timeout. Attribute: `write_errors`, `write_unconfirmed`, `stuck_channels`. |
+
+---
+
+## Warmwasser (seit v3.5.0)
+
+Nur vorhanden, wenn im Add-on eine Boiler-Temperatur (`boil_temp_entity`) eingetragen ist.
+
+| Entität | Zustände | Beschreibung |
+|---|---|---|
+| `sensor.miniems_hot_water_mode` | `HW Idle`, `HW Charging (Plan)`, `HW Charging (PV Surplus)`, `HW Protection (Min Temp)`, `HW Charging (Manual)`, `HW Handoff (Heat Pump Control)` | Aktuelle Entscheidung der WW-Steuerung. Attribute: `reason`, `boil_temp_c`, `setpoint_c`, `setpoint_confirmed`, `control_enabled`, `simulation`, `adhoc_active`, `adhoc_target_c` (Abschalttemperatur), `adhoc_setpoint_c` (Startimpuls), `adhoc_delta_k`, `adhoc_elapsed_sec`. |
+
+**Aktion `miniems.hot_water_adhoc`** mit `action: start` oder `action: cancel` startet bzw.
+beendet eine Ad-hoc-Warmwasserladung, genau wie der Button. Beispiel für eine
+Automation oder ein Skript:
+
+```yaml
+action: miniems.hot_water_adhoc
+data:
+  action: start
+```
 
 ---
 

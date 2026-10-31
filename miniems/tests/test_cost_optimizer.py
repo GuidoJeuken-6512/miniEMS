@@ -355,3 +355,14 @@ class TestRestoreToday:
         opt._cfg.update_interval_sec = 30
         await opt.restore_today()
         assert opt.get_startup_warnings() == []
+
+    @pytest.mark.asyncio
+    async def test_gap_warning_cleared_once_accounting_runs(self, opt):
+        today = date.today()
+        old_ts = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+        opt._store.days[str(today)] = {"last_flush_ts": old_ts}
+        opt._cfg.update_interval_sec = 30
+        await opt.restore_today()
+        assert "no accounting since" in opt.get_startup_warnings()[0]
+        opt.clear_startup_warnings()
+        assert opt.get_startup_warnings() == []

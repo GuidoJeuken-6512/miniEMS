@@ -15,6 +15,7 @@
   </header>
   <nav class="tab-nav">
     <a href="." class="tab-link active">{{ translations.tab_dashboard or 'Dashboard' }}</a>
+    <a href="heatpump" class="tab-link">{{ translations.tab_heatpump or 'Heat Pump' }}</a>
     <a href="settings" class="tab-link">{{ translations.tab_settings or 'Settings' }}</a>
     <a href="log" class="tab-link">{{ translations.tab_log or 'Log' }}</a>
     <a href="config-json" class="tab-link">{{ translations.tab_config_json or 'config.json' }}</a>
@@ -218,6 +219,20 @@
         ${d.energy_plan.feasible && d.energy_plan.deficit_kwh === 0 && d.energy_plan.reason ? `
         <div class="svalue muted">${d.energy_plan.reason}</div>` : ''}
         ` : ''}
+
+        ${d.hot_water ? `
+        <p class="section-title"><a href="heatpump">${T.tab_heatpump || 'Heat Pump'} →</a></p>
+        <div class="savings-grid">
+          <div class="savings-card">
+            <div class="slabel">${T.hw_boil || 'Boiler temperature'}</div>
+            <div class="svalue">${fmt(d.hot_water.boil_temp_c, 1)} °C</div>
+          </div>
+          <div class="savings-card">
+            <div class="slabel">${T.hw_decision || 'Decision'}</div>
+            <div class="svalue">${d.hot_water.mode}${d.hot_water.simulation && d.hot_water.control_enabled ? ' [SIM]' : ''}</div>
+            <div class="muted">${d.hot_water.reason}</div>
+          </div>
+        </div>` : ''}
 
         ${(d.predicted_load_kwh !== undefined || d.predicted_pv_kwh !== undefined) ? `
         <p class="section-title">${T.forecast_prediction || 'Forecast &amp; Prediction'}

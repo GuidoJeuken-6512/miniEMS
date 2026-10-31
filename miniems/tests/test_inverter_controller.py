@@ -286,7 +286,7 @@ class TestErrorWindowAndPendingState:
     def test_write_errors_prunes_old_entries(self, make_config, ws):
         import time
         ctrl = make_ctrl(make_config, ws, simulation=False)
-        ctrl._write_error_times.append(time.monotonic() - 999999)   # ancient
+        ctrl._writer.error_times.append(time.monotonic() - 999999)   # ancient
         assert ctrl.write_errors == 0
 
     def test_longest_pending_sec_zero_when_all_confirmed(self, make_config, ws):

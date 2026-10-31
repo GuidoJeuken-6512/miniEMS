@@ -904,6 +904,9 @@ class TestRecordHeatPump:
         async def record_tick(self, now, **kwargs):
             self.calls.append(kwargs)
 
+        def pop_events(self):
+            return []
+
     def _controller(self, make_config, fake_ws, recorder):
         from ems_controller import EMSController
 

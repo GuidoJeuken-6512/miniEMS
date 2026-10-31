@@ -88,7 +88,8 @@
           "error": "Error"
         }
       },
-      "energy_plan_deficit": { "name": "Energy Plan Deficit" }
+      "energy_plan_deficit": { "name": "Energy Plan Deficit" },
+      "hot_water_mode": { "name": "Hot Water Mode" }
     }
   }
 }

@@ -1,0 +1,20 @@
+generate_dashboard:
+  name: Generate dashboard
+  description: Create or refresh the bundled miniEMS dashboard (needs a Home Assistant restart to appear).
+
+hot_water_adhoc:
+  name: Hot water ad hoc
+  description: >-
+    Start or cancel a manual hot-water charge. Start writes the start impulse
+    (boiler + hw_adhoc_delta_k) to the heat pump; miniEMS switches hot water off
+    again when the boiler reaches the shut-off temperature (hw_morning_target_c).
+  fields:
+    action:
+      name: Action
+      description: start or cancel
+      default: start
+      selector:
+        select:
+          options:
+            - start
+            - cancel

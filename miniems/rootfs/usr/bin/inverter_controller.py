@@ -30,23 +30,14 @@ Two fields are exposed per direction:
   *_current_target_a  – what the controller last wanted to set
   *_current_limit_a   – what HA's live state confirms (None until confirmed)
 """
-import asyncio
 import logging
 import time
-from collections import deque
 from typing import TYPE_CHECKING, Any
 
-import aiohttp
-
-from const import (
-    EMSMode,
-    HA_SERVICES_URL,
-    INVERTER_SERVICE_CALL_TIMEOUT_SEC,
-    INVERTER_WRITE_CONFIRM_TIMEOUT_SEC,
-    INVERTER_WRITE_ERROR_WINDOW_SEC,
-)
+from const import EMSMode
 from device_control import ActuatorLimits, LiveLimitsCache, clamp_to_limits, to_actuator_value
 from device_profile import ActuatorControl
+from ha_service import ConfirmedWriter, HAServiceCaller
 from write_channel import WriteChannel, WriteChannelSet, WriteSpec, matches
 
 if TYPE_CHECKING:
@@ -67,9 +58,7 @@ class InverterController:
         ws_client: "HAStateClient | None" = None,
     ) -> None:
         self._cfg = config
-        self._sup_token = supervisor_token
-        self._llt = long_lived_token
-        self._active_token = supervisor_token
+        self._writer = ConfirmedWriter(HAServiceCaller(supervisor_token, long_lived_token))
         self._ws = ws_client
         self._channels = WriteChannelSet(["charge", "discharge", "grid"])
         # docs/roadmap/v3.0-geraeteprofile.md, "Die Watt-Abstraktion": tracks
@@ -84,16 +73,14 @@ class InverterController:
         self.discharge_current_limit_a: int | None = None    # confirmed
         self.charge_current_target_a: int | None = None      # intended
         self.discharge_current_target_a: int | None = None   # intended
-        # Monotonic timestamps of real (HTTP-rejected) write failures, pruned
-        # to INVERTER_WRITE_ERROR_WINDOW_SEC on every read – see write_errors.
-        self._write_error_times: deque[float] = deque()
-        # Write-confirm lifecycle events (confirmed/failed/unconfirmed_at_shutdown)
-        # since the last pop_write_events() call – see that method.
-        self._pending_events: list[dict[str, Any]] = []
 
     @property
     def simulation(self) -> bool:
         return self._cfg.battery_control_simulation
+
+    @property
+    def _active_token(self) -> str:
+        return self._writer.caller.active_token
 
     @property
     def write_errors(self) -> int:
@@ -104,10 +91,7 @@ class InverterController:
         failures that resolved hours or days ago, indistinguishable from an
         ongoing problem.
         """
-        cutoff = time.monotonic() - INVERTER_WRITE_ERROR_WINDOW_SEC
-        while self._write_error_times and self._write_error_times[0] < cutoff:
-            self._write_error_times.popleft()
-        return len(self._write_error_times)
+        return self._writer.write_errors
 
     @property
     def write_unconfirmed(self) -> int:
@@ -141,8 +125,7 @@ class InverterController:
         analyse real confirmation latency over days; the caller persists
         these into the durable event_log table instead.
         """
-        events, self._pending_events = self._pending_events, []
-        return events
+        return self._writer.pop_events()
 
     async def apply_mode(self, mode: EMSMode, grid_charge_power_w: float | None = None) -> None:
         """Apply inverter settings for the given EMS mode.
@@ -282,6 +265,15 @@ class InverterController:
 
         return int(clamp_to_limits(requested_a, limits))
 
+    def reset_write_state(self) -> None:
+        """Forget what was sent/confirmed, so the next tick writes everything again.
+
+        Needed after switching simulation ↔ live at runtime: simulated writes
+        are marked confirmed without being sent, so without a reset the first
+        live ticks would skip writes the inverter never received.
+        """
+        self._channels.reset()
+
     async def restore_safe_defaults(self) -> None:
         """Leave the inverter in a safe state on shutdown.
 
@@ -302,7 +294,7 @@ class InverterController:
                 # The most interesting case (a write that never confirmed at
                 # all) would otherwise vanish silently on restart – the
                 # per-channel state below is about to be thrown away.
-                self._pending_events.append({
+                self._writer.events.append({
                     "channel": ch.label,
                     "target": ch.target,
                     "outcome": "unconfirmed_at_shutdown",
@@ -377,117 +369,7 @@ class InverterController:
         sim: bool,
         label: str,
     ) -> None:
-        """Send `spec.domain.spec.service(spec.payload)`, deduped on `spec.expected`.
+        await self._writer.write(ch, spec, matched, sim, label)
 
-        `matched` is the caller's fresh comparison of the *real* HA state
-        against the target (see write_channel.matches()). HTTP success alone
-        never marks a write confirmed – only `matched` does. While
-        unconfirmed, the call is re-sent every INVERTER_WRITE_CONFIRM_TIMEOUT_SEC
-        (one EMS tick), so a write that HA silently swallowed or that a slow
-        bridge hasn't applied yet keeps being retried instead of being
-        assumed done after a single 200.
-        """
-        now = time.monotonic()
-        ch.label = label
-        target = spec.expected
-        domain, service, data = spec.domain, spec.service, spec.payload
-
-        if ch.target != target:
-            ch.target = target
-            ch.confirmed = False
-            ch.sent_at = None
-            ch.pending_since = now
-
-        if ch.confirmed:
-            return
-
-        if matched:
-            if ch.pending_since is not None:
-                self._pending_events.append({
-                    "channel": label,
-                    "target": target,
-                    "outcome": "confirmed",
-                    "latency_sec": round(now - ch.pending_since, 1),
-                })
-            ch.confirmed = True
-            ch.sent_at = None
-            ch.pending_since = None
-            return
-
-        if ch.sent_at is not None and (now - ch.sent_at) < INVERTER_WRITE_CONFIRM_TIMEOUT_SEC:
-            return   # write in flight – give this cycle a chance to land
-
-        if sim:
-            # Nothing is actually sent to the inverter, so there is nothing
-            # for the real HA state to ever confirm – treat it as done right
-            # away (matches pre-v2.0.1 behaviour: log once per target change).
-            # Not logged as a write-confirm event: simulated writes never
-            # touch real hardware and would corrupt the real-world latency
-            # data this is meant to collect.
-            _LOGGER.info("[SIM] %s.%s(%s)", domain, service, data)
-            ch.confirmed = True
-            ch.sent_at = None
-            ch.pending_since = None
-            return
-
-        ok = await self._call_service(domain, service, data)
-        ch.sent_at = now
-        if ok is False:
-            # HA actively rejected the call (non-2xx) – that is a real failure.
-            self._write_error_times.append(now)
-            self._pending_events.append({
-                "channel": label,
-                "target": target,
-                "outcome": "failed",
-                "latency_sec": round(now - ch.pending_since, 1) if ch.pending_since else None,
-            })
-            _LOGGER.error("%s write FAILED (target=%s) – retrying next tick", label, target)
-        elif ok is None:
-            # No verdict: the request timed out. HA very likely applied it
-            # anyway (the Modbus round-trip just outlasts our HTTP timeout),
-            # so counting this as an error would raise a false alarm on every
-            # single write. The entity-state check next tick decides.
-            _LOGGER.info(
-                "%s write timed out after %ds (target=%s) – HA may well have applied it; "
-                "confirming against the entity state next tick",
-                label, INVERTER_SERVICE_CALL_TIMEOUT_SEC, target,
-            )
-        else:
-            _LOGGER.debug("%s write sent (target=%s), awaiting confirmation", label, target)
-
-    async def _call_service(
-        self, domain: str, service: str, data: dict[str, Any], *, _retry: bool = False
-    ) -> bool | None:
-        """Call an HA service.
-
-        Returns True when HA accepted the call, False when it actively rejected
-        it, and None when the outcome is unknown (timeout / transport error).
-        None is deliberately distinct from False: a write whose response never
-        arrived has very likely still been applied, and the caller confirms it
-        against the real entity state rather than guessing from the HTTP result.
-        """
-        url = f"{HA_SERVICES_URL}/{domain}/{service}"
-        headers = {"Authorization": f"Bearer {self._active_token}", "Content-Type": "application/json"}
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url, json=data, headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=INVERTER_SERVICE_CALL_TIMEOUT_SEC),
-                ) as resp:
-                    if resp.status == 401 and not _retry and self._active_token == self._sup_token and self._llt:
-                        self._active_token = self._llt
-                        return await self._call_service(domain, service, data, _retry=True)
-                    if resp.status not in (200, 201):
-                        _LOGGER.warning("Service call %s.%s failed: HTTP %d", domain, service, resp.status)
-                        return False
-                    _LOGGER.debug("Service %s.%s OK for %s", domain, service, data.get("entity_id"))
-                    return True
-        except (asyncio.TimeoutError, aiohttp.ServerTimeoutError):
-            # str() on a TimeoutError is empty, which used to produce a log line
-            # ending in a bare colon and gave no hint what had gone wrong.
-            return None
-        except Exception as exc:
-            _LOGGER.error(
-                "Service call error %s.%s [%s]: %s", domain, service, type(exc).__name__, exc
-            )
-            return None
+    async def _call_service(self, domain: str, service: str, data: dict[str, Any]) -> bool | None:
+        return await self._writer.caller.call(domain, service, data)

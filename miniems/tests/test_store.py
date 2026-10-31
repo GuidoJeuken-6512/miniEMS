@@ -176,6 +176,36 @@ async def test_operations_on_unopened_store_return_empty_not_raise():
     await s.upsert_capability_today(date.today(), "mid", 1000.0, 5)   # no-op, no raise
     await s.rollover_capability_day(date.today(), 3)                 # no-op, no raise
     assert await s.query_capability_history("mid", 14, 3) == []
+    await s.upsert_hp_hour("2026-10-29T10:00:00+01:00", 2, {"date": "2026-10-29", "hour": 10})
+    await s.insert_loss_segment({"start_ts": "a"})
+    await s.insert_draw("x", 50.0, 47.0)
+    assert await s.query_hp_hours_since(date.today()) == []
+    assert await s.query_loss_segments() == []
+    assert await s.query_draws() == []
+
+
+class TestHeatPumpTables:
+    """heat_pump_hourly / hot_water_loss_segments / hot_water_draws."""
+
+    @pytest.mark.asyncio
+    async def test_hp_hour_keyed_by_hour_and_mode(self, db):
+        hs = "2026-10-29T10:00:00+01:00"
+        base = {"date": "2026-10-29", "hour": 10}
+        await db.upsert_hp_hour(hs, 2, {**base, "ticks": 5, "cop_avg": 3.1})
+        await db.upsert_hp_hour(hs, 1, {**base, "ticks": 7, "cop_avg": 4.2})
+        await db.upsert_hp_hour(hs, 2, {**base, "ticks": 6, "cop_avg": 3.2})   # overwrite
+        rows = await db.query_hp_hours_since(date(2026, 10, 29))
+        assert [(r["mode"], r["ticks"], r["cop_avg"]) for r in rows] == [(1, 7, 4.2), (2, 6, 3.2)]
+
+    @pytest.mark.asyncio
+    async def test_loss_segment_and_draw_roundtrip(self, db):
+        await db.insert_loss_segment({
+            "start_ts": "s", "end_ts": "e", "duration_h": 2.0, "start_temp_c": 50.0,
+            "end_temp_c": 49.0, "k_per_h": 0.5, "end_reason": "heating",
+        })
+        await db.insert_draw("t", 50.0, 46.5)
+        assert (await db.query_loss_segments())[0]["k_per_h"] == 0.5
+        assert (await db.query_draws())[0]["drop_k"] == 3.5
 
 
 class TestBatteryCapabilityTables:

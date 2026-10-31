@@ -423,6 +423,17 @@ ENERGY_PLAN_DESCRIPTION = MiniEMSSensorDescription(
 )
 
 
+# ── Hot water (hot_water_controller.py) ──
+# Same reason as the energy plan: "hot_water" is a nested dict. State = the
+# decision mode, attributes = what the dashboard's ad-hoc button needs.
+HOT_WATER_DESCRIPTION = MiniEMSSensorDescription(
+    key="miniems_hot_water_mode",
+    translation_key="hot_water_mode",
+    status_key="hot_water",
+    icon="mdi:water-boiler",
+)
+
+
 class MiniEMSSensor(CoordinatorEntity[MiniEMSCoordinator], SensorEntity):
     """A single miniEMS sensor backed by the coordinator."""
 
@@ -511,6 +522,43 @@ class MiniEMSEnergyPlanSensor(MiniEMSSensor):
         }
 
 
+class MiniEMSHotWaterSensor(MiniEMSSensor):
+    """hot_water is one nested dict – see HOT_WATER_DESCRIPTION above."""
+
+    def _hw(self) -> dict[str, Any] | None:
+        if not self.coordinator.data:
+            return None
+        return self.coordinator.data.get("hot_water")
+
+    @property
+    def native_value(self) -> Any:
+        hw = self._hw()
+        return hw.get("mode") if hw else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        hw = self._hw()
+        if not hw:
+            return None
+        adhoc = hw.get("adhoc") or {}
+        setpoint = hw.get("setpoint") or {}
+        return {
+            "reason": hw.get("reason"),
+            "boil_temp_c": hw.get("boil_temp_c"),
+            "setpoint_c": setpoint.get("target_c"),
+            "setpoint_confirmed": setpoint.get("confirmed"),
+            "control_enabled": hw.get("control_enabled"),
+            "simulation": hw.get("simulation"),
+            "adhoc_active": adhoc.get("active"),
+            # shut-off temperature: the charge ends when the boiler reaches it
+            "adhoc_target_c": adhoc.get("target_c"),
+            # start impulse written to the heat pump
+            "adhoc_setpoint_c": adhoc.get("setpoint_c"),
+            "adhoc_delta_k": adhoc.get("delta_k"),
+            "adhoc_elapsed_sec": adhoc.get("elapsed_sec"),
+        }
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -530,6 +578,7 @@ async def async_setup_entry(
             MiniEMSSensor(coordinator, description, device_info)
             for description in SENSOR_DESCRIPTIONS
         ]
-        + [MiniEMSEnergyPlanSensor(coordinator, ENERGY_PLAN_DESCRIPTION, device_info)]
+        + [MiniEMSEnergyPlanSensor(coordinator, ENERGY_PLAN_DESCRIPTION, device_info),
+           MiniEMSHotWaterSensor(coordinator, HOT_WATER_DESCRIPTION, device_info)]
     )
 

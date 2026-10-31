@@ -77,6 +77,11 @@ class HAStateClient:
         except (ValueError, TypeError):
             return None
 
+    def get_state_raw(self, entity_id: str) -> str | None:
+        """The unparsed state string, or None when the entity is not in the cache."""
+        raw = self._state_cache.get(entity_id, {}).get("state")
+        return None if raw is None else str(raw)
+
     def get_state_datetime(self, entity_id: str) -> datetime | None:
         """The state of a timestamp entity, parsed. None when unusable.
 

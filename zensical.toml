@@ -54,6 +54,7 @@ nav = [
     { "Ereignisprotokoll" = "user/log.md" },
     { "Datenbank" = "user/database.md" },
     { "HA-Sensoren" = "user/sensors.md" },
+    { "Wärmepumpe: Warmwasser" = "user/warmwasser.md" },
   ]},
   { "Technische Referenz" = [
     { "Übersicht" = "technical/index.md" },
@@ -64,6 +65,7 @@ nav = [
     { "HA-Sensor-Referenz" = "technical/sensors.md" },
     { "Sensor-Staleness" = "technical/sensor-staleness.md" },
     { "Netzladen-Entscheidung" = "technical/netzladen-entscheidung.md" },
+    { "Warmwasser-Steuerung" = "technical/warmwasser-steuerung.md" },
     { "Devcontainer-Supervisor-Patches" = "technical/devcontainer-supervisor-patches.md" },
   ]},
   { "Roadmap" = [
@@ -72,6 +74,7 @@ nav = [
     { "Tageswechsel & Energiezählung" = "roadmap/tageswechsel-energiezaehlung.md" },
     { "Lehren aus Akkudoktor-EOS" = "roadmap/eos-learnings.md" },
     { "v3.3 – Bedarfsprognose" = "roadmap/v3.3-bedarfsprognose.md" },
+    { "v3.4 – Warmwasser" = "roadmap/v3.4-warmwasser.md" },
   ]},
   { "User Guide (EN)" = [
     { "Getting Started" = "en/user/index.md" },

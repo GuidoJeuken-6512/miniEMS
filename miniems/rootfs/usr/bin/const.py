@@ -8,10 +8,10 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "3.4.1"
+VERSION = "3.5.0"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
-CONFIG_SCHEMA_VERSION = 22
+CONFIG_SCHEMA_VERSION = 23
 
 # ── Battery current limits ────────────────────────────────────────────────────
 # The Deye inverter exposes battery limits as CURRENT in amperes
@@ -154,6 +154,33 @@ HW_DRAW_WINDOW_SEC = 600
 # segment without scoring it (restart, sensor unavailable).
 HW_GAP_FACTOR = 3
 
+# ── Warmwasser-Steuerung (hot_water_*.py) ─────────────────────────────────────
+# Learned values are refit at most this often (history grows hourly).
+HW_MODEL_REFIT_SEC = 3600
+HW_MODEL_LOOKBACK_DAYS = 60
+# Weight of the COP prior, in hours of real hot-water running time. Below
+# HW_COP_MIN_LEARNED_H of real data the COP is shown as "Startwert".
+HW_COP_PRIOR_WEIGHT_H = 3.0
+HW_COP_MIN_LEARNED_H = 6.0
+# Prior slope of COP over outdoor temperature (per K) – typical air/water value.
+HW_COP_PRIOR_SLOPE = 0.08
+HW_COP_CLAMP = (1.5, 8.0)
+# An hour counts for the COP fit only with at least this many filtered ticks.
+HW_COP_MIN_TICKS = 10
+# Standby loss prior: 0.25 K/h at 30 K above room temperature.
+HW_ROOM_TEMP_C = 20.0
+HW_LOSS_PRIOR_K_PER_H_PER_K = 0.25 / 30.0
+HW_LOSS_MIN_SEGMENTS = 3
+HW_DRAW_LOOKBACK_DAYS = 28
+HW_DRAW_MIN_DAYS = 7
+# Plan is recomputed at most this often (stable decisions, not every tick).
+HW_PLAN_RECOMPUTE_SEC = 300
+# A charge that has not reached its goal after this long is stopped.
+HW_CHARGE_MAX_SEC = 3 * 3600
+HW_ADHOC_MAX_SEC = 2 * 3600
+# Water: 1.163 Wh per litre and kelvin.
+HW_WH_PER_L_K = 1.163
+
 # ── Energiefahrplan (energy_plan.py) ──────────────────────────────────────────
 # Recompute interval for the proactive tomorrow-deficit plan. Hourly, not
 # every 30s tick: display-only, and price/PV forecasts don't change on a
@@ -194,3 +221,13 @@ class EMSMode(str, Enum):
     EXPORT_SURPLUS  = "Export Surplus"
     GRID_CHARGING   = "Grid Charging (Cheap Rate)"
     PROTECT_BATTERY = "Battery Protection (Min SoC)"
+
+
+# ── Hot-water operating modes ─────────────────────────────────────────────────
+class HWMode(str, Enum):
+    IDLE     = "HW Idle"
+    CHARGING = "HW Charging (Plan)"
+    PV       = "HW Charging (PV Surplus)"
+    PROTECT  = "HW Protection (Min Temp)"
+    MANUAL   = "HW Charging (Manual)"
+    HANDOFF  = "HW Handoff (Heat Pump Control)"

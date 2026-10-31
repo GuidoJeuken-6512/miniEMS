@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-28
+revision_date: 2026-10-29
 ---
 
 # Konfiguration
@@ -108,6 +108,14 @@ Zum Erstellen: **HA → Profil → Langlebige Zugriffstoken → Token erstellen*
 
 !!! warning "Zuerst den Simulationsmodus aktivieren"
     Bevor du die Live-Steuerung aktivierst, betreibe miniEMS mit aktiviertem `Simulationsmodus`. Überprüfe im Log, ob die richtigen Befehle für deinen Wechselrichter angezeigt werden.
+
+!!! tip "Schnell umschalten: Abschnitt „Control Mode“"
+    Ganz oben im Einstellungs-Tab stehen drei Schalter, die **sofort und ohne Neustart** wirken:
+    **Simulation** (gilt für Akku und Wärmepumpe gemeinsam), **Batteriesteuerung an/aus** und
+    **WP-Steuerung an/aus**. Beim Verlassen von LIVE werden Wechselrichter bzw. Boiler-Sollwert
+    zuerst in den sicheren Zustand gebracht (wie beim Beenden des Add-ons).
+    Die Schalter werden in `config.json` gespeichert und überstehen jeden Neustart.
+    Werte dieser vier Schlüssel in `options.json` werden ignoriert.
 
 !!! info "Ampere statt Watt"
     Die Deye-Ladungslimits sind Entitäten in **Ampere**, nicht in Watt — anders als in miniEMS-Versionen vor v2.0. Die alten `*_power_w`-Feldnamen werden beim Start automatisch auf die neuen `*_current_a`-Felder migriert; bereits gespeicherte Watt-Werte werden dabei **nicht** umgerechnet, da 1:1 keine gültige Umrechnung existiert. Prüfe die migrierten Werte einmal in den Einstellungen nach einem Update von einer Vorversion.
@@ -219,6 +227,15 @@ ist – so ist beim Einschalten schon Historie da.
     - Geladen wird nur die geplante Menge, nicht mehr bis `battery_max_soc`. Start ab `grid_charge_min_free_kwh`, Stopp wenn der Restbedarf unter 0,2 kWh fällt.
     - Ein kleiner PV-Überschuss verhindert ein nötiges Netzladen nicht mehr.
     - Fehlt eine Eingabe (Solcast-Detailprognose, Tarifkalender, Preis, SoC), entscheidet die bisherige Logik.
+
+---
+
+## Wärmepumpe: Warmwasser (seit v3.5.0)
+
+Datensammlung und Steuerung der Warmwasserbereitung haben eine eigene Seite:
+[Wärmepumpe: Warmwasser-Steuerung](warmwasser.md). Dort stehen alle Einstellungen der
+Abschnitte *Heat Pump / Hot Water* und *Hot Water Control* sowie die Einrichtung für die
+Lambda-Wärmepumpe.
 
 ---
 

@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-19
+revision_date: 2026-10-29
 ---
 
 # API-Referenz
@@ -230,6 +230,71 @@ Antwort: `application/json`
   ]
 }
 ```
+
+---
+
+## `GET /api/control_mode`
+
+Aktuelle Betriebsart, gelesen aus dem laufenden `Config`-Objekt.
+
+```json
+{
+  "simulation": true,
+  "simulation_mixed": false,
+  "battery_control": true,
+  "hw_control": true,
+  "battery_live": false,
+  "hw_live": false
+}
+```
+
+`simulation` ist `true`, sobald Akku **oder** Wärmepumpe simulieren.
+`simulation_mixed` meldet, dass beide unterschiedlich eingestellt sind.
+
+---
+
+## `POST /api/control_mode`
+
+Schaltet Simulation, Batteriesteuerung und WP-Steuerung **sofort und ohne Neustart** um.
+
+- Anfrage: Teilobjekt mit beliebigen dieser Schlüssel: `simulation` (setzt
+  `battery_control_simulation` und `hw_control_simulation`), `battery_control`,
+  `hw_control`.
+- Antwort: wie bei GET. 400 bei leerem Objekt. 500 mit `error`, wenn die Änderung zwar
+  aktiv ist, aber nicht gespeichert werden konnte.
+- Wechselt ein Teil von LIVE weg, wird zuerst dessen sicherer Zustand hergestellt.
+- Die Flags werden atomar in `config.json` geschrieben. `options.json` überschreibt
+  sie beim Start nicht.
+
+Details: [Warmwasser-Steuerung, Abschnitt 6](warmwasser-steuerung.md#6-betriebsart-umschalten-apicontrol_mode).
+
+---
+
+## `GET /heatpump`
+
+Rendert `heatpump.html`, den Tab „Wärmepumpe“.
+
+---
+
+## `POST /api/hot_water/adhoc`
+
+Startet oder beendet eine Ad-hoc-Warmwasserladung und schreibt den Sollwert sofort.
+
+- Anfrage: `{"action": "start"}` oder `{"action": "cancel"}`
+- Antwort: Ad-hoc-Status (`active`, `target_c` = Abschalttemperatur, `setpoint_c` = Startimpuls, `delta_k`, `since`, `elapsed_sec`,
+  `max_sec`, `simulation`, `control_enabled`)
+- 400 bei unbekannter `action`, 409 ohne konfigurierte Boiler-Temperatur
+
+---
+
+## `GET /api/hot_water/history`
+
+Liefert `hours` (WP-Stunden der letzten 48 h), `segments` (Verlust-Messungen) und
+`draws` (Zapfungen) für die Tabellen im Tab „Wärmepumpe“.
+
+Der WW-Teil von `GET /api/status` (`hot_water`) wird bei jeder Anfrage live aus dem
+Controller gelesen und nicht aus dem Tick-Snapshot. Feldliste:
+[Warmwasser-Steuerung, Abschnitt 7](warmwasser-steuerung.md#7-api).
 
 ---
 

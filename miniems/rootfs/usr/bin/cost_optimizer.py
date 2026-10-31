@@ -118,9 +118,11 @@ class CostOptimizer:
                 gap_sec = (datetime.now(timezone.utc) - last_ts).total_seconds()
                 cfg_interval = self._cfg.update_interval_sec
                 if gap_sec > 2 * cfg_interval:
+                    since = last_ts.astimezone().strftime("%H:%M:%S")
                     msg = (
-                        f"Data gap detected: {gap_sec:.0f}s since last flush "
-                        f"(>{2 * cfg_interval}s) – energy during downtime is not counted"
+                        f"Data gap detected: no accounting since {since} "
+                        f"({gap_sec:.0f}s, >{2 * cfg_interval}s) – add-on stopped or "
+                        f"EMS loop failing; energy in this period is not counted"
                     )
                     self._startup_warnings.append(msg)
                     _LOGGER.warning(msg)
@@ -137,6 +139,12 @@ class CostOptimizer:
     def get_startup_warnings(self) -> list[str]:
         """Return any warnings generated during restore_today (e.g. downtime gaps)."""
         return list(self._startup_warnings)
+
+    def clear_startup_warnings(self) -> None:
+        """Drop the downtime-gap warning once accounting runs again."""
+        if self._startup_warnings:
+            _LOGGER.info("Data gap warning cleared – accounting is running again")
+            self._startup_warnings.clear()
 
     # ------------------------------------------------------------------
     # Called by EMS controller on each update tick

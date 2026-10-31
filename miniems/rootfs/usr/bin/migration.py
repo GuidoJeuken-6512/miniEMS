@@ -110,6 +110,12 @@ def migrate(data: dict, *, is_fresh: bool = False) -> dict:
     if version < 21:
         data = _v20_to_v21(data)
 
+    if version < 22:
+        data = _v21_to_v22(data)
+
+    if version < 23:
+        data = _v22_to_v23(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -366,6 +372,65 @@ def _v20_to_v21(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v20→v21: set %s = %r", key, default)
+    return data
+
+
+_V22_DEFAULTS: dict = {
+    "heat_pump_cop_entity": "",
+    "heat_pump_mode_entity": "",
+    "heat_pump_request_type_entity": "",
+    "boil_temp_entity": "",
+    "hp_mode_hot_water_code": 2,
+    "hp_request_hot_water_code": 4,
+    "hot_water_min_temp_c": 45.0,
+    "hp_cop_settle_sec": 300,
+    "hw_draw_drop_k": 1.5,
+}
+
+
+def _v21_to_v22(data: dict) -> dict:
+    """v21 → v22: heat-pump / hot-water data collection (docs/roadmap/v3.4-warmwasser.md).
+
+    All entities default to empty, so nothing is recorded until configured.
+    """
+    for key, default in _V22_DEFAULTS.items():
+        if key not in data:
+            data[key] = default
+            _LOGGER.info("Migration v21→v22: set %s = %r", key, default)
+    return data
+
+
+_V23_DEFAULTS: dict = {
+    "hw_control_enabled": False,
+    "hw_control_simulation": True,
+    "hw_target_entity": "sensor.eu08l_boil1_target_high_temperature",
+    "hw_write_service": "lambda_heat_pumps.write_modbus_register",
+    "hw_write_data": '{"register_address": 2050, "value": {value}}',
+    "hw_write_scale": 10,
+    "hw_volume_l": 200.0,
+    "hw_day_target_c": 45.0,
+    "hw_morning_target_c": 50.0,
+    "hw_morning_time": "06:30",
+    "hw_workday_entity": "",
+    "hw_boost_delta_k": 10.0,
+    "hw_idle_setpoint_c": 35.0,
+    "hw_max_temp_c": 55.0,
+    "hw_heat_power_kw": 4.0,
+    "hw_cop_prior": 4.77,
+    "hw_cop_prior_temp_c": 8.5,
+    "hw_pv_min_export_w": 1500,
+    "hw_min_off_sec": 1800,
+    "hw_adhoc_delta_k": 10.0,
+    "hw_decision_tolerance_pct": 5.0,
+}
+
+
+def _v22_to_v23(data: dict) -> dict:
+    """v22 → v23: hot-water control. Off and in simulation by default."""
+    for key, default in _V23_DEFAULTS.items():
+        if key not in data:
+            data[key] = default
+            _LOGGER.info("Migration v22→v23: set %s = %r", key, default)
     return data
 
 

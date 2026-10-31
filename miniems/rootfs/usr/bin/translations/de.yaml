@@ -106,8 +106,10 @@ log_free: Ladekapazität (kWh)
 log_useable: Nutzbar (kWh)
 log_pred_load: Prog. Verbrauch (kWh)
 log_empty: Noch keine Ereignisse aufgezeichnet.
-log_page_hint: Zeigt die letzten 100 Ereignisse (Modusänderungen & Preisänderungen).
+log_page_hint: Zeigt die letzten 100 Ereignisse (Modusänderungen, Preisänderungen & Warmwasser).
 log_price_change: Preisänderung
+log_hw: Warmwasser
+log_ct_heat: ct/kWh Wärme
 log_sim_hint: Simulationsmodus aktiv – Befehle werden nur protokolliert, nicht gesendet.
 
 # Gründe für Modus-Entscheidungen (netzdienliche PV-Strategie & Batteriesteuerung)
@@ -201,3 +203,60 @@ kwh_low_rate_month: Monat Niedrigpreis
 config_json_hint: "Persistente Einstellungen, geschrieben von miniEMS. Hat Vorrang vor options.json. Gespeichert unter /data/config.json."
 options_json_hint: "Supervisor-verwaltete Optionen. Wird beim Start gelesen; config.json hat Vorrang bei Standardwerten. Gespeichert unter /data/options.json."
 options_json_warning: "Diese Datei wird vom HA Supervisor verwaltet. Änderungen können überschrieben werden, wenn das Addon über die HA-Oberfläche neu konfiguriert wird. Für dauerhafte Änderungen config.json bevorzugen."
+
+# Wärmepumpe / Warmwasser-Tab
+tab_heatpump: Wärmepumpe
+ui_heatpump: Wärmepumpe – Warmwasser
+hw_hint: Warmwasser-Bereitung nach Fahrplan – günstigster Strom (Tarif, PV-Überschuss) geteilt durch den gelernten COP, ohne die Mindesttemperatur zu unterschreiten.
+hw_not_configured: Kein Boiler-Temperatursensor konfiguriert (Einstellungen → Heat Pump / Hot Water).
+hw_decision: Entscheidung
+hw_boil: Boiler-Temperatur
+hw_min: Mindesttemperatur
+hw_day_target: Tagesziel
+hw_morning: Abschalt-/Morgenziel
+hw_setpoint: Geschriebener Sollwert
+hw_confirmed: bestätigt
+hw_pending: wartet auf Bestätigung
+hw_not_written: nicht geschrieben (Steuerung aus)
+hw_cop_live: COP live / gefiltert
+hw_cop_learned: COP gelernt bei
+hw_cop_prior: Startwert
+hw_loss: Standby-Verlust bei 50 °C
+hw_heat_power: Heizleistung (thermisch)
+hw_draws: Zapfprofil
+hw_plan: WW-Fahrplan
+hw_plan_cost: Geplante Kosten
+hw_plan_heat: Geplante Wärme
+hw_no_plan: Kein Fahrplan
+hw_projection: Temperaturverlauf (Prognose)
+hw_shutoff: Abschalten
+hw_ct_heat: ct/kWh Wärme
+hw_cost_now: Wärme jetzt würde kosten
+hw_src_pv: PV
+hw_src_battery: PV-Akku
+hw_src_grid: Netz
+hw_draw_active: Zapfung läuft seit
+hw_draw_running: läuft
+hw_learning: lernt noch
+hw_days_history: Tage Historie (Profil ab 7 Tagen)
+hw_workday_weekend: Werktag / Wochenende
+hw_adhoc_start: WW Ad-hoc-Bereitung
+hw_adhoc_click_cancel: zum Abbrechen erneut klicken
+hw_adhoc_sending: wird gesendet …
+hw_adhoc_no_write_off: Steuerung aus – es wird nichts geschrieben
+hw_adhoc_no_write_sim: Simulation – es wird nichts geschrieben
+hw_adhoc_active: Ad-hoc-Ladung aktiv
+hw_adhoc_off_at: aus bei
+hw_adhoc_impulse: Sollwert
+hw_adhoc_start_hint: Start
+hw_adhoc_already: Speicher bereits auf Abschalttemperatur
+hw_sim: Simulation
+hw_control_off: Steuerung aus – Entscheidungen werden nur angezeigt
+hw_live: Live
+hw_couples: WW-Plan fließt in die Akku-Planung ein
+hw_recent_hours: Letzte Stunden
+hw_recent_draws: Letzte Zapfungen
+hw_recent_segments: Letzte Verlust-Messungen
+hw_hour: Stunde
+hw_op_mode: Modus
+hw_outdoor: Außen

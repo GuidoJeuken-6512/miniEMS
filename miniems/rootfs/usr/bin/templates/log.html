@@ -15,6 +15,7 @@
   </header>
   <nav class="tab-nav">
     <a href="." class="tab-link">{{ translations.tab_dashboard or 'Dashboard' }}</a>
+    <a href="heatpump" class="tab-link">{{ translations.tab_heatpump or 'Heat Pump' }}</a>
     <a href="settings" class="tab-link">{{ translations.tab_settings or 'Settings' }}</a>
     <a href="log" class="tab-link active">{{ translations.tab_log or 'Log' }}</a>
     <a href="config-json" class="tab-link">{{ translations.tab_config_json or 'config.json' }}</a>
@@ -88,6 +89,11 @@
       if (e.entry_type === 'price_change') {
         return `<td class="log-price-change">&#8364; ${T.log_price_change || 'Price Change'}</td>`;
       }
+      if (e.entry_type === 'hw_decision' || e.entry_type === 'hw_mode') {
+        // hot-water action: "WW" tag plus the hot-water mode at that moment
+        return `<td><span class="log-hw">&#128703; ${T.log_hw || 'Hot water'}</span> ` +
+          `<span class="mode-badge ${fmtMode(e.mode)} log-table-mode">${e.mode || ''}</span></td>`;
+      }
       if (e.mode) {
         return `<td><span class="mode-badge ${fmtMode(e.mode)} log-table-mode">${e.mode}</span></td>`;
       }
@@ -105,6 +111,10 @@
     function renderEntryPrice(e) {
       if (e.entry_type === 'price_change' && e.price_eur_kwh !== null && e.price_eur_kwh !== undefined) {
         return `<td class="log-price-value">${fmt(e.price_eur_kwh, 4)} €/kWh</td>`;
+      }
+      if (e.entry_type === 'hw_decision' && e.price_eur_kwh !== null && e.price_eur_kwh !== undefined) {
+        // assumed cost per kWh of heat for this hot-water action
+        return `<td class="log-price-value">${fmt(e.price_eur_kwh * 100, 1)} ${T.log_ct_heat || 'ct/kWh heat'}</td>`;
       }
       return `<td>–</td>`;
     }

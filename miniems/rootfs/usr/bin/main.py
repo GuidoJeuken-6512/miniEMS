@@ -13,11 +13,14 @@ import const
 from battery_capability import BatteryCapabilityTracker
 from config_loader import load_config
 from consumption_model import ConsumptionModel
+from heat_pump_recorder import HeatPumpRecorder
 from load_forecast import HourlyLoadRecorder, LoadForecaster
 from cost_optimizer import CostOptimizer
 from ems_controller import EMSController
 from event_log import EventLog
+from ha_service import HAServiceCaller
 from ha_state_client import HAStateClient
+from hot_water_controller import HotWaterController
 from integration_installer import install_integration
 from inverter_controller import InverterController
 from solcast_client import SolcastClient
@@ -104,6 +107,17 @@ async def main() -> None:
     event_log = EventLog(max_entries=100, store=store)
     await event_log.restore_from_db()
     capability = BatteryCapabilityTracker(store)
+    hot_water = HotWaterController(
+        cfg, ws_client, store,
+        HAServiceCaller(supervisor_token, cfg.long_lived_token),
+        event_log=event_log,
+        weather=weather_client if weather_client.enabled else None,
+        interval_sec=cfg.update_interval_sec,
+    )
+    if hot_water.enabled:
+        _LOGGER.info("Hot-water control: %s", (
+            "off (decisions shown only)" if not cfg.hw_control_enabled
+            else "SIMULATION" if cfg.hw_control_simulation else "LIVE"))
 
     controller = EMSController(
         cfg, ws_client, cost_optimizer, inverter, consumption_model,
@@ -113,8 +127,11 @@ async def main() -> None:
         load_forecaster=LoadForecaster(cfg, store),
         hourly_recorder=HourlyLoadRecorder(store, cfg.update_interval_sec),
         weather=weather_client if weather_client.enabled else None,
+        heat_pump_recorder=HeatPumpRecorder(store, cfg, cfg.update_interval_sec),
+        hot_water=hot_water,
     )
-    app = create_app(status_store, cfg, supervisor_token, store)
+    app = create_app(status_store, cfg, supervisor_token, store,
+                     hot_water=hot_water, inverter=inverter)
 
     await install_integration()
 
@@ -164,6 +181,10 @@ async def main() -> None:
             await asyncio.wait_for(inverter.restore_safe_defaults(), timeout=5)
         except Exception as exc:
             _LOGGER.error("Inverter restore on shutdown failed: %s", exc)
+        try:
+            await asyncio.wait_for(hot_water.restore_safe_defaults(), timeout=5)
+        except Exception as exc:
+            _LOGGER.error("Hot-water restore on shutdown failed: %s", exc)
         await store.close()
         _LOGGER.info("miniEMS stopped")
 

@@ -1,5 +1,5 @@
 ---
-revision_date: 2026-08-19
+revision_date: 2026-10-29
 ---
 
 # HA-Sensor-Referenz
@@ -192,6 +192,23 @@ Die `/api/status`-Antwort enthält ein `prediction_source`-Feld (kein HA-Sensor)
 
 ---
 
+## Warmwasser
+
+| Entity-ID | Key | Device Class | Beschreibung |
+|---|---|---|---|
+| `sensor.miniems_hot_water_mode` | `hot_water` (verschachtelt) | – | Seit v3.5.0: `hot_water.mode`. Eigene Unterklasse `MiniEMSHotWaterSensor`, weil `hot_water` ein verschachteltes Objekt ist (wie `energy_plan`). Attribute aus `hot_water`, `hot_water.setpoint` und `hot_water.adhoc`: `reason`, `boil_temp_c`, `setpoint_c`, `setpoint_confirmed`, `control_enabled`, `simulation`, `adhoc_active`, `adhoc_target_c`, `adhoc_setpoint_c`, `adhoc_delta_k`, `adhoc_elapsed_sec`. Nicht verfügbar, solange das Add-on kein `hot_water` liefert (keine Boiler-Temperatur konfiguriert). |
+
+Dazu die Aktion **`miniems.hot_water_adhoc`** (`action`: `start` | `cancel`, Antwort
+optional). Sie leitet an `POST /api/hot_water/adhoc` des Add-ons weiter und ruft danach
+sofort `coordinator.async_refresh()` auf, damit Sensor und Dashboard-Button den neuen
+Zustand ohne Warten auf den nächsten Poll zeigen. Fehler des Add-ons (z. B. 409 ohne
+Boiler-Temperatur) kommen als `HomeAssistantError` zurück. Die Aktion wird in
+`async_setup_entry` registriert und nicht in `async_setup`, damit sie nach einem
+Integrations-Update schon mit dem Neuladen des Eintrags verfügbar ist. Für geänderten
+Python-Code ist trotzdem ein HA-Neustart nötig.
+
+---
+
 ## Sensor-Anzahl-Zusammenfassung
 
 | Kategorie | Anzahl |
@@ -206,7 +223,8 @@ Die `/api/status`-Antwort enthält ein `prediction_source`-Feld (kein HA-Sensor)
 | Jahrestotale | 3 |
 | Vorhersagen | 2 |
 | Wechselrichter-Steuerung | 1 |
-| **Gesamt** | **29** |
+| Warmwasser | 1 |
+| **Gesamt** | **30** |
 
 ---
 

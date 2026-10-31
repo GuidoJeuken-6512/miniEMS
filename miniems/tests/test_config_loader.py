@@ -204,3 +204,82 @@ class TestValidate:
         cfg.grid_charge_dark_start_hour = 30
         _validate(cfg)
         assert cfg.grid_charge_dark_start_hour == 23
+
+
+class TestIdleSetpoint:
+    def test_too_close_to_minimum_is_lowered(self):
+        cfg = Config(hot_water_min_temp_c=45.0, hw_idle_setpoint_c=43.0)
+        _validate(cfg)
+        assert cfg.hw_idle_setpoint_c == 40.0   # min − 5 K
+
+    def test_shutoff_not_above_day_target_is_raised(self):
+        cfg = Config(hw_day_target_c=45.0, hw_morning_target_c=44.0)
+        _validate(cfg)
+        assert cfg.hw_morning_target_c == 47.0   # day target + 2 K
+
+    def test_default_kept(self):
+        cfg = Config()
+        _validate(cfg)
+        assert cfg.hw_idle_setpoint_c == 35.0
+
+
+class TestControlModeIsRestartSafe:
+    """Control switches set on the settings page live in config.json only –
+    a stale options.json must not flip them after a restart."""
+
+    def test_options_json_cannot_switch_back_to_live(self, _isolated_files):
+        config_file, options_file = _isolated_files
+        config_file.write_text(json.dumps({
+            "_version": config_loader.CURRENT_VERSION,
+            "battery_control_enabled": True, "battery_control_simulation": True,
+            "hw_control_enabled": False, "hw_control_simulation": True,
+        }), encoding="utf-8")
+        options_file.write_text(json.dumps({
+            "battery_control_simulation": False, "hw_control_enabled": True,
+            "hw_control_simulation": False,
+        }), encoding="utf-8")
+        cfg = load_config()
+        assert cfg.battery_control_enabled is True
+        assert cfg.battery_control_simulation is True
+        assert cfg.hw_control_enabled is False
+        assert cfg.hw_control_simulation is True
+
+    def test_live_mode_survives_restart(self, _isolated_files):
+        config_file, _ = _isolated_files
+        config_file.write_text(json.dumps({
+            "_version": config_loader.CURRENT_VERSION,
+            "battery_control_enabled": True, "battery_control_simulation": False,
+        }), encoding="utf-8")
+        load_config()   # first restart rewrites config.json
+        cfg = load_config()
+        assert cfg.battery_control_enabled is True
+        assert cfg.battery_control_simulation is False
+
+
+class TestStoredStringsAreCoerced:
+    """Regression: a float persisted as a string in config.json crashed the
+    EMS loop ("'>' not supported between 'float' and 'str'" in
+    _grid_charge_pays)."""
+
+    def test_string_numbers_become_numbers_and_are_healed_on_disk(self, _isolated_files):
+        config_file, _ = _isolated_files
+        config_file.write_text(json.dumps({
+            "_version": config_loader.CURRENT_VERSION,
+            "grid_charge_min_margin_eur_kwh": "0.03",
+            "battery_min_soc": "15",
+            "battery_control_enabled": "true",
+        }), encoding="utf-8")
+        cfg = load_config()
+        assert cfg.grid_charge_min_margin_eur_kwh == 0.03
+        assert cfg.battery_min_soc == 15
+        assert cfg.battery_control_enabled is True
+        stored = json.loads(config_file.read_text(encoding="utf-8"))
+        assert stored["grid_charge_min_margin_eur_kwh"] == 0.03
+
+    def test_garbage_falls_back_to_default(self, _isolated_files):
+        config_file, _ = _isolated_files
+        config_file.write_text(json.dumps({
+            "_version": config_loader.CURRENT_VERSION,
+            "grid_charge_min_margin_eur_kwh": "abc",
+        }), encoding="utf-8")
+        assert load_config().grid_charge_min_margin_eur_kwh == Config().grid_charge_min_margin_eur_kwh

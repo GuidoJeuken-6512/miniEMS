@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from battery_capability import BatteryCapabilityTracker
+from battery_projection import BatteryContext
 from battery_model import BatteryModel
 from bridge_planner import BridgePlan, PlanSlot, plan_bridge
 from const import (
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
     from ha_state_client import HAStateClient
     from inverter_controller import InverterController
     from heat_pump_recorder import HeatPumpRecorder
+    from hot_water_controller import HotWaterController
     from load_forecast import HourlyLoadRecorder, LoadForecaster
     from solcast_client import SolcastClient
     from weather_client import WeatherClient
@@ -75,6 +77,7 @@ class EMSController:
         hourly_recorder: "HourlyLoadRecorder | None" = None,
         weather: "WeatherClient | None" = None,
         heat_pump_recorder: "HeatPumpRecorder | None" = None,
+        hot_water: "HotWaterController | None" = None,
     ) -> None:
         self._cfg = config
         self._ws = ws_client
@@ -118,6 +121,7 @@ class EMSController:
         self._recorder = hourly_recorder
         self._weather = weather
         self._hp_recorder = heat_pump_recorder
+        self._hot_water = hot_water
         self._availability = SensorAvailabilityMonitor()
         self._bridge_plan: BridgePlan | None = None
         self._bridge_status: str = "disabled"
@@ -196,6 +200,9 @@ class EMSController:
             # Hourly temperatures feed both the load forecast and – without an
             # outdoor sensor – the hourly history. Cached for 30 min inside.
             await self._weather.fetch_hourly_temps()
+        # Hot-water plan first: with control live, its planned electricity
+        # replaces the flat hot-water share in the bridge plan below.
+        await self._update_hot_water(now, pv_w, grid_w, price, bat_kwh_use, bat_kwh_free)
         await self._update_bridge_plan(pv_w, price, bat_kwh_free, bat_kwh_use, now)
         prev_mode = self._mode
         self._mode = self._determine_mode(pv_w, load_w, bat_soc, price, bat_kwh_free, now)
@@ -266,17 +273,10 @@ class EMSController:
             # restarts and days; the add-on's own log buffer does not) – see
             # InverterController.pop_write_events().
             for wevent in self._inverter.pop_write_events():
-                await self._event_log.append(LogEntry(
-                    timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                    state="write_confirm",
-                    entry_type="write_confirm",
-                    battery_kwh_freetochange=0.0,
-                    battery_kwh_useable=0.0,
-                    predicted_load_kwh=None,
-                    write_channel=wevent.get("channel"),
-                    write_latency_sec=wevent.get("latency_sec"),
-                    write_outcome=wevent.get("outcome"),
-                ))
+                await self._log_write_event(wevent)
+        if self._hot_water is not None:
+            for wevent in self._hot_water.pop_write_events():
+                await self._log_write_event(wevent)
 
         feed_in_kwh_ha = (
             ws.get_state_value(cfg.feed_in_energy_entity)
@@ -467,6 +467,8 @@ class EMSController:
         result["bridge_plan"] = self._bridge_plan_dict()
         if self._hp_recorder is not None and self._hp_recorder.enabled:
             result["heat_pump"] = self._hp_recorder.status()
+        if self._hot_water is not None and self._hot_water.enabled:
+            result["hot_water"] = self._hot_water.status(now)
 
         if self._energy_plan is not None:
             plan = self._energy_plan
@@ -793,7 +795,10 @@ class EMSController:
             # tomorrow's sun would have supplied.
             tomorrow_stale = self._is_stale_daily(cfg.solcast_tomorrow_entity)
             if tomorrow is not None and tomorrow >= 0 and not tomorrow_stale:
-                if bat_kwh_free <= tomorrow * cfg.pv_charge_margin_factor + cfg.grid_charge_min_free_kwh:
+                ww_pv = (self._hot_water.planned_pv_kwh_before(self._plan_deadline(now))
+                         if self._hot_water is not None else 0.0)
+                if (bat_kwh_free + ww_pv
+                        <= tomorrow * cfg.pv_charge_margin_factor + cfg.grid_charge_min_free_kwh):
                     return False   # tomorrow's PV will refill it – skip grid charging
 
             # No usable forecast at all (today spent/stale AND tomorrow
@@ -946,23 +951,64 @@ class EMSController:
     def _build_plan_slots(
         self, now: datetime, price: float, pv_w: float | None
     ) -> list[PlanSlot] | None:
+        """Slots for the bridging plan: PV forecast and load model required.
+
+        With hot-water control live, each slot's load swaps the flat hot-water
+        share for the hot-water plan's electricity in that slot.
+        """
+        slots, status, _, _ = self._plan_slots(now, price, pv_w, need_pv=True, need_load=True)
+        if slots is None:
+            self._bridge_status = status
+            return None
+        hw = self._hot_water
+        if hw is not None and hw.couples:
+            slots = [
+                PlanSlot(s.start, s.end, s.rate_eur_kwh,
+                         max(0.0, s.load_kwh + hw.load_delta_kwh(s.end, s.hours)), s.pv_kwh)
+                for s in slots
+            ]
+        return slots
+
+    def _plan_slots(
+        self,
+        now: datetime,
+        price: float | None,
+        pv_w: float | None,
+        *,
+        need_pv: bool,
+        need_load: bool,
+    ) -> tuple[list[PlanSlot] | None, str, bool, bool]:
+        """30-min planning slots → (slots | None, status, pv_known, load_known).
+
+        Without need_pv / need_load a missing PV forecast or load model leaves
+        pv_kwh / load_kwh at 0 and reports it via pv_known / load_known.
+        """
         cfg = self._cfg
+        if price is None:
+            return None, "price unavailable", False, False
         curve = PriceCurve.from_entity(self._ws, cfg.electricity_price_entity, cfg.tariff_source)
         if curve is None:
-            self._bridge_status = "no tariff calendar on price entity"
-            return None
+            return None, "no tariff calendar on price entity", False, False
+
+        pv_status = ""
+        pv: dict = {}
         if self._solcast is None:
-            self._bridge_status = "solcast not configured"
-            return None
-        if self._solcast_data_stale():
-            self._bridge_status = "solcast data stale"
-            return None
-        pv = self._solcast.pv_slots(cfg.pv_forecast_scenario, cfg.pv_forecast_blend_weight)
-        if not pv:
-            self._bridge_status = "solcast detailedForecast missing"
-            return None
+            pv_status = "solcast not configured"
+        elif self._solcast_data_stale():
+            pv_status = "solcast data stale"
+        else:
+            pv = self._solcast.pv_slots(cfg.pv_forecast_scenario, cfg.pv_forecast_blend_weight) or {}
+            if not pv:
+                pv_status = "solcast detailedForecast missing"
+        if pv_status and need_pv:
+            return None, pv_status, False, False
+        pv_known = not pv_status
+
+        load_known = self._forecaster is not None and self._forecaster.model is not None
+        if need_load and not load_known:
+            return None, "no load history yet", pv_known, False
+
         pv_items = sorted((s, e, kwh) for s, (e, kwh) in pv.items())
-        pv_end = pv_items[-1][1]
 
         def pv_between(a: datetime, b: datetime) -> float:
             total = 0.0
@@ -984,7 +1030,9 @@ class EMSController:
                 and not self._is_stale(cfg.pv_power_entity, cfg.sensor_max_age_sec)):
             ratio = max(_NOWCAST_RATIO_MIN, min(_NOWCAST_RATIO_MAX, (pv_w / 1000.0) / fc_kw))
 
-        horizon = min(now + timedelta(hours=PLAN_HORIZON_H), pv_end)
+        horizon = now + timedelta(hours=PLAN_HORIZON_H)
+        if pv_items:
+            horizon = min(horizon, pv_items[-1][1])
         slots: list[PlanSlot] = []
         start = slot_start
         while start < horizon:
@@ -994,19 +1042,20 @@ class EMSController:
                 start = end
                 continue
             minutes = (end - a).total_seconds() / 60.0
-            temp = self._weather.hourly_temp_at(a) if self._weather is not None else None
-            load = self._forecaster.predict_kwh(a, minutes, temp)  # type: ignore[union-attr]
+            load = 0.0
+            if load_known:
+                temp = self._weather.hourly_temp_at(a) if self._weather is not None else None
+                load = self._forecaster.predict_kwh(a, minutes, temp) or 0.0  # type: ignore[union-attr]
             pv_kwh = pv_between(a, end)
             ahead_h = (a - now).total_seconds() / 3600.0
             if ahead_h < _NOWCAST_HORIZON_H:
                 pv_kwh *= 1.0 + (ratio - 1.0) * (1.0 - ahead_h / _NOWCAST_HORIZON_H)
             rate = price if not slots else curve.rate_at(a)
-            slots.append(PlanSlot(a, end, rate, load or 0.0, pv_kwh))
+            slots.append(PlanSlot(a, end, rate, load, pv_kwh))
             start = end
         if not slots:
-            self._bridge_status = "no planning horizon"
-            return None
-        return slots
+            return None, "no planning horizon", pv_known, load_known
+        return slots, "", pv_known, load_known
 
     async def _record_hourly(self, now: datetime, load_w: float | None) -> None:
         """Feed the hourly history (always on – the model needs history
@@ -1022,6 +1071,52 @@ class EMSController:
             )
         except Exception as exc:   # history is best-effort, never block control
             _LOGGER.warning("Hourly history write failed: %s", exc)
+
+    async def _log_write_event(self, wevent: dict) -> None:
+        await self._event_log.append(LogEntry(
+            timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            state="write_confirm",
+            entry_type="write_confirm",
+            battery_kwh_freetochange=0.0,
+            battery_kwh_useable=0.0,
+            predicted_load_kwh=None,
+            write_channel=wevent.get("channel"),
+            write_latency_sec=wevent.get("latency_sec"),
+            write_outcome=wevent.get("outcome"),
+        ))
+
+    async def _update_hot_water(
+        self, now: datetime, pv_w: float | None, grid_w: float | None, price: float | None,
+        bat_kwh_use: float | None = None, bat_kwh_free: float | None = None,
+    ) -> None:
+        hw = self._hot_water
+        if hw is None or not hw.enabled:
+            return
+        # The load model is otherwise only (re)fitted by the bridge plan, which
+        # runs after this – right after a start the hot-water plan would then
+        # see no load forecast, hence no PV surplus and no battery (all "grid").
+        if self._forecaster is not None:
+            try:
+                await self._forecaster.refresh(now)   # memoised: refits at most hourly
+            except Exception as exc:
+                _LOGGER.warning("Load model refresh for hot water failed: %s", exc)
+        slots, _, pv_known, load_known = self._plan_slots(
+            now, price, pv_w, need_pv=False, need_load=False
+        )
+        # The battery covers the house (heat pump included) whether or not
+        # miniEMS steers it; grid-charge windows exist only with battery control.
+        battery = None
+        if bat_kwh_use is not None and bat_kwh_free is not None:
+            eta = self._optimizer.today_efficiency()
+            battery = BatteryContext(
+                stored_kwh=bat_kwh_use, free_kwh=bat_kwh_free,
+                eta=eta if eta and eta > 0 else _DEFAULT_ETA,
+                grid_charging=self._cfg.battery_control_enabled,
+            )
+        try:
+            await hw.update(now, slots, pv_known, load_known, grid_w, price, battery)
+        except Exception as exc:   # never let hot water block battery control
+            _LOGGER.warning("Hot-water control failed: %s", exc, exc_info=True)
 
     async def _record_heat_pump(self, now: datetime) -> None:
         """Feed the heat-pump / hot-water history (docs/roadmap/v3.4-warmwasser.md)."""
@@ -1076,6 +1171,32 @@ class EMSController:
             )
         except Exception as exc:   # history is best-effort, never block control
             _LOGGER.warning("Heat-pump history write failed: %s", exc)
+        for ev in rec.pop_events():
+            await self._log_draw_event(ev)
+
+    async def _log_draw_event(self, ev: dict) -> None:
+        """Hot-water draw detected / finished → event log (shown as "Hot water")."""
+        before = ev["temp_before_c"]
+        since = ev["ts"].astimezone().strftime("%H:%M")
+        if ev["type"] == "draw_start":
+            reason = (f"hot-water draw detected since {since}: {before:.1f} → "
+                      f"{ev['temp_now_c']:.1f} °C (−{before - ev['temp_now_c']:.1f} K so far)")
+            state = "draw_start"
+        else:
+            minutes = (ev["last_drop_ts"] - ev["ts"]).total_seconds() / 60.0
+            after = ev["temp_after_c"]
+            reason = (f"hot-water draw finished: {since}, {before:.1f} → {after:.1f} °C "
+                      f"(−{before - after:.1f} K) over {minutes:.0f} min")
+            state = "draw_end"
+        hw_mode = self._hot_water.mode.value if self._hot_water is not None else ""
+        try:
+            await self._event_log.append(LogEntry(
+                timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                state=state, battery_kwh_freetochange=0.0, battery_kwh_useable=0.0,
+                predicted_load_kwh=None, entry_type="hw_decision", mode=hw_mode, reason=reason,
+            ))
+        except Exception as exc:
+            _LOGGER.warning("Draw event log write failed: %s", exc)
 
     def _heat_pump_power_w(self) -> float | None:
         """Sum of the configured heat-pump power entities; None if any is missing."""
@@ -1139,6 +1260,8 @@ class EMSController:
             margin_factor=cfg.pv_charge_margin_factor,
             charge_kw=self._charge_power_kw(),
             curve=curve,
+            extra_deficit_kwh=(self._hot_water.planned_pv_kwh_before(self._plan_deadline(now))
+                               if self._hot_water is not None else 0.0),
         )
         self._last_energy_plan_at = now
 

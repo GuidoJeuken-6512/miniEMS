@@ -88,7 +88,8 @@
           "error": "Fehler"
         }
       },
-      "energy_plan_deficit": { "name": "Energiefahrplan-Defizit" }
+      "energy_plan_deficit": { "name": "Energiefahrplan-Defizit" },
+      "hot_water_mode": { "name": "Warmwasser-Modus" }
     }
   }
 }

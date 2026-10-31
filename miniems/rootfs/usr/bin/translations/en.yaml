@@ -106,8 +106,10 @@ log_free: Free (kWh)
 log_useable: Useable (kWh)
 log_pred_load: Pred. Load (kWh)
 log_empty: No events recorded yet.
-log_page_hint: Shows the last 100 events (mode changes & price updates).
+log_page_hint: Shows the last 100 events (mode changes, price updates & hot water).
 log_price_change: Price Change
+log_hw: Hot water
+log_ct_heat: ct/kWh heat
 log_sim_hint: Simulation mode active – commands are logged only, never sent.
 
 # Mode-decision reasons (grid-friendly PV strategy & battery control)
@@ -201,3 +203,60 @@ kwh_low_rate_month: Month Low Rate
 config_json_hint: "Persistent settings written by miniEMS. Takes precedence over options.json. Stored at /data/config.json."
 options_json_hint: "Supervisor-managed options. Read on startup; config.json wins for values equal to the dataclass default. Stored at /data/options.json."
 options_json_warning: "This file is managed by the HA Supervisor. Changes may be overwritten when the addon is reconfigured via the HA UI. Prefer editing config.json for persistent changes."
+
+# Heat pump / hot water tab
+tab_heatpump: Heat Pump
+ui_heatpump: Heat Pump – Hot Water
+hw_hint: Hot-water heating by schedule – cheapest electricity (tariff, PV surplus) divided by the learned COP, never below the minimum temperature.
+hw_not_configured: No boiler temperature sensor configured (Settings → Heat Pump / Hot Water).
+hw_decision: Decision
+hw_boil: Boiler temperature
+hw_min: Minimum temperature
+hw_day_target: Day target
+hw_morning: Shut-off / morning target
+hw_setpoint: Written setpoint
+hw_confirmed: confirmed
+hw_pending: awaiting confirmation
+hw_not_written: not written (control off)
+hw_cop_live: COP live / filtered
+hw_cop_learned: Learned COP at
+hw_cop_prior: starting value
+hw_loss: Standby loss at 50 °C
+hw_heat_power: Heating power (thermal)
+hw_draws: Draw profile
+hw_plan: Hot-water schedule
+hw_plan_cost: Planned cost
+hw_plan_heat: Planned heat
+hw_no_plan: No schedule
+hw_projection: Temperature forecast
+hw_shutoff: shut-off
+hw_ct_heat: ct/kWh heat
+hw_cost_now: Heat now would cost
+hw_src_pv: PV
+hw_src_battery: Battery
+hw_src_grid: Grid
+hw_draw_active: Draw in progress since
+hw_draw_running: running
+hw_learning: learning
+hw_days_history: days of history (profile from 7 days)
+hw_workday_weekend: workday / weekend
+hw_adhoc_start: Hot water now (ad hoc)
+hw_adhoc_click_cancel: click again to cancel
+hw_adhoc_sending: sending …
+hw_adhoc_no_write_off: control off – nothing is written
+hw_adhoc_no_write_sim: simulation – nothing is written
+hw_adhoc_active: Ad-hoc charge active
+hw_adhoc_off_at: off at
+hw_adhoc_impulse: setpoint
+hw_adhoc_start_hint: Start
+hw_adhoc_already: boiler already at shut-off temperature
+hw_sim: Simulation
+hw_control_off: Control off – decisions are shown only
+hw_live: Live
+hw_couples: Hot-water plan feeds the battery plan
+hw_recent_hours: Recent hours
+hw_recent_draws: Recent draws
+hw_recent_segments: Recent loss measurements
+hw_hour: Hour
+hw_op_mode: Mode
+hw_outdoor: Outdoor

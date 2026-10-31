@@ -8,6 +8,7 @@ import json
 import logging
 import os
 from dataclasses import fields as dc_fields
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -78,6 +79,7 @@ _BOOL_FIELDS = {
     "battery_control_enabled", "battery_control_simulation",
     "pv_export_priority_enabled", "device_detection_enabled",
     "load_forecast_enabled",
+    "hw_control_enabled", "hw_control_simulation",
 }
 # Dict-valued fields never have a settings.html form control (no free-text
 # input can represent a dict safely) – but /api/config's merge loop below
@@ -97,6 +99,8 @@ _INT_FIELDS = {
     "sensor_max_age_sec", "forecast_max_age_sec", "price_max_age_sec",
     "inverter_write_stuck_threshold_sec",
     "load_forecast_min_days",
+    "hp_mode_hot_water_code", "hp_request_hot_water_code", "hp_cop_settle_sec",
+    "hw_write_scale", "hw_pv_min_export_w", "hw_min_off_sec",
 }
 # NOTE: any float field missing here falls through to str(value) in _coerce()
 # and is persisted as a string, which then raises TypeError on first use.
@@ -107,6 +111,10 @@ _FLOAT_FIELDS = {
     "pv_charge_margin_factor", "pv_charge_hysteresis_frac", "grid_charge_min_free_kwh",
     "grid_charge_min_margin_eur_kwh",
     "heating_limit_temp_c", "pv_forecast_blend_weight",
+    "hot_water_min_temp_c", "hw_draw_drop_k",
+    "hw_volume_l", "hw_day_target_c", "hw_morning_target_c", "hw_boost_delta_k", "hw_idle_setpoint_c",
+    "hw_max_temp_c", "hw_heat_power_kw", "hw_cop_prior",
+    "hw_cop_prior_temp_c", "hw_adhoc_delta_k", "hw_decision_tolerance_pct",
 }
 
 
@@ -178,6 +186,8 @@ def create_app(
     config: Any = None,          # Config dataclass instance
     supervisor_token: str = "",
     store: Any = None,           # EnergyStore instance
+    hot_water: Any = None,       # HotWaterController instance
+    inverter: Any = None,        # InverterController instance
 ) -> FastAPI:
     """Create FastAPI app; status_store is the shared dict updated by EMS loop."""
     app = FastAPI(title="miniEMS", docs_url=None, redoc_url=None)
@@ -197,6 +207,10 @@ def create_app(
 
     @app.get("/api/status")
     async def api_status() -> dict[str, Any]:
+        # status_store is only refreshed per EMS tick; the hot-water part is
+        # read live so a button press shows up at once.
+        if hot_water is not None and hot_water.enabled and "hot_water" in status_store:
+            return {**status_store, "hot_water": hot_water.status()}
         return status_store
 
     # ── Settings ───────────────────────────────────────────────────────
@@ -249,6 +263,43 @@ def create_app(
         return JSONResponse({"rows": rows})
 
     # ── Devices (read-only preview, see docs/roadmap/v3.0-geraeteprofile.md) ──
+
+    @app.get("/heatpump", response_class=HTMLResponse)
+    async def heatpump_page(request: Request) -> HTMLResponse:
+        lang = await get_ha_language(request)
+        translations = load_translations(lang)
+        return _TEMPLATES.TemplateResponse(
+            request, "heatpump.html", {"version": const.VERSION, "translations": translations, "lang": lang}
+        )
+
+    @app.post("/api/hot_water/adhoc")
+    async def api_hot_water_adhoc(request: Request) -> JSONResponse:
+        """Start or cancel a manual hot-water charge. Written exactly like an
+        automatic one – setpoint, confirmation and simulation all apply."""
+        if hot_water is None or not hot_water.enabled:
+            return JSONResponse({"error": "hot-water control not configured"}, status_code=409)
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        action = (body or {}).get("action")
+        if action == "start":
+            return JSONResponse(await hot_water.request_adhoc())
+        if action == "cancel":
+            return JSONResponse(await hot_water.cancel_adhoc())
+        return JSONResponse({"error": "action must be 'start' or 'cancel'"}, status_code=400)
+
+    @app.get("/api/hot_water/history")
+    async def api_hot_water_history() -> JSONResponse:
+        if store is None:
+            return JSONResponse({"hours": [], "segments": [], "draws": []})
+        since = date.today() - timedelta(days=2)
+        hours = await store.query_hp_hours_since(since)
+        return JSONResponse({
+            "hours": hours[-48:],
+            "segments": await store.query_loss_segments(limit=10),
+            "draws": await store.query_draws(limit=20),
+        })
 
     @app.get("/devices", response_class=HTMLResponse)
     async def devices_page(request: Request) -> HTMLResponse:
@@ -387,6 +438,113 @@ def create_app(
 
         asyncio.create_task(_do_restart())
         return JSONResponse({"status": "restarting"})
+
+    # ── Control mode: simulation / battery / heat pump, without restart ──
+
+    mode_lock = asyncio.Lock()
+
+    def _control_mode() -> dict[str, Any]:
+        c = config
+        return {
+            # One switch for both: on as soon as either part simulates (the safe reading).
+            "simulation": bool(c.battery_control_simulation or c.hw_control_simulation),
+            "simulation_mixed": c.battery_control_simulation != c.hw_control_simulation,
+            "battery_control": bool(c.battery_control_enabled),
+            "hw_control": bool(c.hw_control_enabled),
+            "battery_live": bool(c.battery_control_enabled and not c.battery_control_simulation),
+            "hw_live": bool(c.hw_control_enabled and not c.hw_control_simulation),
+        }
+
+    @app.get("/api/control_mode")
+    async def api_control_mode_get() -> JSONResponse:
+        if config is None:
+            return JSONResponse({"error": "no config"}, status_code=409)
+        return JSONResponse(_control_mode())
+
+    @app.post("/api/control_mode")
+    async def api_control_mode_post(request: Request) -> JSONResponse:
+        """Switch simulation / battery control / hot-water control at runtime.
+
+        Applied to the live Config at once (the controllers read it every tick)
+        and persisted to config.json – no restart. Leaving live mode first puts
+        the device back into its safe state, exactly like a shutdown would.
+        """
+        if config is None:
+            return JSONResponse({"error": "no config"}, status_code=409)
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+        if not isinstance(body, dict):
+            return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+        updates: dict[str, bool] = {}
+        if "simulation" in body:
+            sim = _coerce("battery_control_simulation", body["simulation"])
+            updates["battery_control_simulation"] = sim
+            updates["hw_control_simulation"] = sim
+        if "battery_control" in body:
+            updates["battery_control_enabled"] = _coerce("battery_control_enabled", body["battery_control"])
+        if "hw_control" in body:
+            updates["hw_control_enabled"] = _coerce("hw_control_enabled", body["hw_control"])
+        if not updates:
+            return JSONResponse({"error": "nothing to change"}, status_code=400)
+
+        async with mode_lock:
+            before = _control_mode()
+            new_bat_live = (updates.get("battery_control_enabled", config.battery_control_enabled)
+                            and not updates.get("battery_control_simulation",
+                                                config.battery_control_simulation))
+            new_hw_live = (updates.get("hw_control_enabled", config.hw_control_enabled)
+                           and not updates.get("hw_control_simulation", config.hw_control_simulation))
+
+            # Leave live mode safely – while the old flags still allow real writes.
+            if before["battery_live"] and not new_bat_live and inverter is not None:
+                try:
+                    await asyncio.wait_for(inverter.restore_safe_defaults(), timeout=10)
+                except Exception as exc:
+                    _LOGGER.error("Inverter restore on mode switch failed: %s", exc)
+            if before["hw_live"] and not new_hw_live and hot_water is not None:
+                try:
+                    await asyncio.wait_for(hot_water.restore_safe_defaults(), timeout=10)
+                except Exception as exc:
+                    _LOGGER.error("Hot-water restore on mode switch failed: %s", exc)
+
+            for key, value in updates.items():
+                setattr(config, key, value)
+            # Simulated writes count as confirmed without being sent – start fresh.
+            for ctrl in (inverter, hot_water):
+                if ctrl is not None:
+                    ctrl.reset_write_state()
+
+            after = _control_mode()
+            _LOGGER.info("Control mode switched: battery %s, hot water %s",
+                         "LIVE" if after["battery_live"] else
+                         ("SIMULATION" if after["battery_control"] else "off"),
+                         "LIVE" if after["hw_live"] else
+                         ("SIMULATION" if after["hw_control"] else "off"))
+
+            existing: dict = {}
+            if os.path.exists(CONFIG_FILE):
+                try:
+                    with open(CONFIG_FILE, encoding="utf-8") as f:
+                        existing = json.load(f)
+                except Exception as exc:
+                    _LOGGER.warning("Failed to read existing config for merge: %s", exc)
+            existing.update(updates)
+            try:
+                # Atomic: a crash mid-write must not leave a broken config.json.
+                tmp = CONFIG_FILE + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(existing, f, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp, CONFIG_FILE)
+            except OSError as exc:
+                _LOGGER.error("Failed to write config: %s", exc)
+                return JSONResponse({**after, "error": f"active, but not saved: {exc}"},
+                                    status_code=500)
+        return JSONResponse(after)
 
     # ── Raw file viewer / editor ────────────────────────────────────────
 

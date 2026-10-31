@@ -49,6 +49,9 @@ class FakeOptimizer:
     def get_startup_warnings(self):
         return list(self.startup_warnings)
 
+    def clear_startup_warnings(self):
+        self.startup_warnings = []
+
     async def summary_with_db(self):
         return {"today_grid_cost_eur": 1.23, "today_grid_charge_cost_eur": 0.5,
                 "today_load_total_kwh": 10.0}
@@ -297,6 +300,31 @@ async def test_update_propagates_startup_warnings(make_config, fake_ws):
     })
     result = await ctrl.update()
     assert any("Data gap" in w for w in result["warnings"])
+
+
+async def test_gap_warning_dropped_after_accounted_tick(make_config, fake_ws):
+    ctrl, optimizer, inverter, model = build_controller(make_config, fake_ws)
+    optimizer.startup_warnings.append("Data gap detected: 999s")
+    fake_ws.values.update({
+        "sensor.pv": 0.0, "sensor.load": 0.0, "sensor.grid": 0.0,
+        "sensor.soc": 50.0, "sensor.batp": 0.0, "sensor.price": 0.30,
+    })
+    first = await ctrl.update()
+    second = await ctrl.update()
+    assert any("Data gap" in w for w in first["warnings"])
+    assert not any("Data gap" in w for w in second["warnings"])
+
+
+async def test_gap_warning_kept_while_power_sensor_missing(make_config, fake_ws):
+    ctrl, optimizer, inverter, model = build_controller(make_config, fake_ws)
+    optimizer.startup_warnings.append("Data gap detected: 999s")
+    fake_ws.values.update({
+        "sensor.pv": 0.0, "sensor.load": None, "sensor.grid": 0.0,
+        "sensor.soc": 50.0, "sensor.batp": 0.0, "sensor.price": 0.30,
+    })
+    await ctrl.update()
+    second = await ctrl.update()
+    assert any("Data gap" in w for w in second["warnings"])
 
 
 @pytest.mark.asyncio
@@ -577,3 +605,59 @@ async def test_update_runs_bridge_plan_and_records_hour(make_config, fake_ws):
     assert result["mode"] == EMSMode.GRID_CHARGING.value
     assert inverter.last_grid_charge_power_w is not None
     assert recorded == [(1000.0, None, None)]
+
+
+class FakeHotWater:
+    enabled = True
+
+    def __init__(self, couples=False):
+        self.couples = couples
+        self.updates = []
+
+    async def update(self, now, slots, pv_known, load_known, grid_w, price, battery=None):
+        self.updates.append((slots, pv_known, load_known, grid_w, price, battery))
+
+    def status(self, now=None):
+        return {"mode": "HW Idle"}
+
+    def pop_write_events(self):
+        return [{"channel": "Boiler setpoint", "outcome": "confirmed", "latency_sec": 1.0}]
+
+    def load_delta_kwh(self, slot_end, hours):
+        return 0.5
+
+    def planned_pv_kwh_before(self, deadline):
+        return 0.0
+
+
+async def test_update_runs_hot_water_and_reports_it(make_config, fake_ws):
+    ctrl, *_ = build_controller(make_config, fake_ws)
+    hw = FakeHotWater()
+    ctrl._hot_water = hw
+    fake_ws.values.update({
+        "sensor.pv": 0.0, "sensor.load": 0.0, "sensor.grid": -100.0,
+        "sensor.soc": 50.0, "sensor.batp": 0.0, "sensor.price": 0.30,
+    })
+    result = await ctrl.update()
+    assert result["hot_water"] == {"mode": "HW Idle"}
+    assert hw.updates and hw.updates[0][3] == -100.0
+    battery = hw.updates[0][5]   # SoC known → battery state handed to the hot-water plan
+    assert battery is not None and battery.stored_kwh >= 0 and battery.free_kwh >= 0
+    assert any(e["write_outcome"] == "confirmed" for e in ctrl._event_log.to_list(True))
+
+
+def _two_slots():
+    from bridge_planner import PlanSlot
+    from datetime import datetime, timedelta, timezone
+    a = datetime(2026, 10, 29, 5, 0, tzinfo=timezone.utc)
+    return [PlanSlot(a, a + timedelta(minutes=30), 0.3, 0.2, 0.0),
+            PlanSlot(a + timedelta(minutes=30), a + timedelta(hours=1), 0.3, 0.2, 0.0)]
+
+
+def test_bridge_slots_unchanged_unless_hot_water_couples(make_config, fake_ws):
+    ctrl, *_ = build_controller(make_config, fake_ws)
+    ctrl._plan_slots = lambda *a, **k: (_two_slots(), "", True, True)
+    ctrl._hot_water = FakeHotWater(couples=False)
+    assert [s.load_kwh for s in ctrl._build_plan_slots(None, 0.3, None)] == [0.2, 0.2]
+    ctrl._hot_water = FakeHotWater(couples=True)
+    assert [s.load_kwh for s in ctrl._build_plan_slots(None, 0.3, None)] == [0.7, 0.7]

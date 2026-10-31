@@ -6,11 +6,12 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
+import voluptuous as vol
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
+from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.storage import Store
@@ -67,6 +68,12 @@ _FRONTEND_CARDS = {
 _DASHBOARD_URL_PATH = "miniems"
 _DASHBOARD_STORAGE_KEY = f"lovelace.{_DASHBOARD_URL_PATH}"
 SERVICE_GENERATE_DASHBOARD = "generate_dashboard"
+# Hot-water ad-hoc charge (dashboard button) – forwarded to the addon's
+# POST /api/hot_water/adhoc, the same endpoint its own Heat Pump tab uses.
+SERVICE_HOT_WATER_ADHOC = "hot_water_adhoc"
+_HOT_WATER_ADHOC_SCHEMA = vol.Schema(
+    {vol.Optional("action", default="start"): vol.In(["start", "cancel"])}
+)
 # Bump when the generated dashboard's layout changes: an install that has the
 # dashboard option on then regenerates it once (tabs, new cards) instead of
 # keeping the stored old layout forever.
@@ -237,6 +244,48 @@ async def async_generate_dashboard(hass: HomeAssistant, entry: ConfigEntry) -> N
     )
 
 
+def _register_hot_water_service(hass: HomeAssistant) -> None:
+    """Register miniems.hot_water_adhoc once.
+
+    Registered from async_setup_entry, not async_setup: the addon updates
+    this integration by copying files and reloading the config entry, which
+    re-runs async_setup_entry but never async_setup – a new service there
+    would only appear after a full HA restart.
+    """
+    if hass.services.has_service(DOMAIN, SERVICE_HOT_WATER_ADHOC):
+        return
+
+    async def _handle(call: ServiceCall) -> ServiceResponse:
+        action = call.data["action"]
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+            if coordinator is None:
+                continue
+            url = f"{entry.data.get(CONF_BASE_URL, DEFAULT_BASE_URL).rstrip('/')}/api/hot_water/adhoc"
+            try:
+                async with aiohttp.ClientSession(
+                    timeout=aiohttp.ClientTimeout(total=15)
+                ) as session:
+                    async with session.post(url, json={"action": action}) as resp:
+                        body = await resp.json(content_type=None)
+                        if resp.status != 200:
+                            raise HomeAssistantError(
+                                f"miniEMS hot-water ad-hoc failed: "
+                                f"{(body or {}).get('error') or f'HTTP {resp.status}'}"
+                            )
+            except (aiohttp.ClientError, TimeoutError) as err:
+                raise HomeAssistantError(f"miniEMS addon not reachable: {err}") from err
+            # Show the new state at once instead of after the next poll.
+            await coordinator.async_refresh()
+            return body if isinstance(body, dict) else {}
+        raise HomeAssistantError("miniEMS integration is not loaded")
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_HOT_WATER_ADHOC, _handle,
+        schema=_HOT_WATER_ADHOC_SCHEMA, supports_response=SupportsResponse.OPTIONAL,
+    )
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up miniEMS from a config entry."""
     base_url = entry.data[CONF_BASE_URL]
@@ -271,8 +320,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # unique_id collides with that slug and gets a "_2" suffix instead of the
     # clean name. Deferred import: sensor.py imports DOMAIN from this module,
     # so importing it back at module load time would be circular.
-    from .sensor import SENSOR_DESCRIPTIONS
-    current_unique_ids = {d.key for d in SENSOR_DESCRIPTIONS}
+    from .sensor import ENERGY_PLAN_DESCRIPTION, HOT_WATER_DESCRIPTION, SENSOR_DESCRIPTIONS
+    current_unique_ids = {d.key for d in SENSOR_DESCRIPTIONS} | {
+        ENERGY_PLAN_DESCRIPTION.key, HOT_WATER_DESCRIPTION.key,
+    }
     orphaned = [
         e for e in registry.entities.values()
         if e.platform == DOMAIN
@@ -293,6 +344,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             registry.async_update_entity(reg_entry.entity_id, original_name=None)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    _register_hot_water_service(hass)
 
     if _RESTART_MARKER.exists():
         try:

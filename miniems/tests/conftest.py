@@ -49,6 +49,12 @@ class FakeWS:
     def get_state_value(self, entity_id: str) -> float | None:
         return self.values.get(entity_id)
 
+    def get_state_raw(self, entity_id: str) -> str | None:
+        if entity_id in self.state_cache:
+            return self.state_cache[entity_id].get("state")
+        value = self.values.get(entity_id)
+        return None if value is None else str(value)
+
     def get_state_datetime(self, entity_id: str) -> datetime | None:
         return self.datetimes.get(entity_id)
 

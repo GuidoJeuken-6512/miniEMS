@@ -221,3 +221,42 @@ def test_v20_to_v21_keeps_explicit_values():
     result = _v20_to_v21({"load_forecast_enabled": True, "heating_limit_temp_c": 12.0})
     assert result["load_forecast_enabled"] is True
     assert result["heating_limit_temp_c"] == 12.0
+
+
+def test_v21_to_v22_adds_heat_pump_defaults_empty():
+    from migration import _v21_to_v22
+    result = _v21_to_v22({})
+    assert result["heat_pump_cop_entity"] == ""
+    assert result["boil_temp_entity"] == ""
+    assert result["hp_mode_hot_water_code"] == 2
+    assert result["hp_request_hot_water_code"] == 4
+    assert result["hot_water_min_temp_c"] == 45.0
+
+
+def test_v21_to_v22_keeps_explicit_values():
+    from migration import _v21_to_v22
+    result = _v21_to_v22({"hp_mode_hot_water_code": 3, "boil_temp_entity": "sensor.boil"})
+    assert result["hp_mode_hot_water_code"] == 3
+    assert result["boil_temp_entity"] == "sensor.boil"
+
+
+def test_full_migration_reaches_current_version():
+    from migration import CURRENT_VERSION
+    assert migrate({"_version": 21})["_version"] == CURRENT_VERSION
+
+
+def test_v22_to_v23_hot_water_control_off_and_simulated():
+    from migration import _v22_to_v23
+    result = _v22_to_v23({})
+    assert result["hw_control_enabled"] is False
+    assert result["hw_control_simulation"] is True
+    assert result["hw_write_scale"] == 10
+    assert result["hw_cop_prior"] == 4.77
+    assert result["hw_morning_time"] == "06:30"
+
+
+def test_v22_to_v23_keeps_explicit_values():
+    from migration import _v22_to_v23
+    result = _v22_to_v23({"hw_volume_l": 300.0, "hw_control_simulation": False})
+    assert result["hw_volume_l"] == 300.0
+    assert result["hw_control_simulation"] is False

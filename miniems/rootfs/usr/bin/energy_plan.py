@@ -68,6 +68,7 @@ def compute_energy_plan(
     margin_factor: float,
     charge_kw: float | None,
     curve: "PriceCurve | None",
+    extra_deficit_kwh: float = 0.0,
 ) -> EnergyPlan:
     """Pure computation, no I/O – see module docstring for the formula.
 
@@ -86,7 +87,9 @@ def compute_energy_plan(
     if predicted_pv_tomorrow_kwh is None:
         return EnergyPlan(now, None, feasible=False, reason="no PV forecast for tomorrow")
 
-    deficit_kwh = max(0.0, bat_kwh_free - predicted_pv_tomorrow_kwh * margin_factor)
+    # extra_deficit_kwh: PV the hot-water plan will use before the deadline.
+    deficit_kwh = max(0.0, bat_kwh_free + extra_deficit_kwh
+                      - predicted_pv_tomorrow_kwh * margin_factor)
     if deficit_kwh <= 0:
         return EnergyPlan(now, 0.0, reason="tomorrow's PV forecast covers the need")
 

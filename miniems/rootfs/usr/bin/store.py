@@ -80,6 +80,51 @@ CREATE TABLE IF NOT EXISTS hourly_stats (
 """
 
 
+# Heat pump / hot water (docs/roadmap/v3.4-warmwasser.md, Schritt 1). One row
+# per local hour and raw operating-mode code; cop_* only counts ticks whose
+# COP survived the settle/plausibility filter.
+_CREATE_HP_HOURLY_TABLE = """
+CREATE TABLE IF NOT EXISTS heat_pump_hourly (
+    hour_start      TEXT NOT NULL,
+    mode            INTEGER NOT NULL,
+    date            TEXT NOT NULL,
+    hour            INTEGER NOT NULL,
+    ticks           INTEGER NOT NULL DEFAULT 0,
+    cop_ticks       INTEGER NOT NULL DEFAULT 0,
+    cop_avg         REAL,
+    outdoor_temp_c  REAL,
+    boil_temp_c     REAL,
+    heat_pump_kwh   REAL,
+    PRIMARY KEY (hour_start, mode)
+)
+"""
+
+_CREATE_HW_LOSS_TABLE = """
+CREATE TABLE IF NOT EXISTS hot_water_loss_segments (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    start_ts            TEXT NOT NULL,
+    end_ts              TEXT NOT NULL,
+    duration_h          REAL NOT NULL,
+    start_temp_c        REAL NOT NULL,
+    end_temp_c          REAL NOT NULL,
+    k_per_h             REAL NOT NULL,
+    avg_boil_temp_c     REAL,
+    avg_outdoor_temp_c  REAL,
+    end_reason          TEXT NOT NULL
+)
+"""
+
+_CREATE_HW_DRAWS_TABLE = """
+CREATE TABLE IF NOT EXISTS hot_water_draws (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts              TEXT NOT NULL,
+    temp_before_c   REAL NOT NULL,
+    temp_after_c    REAL NOT NULL,
+    drop_k          REAL NOT NULL
+)
+"""
+
+
 class EnergyStore:
     """Async SQLite wrapper for daily energy statistics."""
 
@@ -118,6 +163,9 @@ class EnergyStore:
             except Exception:
                 pass   # column already exists – ignore
         await self._db.execute(_CREATE_HOURLY_TABLE)
+        await self._db.execute(_CREATE_HP_HOURLY_TABLE)
+        await self._db.execute(_CREATE_HW_LOSS_TABLE)
+        await self._db.execute(_CREATE_HW_DRAWS_TABLE)
         await self._db.execute(_CREATE_CAPABILITY_TODAY_TABLE)
         await self._db.execute(_CREATE_CAPABILITY_HISTORY_TABLE)
         await self._db.execute(_CREATE_EVENT_LOG_TABLE)
@@ -187,6 +235,74 @@ class EnergyStore:
         ) as cur:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Heat pump / hot water
+    # ------------------------------------------------------------------
+
+    async def upsert_hp_hour(self, hour_start: str, mode: int, fields: dict[str, Any]) -> None:
+        """Insert or update one (hour, mode) row in heat_pump_hourly."""
+        if not self._db:
+            return
+        cols = ", ".join(fields.keys())
+        placeholders = ", ".join("?" * len(fields))
+        updates = ", ".join(f"{k} = excluded.{k}" for k in fields)
+        sql = (
+            f"INSERT INTO heat_pump_hourly (hour_start, mode, {cols}) "
+            f"VALUES (?, ?, {placeholders}) "
+            f"ON CONFLICT(hour_start, mode) DO UPDATE SET {updates}"
+        )
+        await self._db.execute(sql, [hour_start, mode, *fields.values()])
+        await self._db.commit()
+
+    async def query_hp_hours_since(self, since_date: date) -> list[dict[str, Any]]:
+        """Every heat_pump_hourly row with date >= since_date, oldest first."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM heat_pump_hourly WHERE date >= ? ORDER BY hour_start ASC, mode ASC",
+            [str(since_date)],
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    async def insert_loss_segment(self, fields: dict[str, Any]) -> None:
+        if not self._db:
+            return
+        cols = ", ".join(fields.keys())
+        placeholders = ", ".join("?" * len(fields))
+        await self._db.execute(
+            f"INSERT INTO hot_water_loss_segments ({cols}) VALUES ({placeholders})",
+            list(fields.values()),
+        )
+        await self._db.commit()
+
+    async def query_loss_segments(self, limit: int = 500) -> list[dict[str, Any]]:
+        """Most recent standby-loss segments, newest first."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM hot_water_loss_segments ORDER BY id DESC LIMIT ?", [limit],
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+    async def insert_draw(self, ts: str, temp_before_c: float, temp_after_c: float) -> None:
+        if not self._db:
+            return
+        await self._db.execute(
+            "INSERT INTO hot_water_draws (ts, temp_before_c, temp_after_c, drop_k) "
+            "VALUES (?, ?, ?, ?)",
+            [ts, temp_before_c, temp_after_c, round(temp_before_c - temp_after_c, 2)],
+        )
+        await self._db.commit()
+
+    async def query_draws(self, limit: int = 500) -> list[dict[str, Any]]:
+        """Most recent hot-water draws, newest first."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM hot_water_draws ORDER BY id DESC LIMIT ?", [limit],
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
 
     # ------------------------------------------------------------------
     # Read

@@ -637,3 +637,54 @@ footer        { font-size: 0.75rem; color: #8b949e; margin-top: 2rem; }
 }
 .devices-table tr:last-child td { border-bottom: none; }
 .devices-table code { color: #58a6ff; }
+
+/* ── Heat pump / hot water tab ─────────────────────────────────────────── */
+.hw-head { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin: .5rem 0; }
+.hw-reason { margin-bottom: .6rem; }
+/* Same spacing as the settings page's save bar. */
+.hw-actions { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin: 1.5rem 0 2rem; }
+/* Ad-hoc toggle: styled like .btn-save; sunk in, darker and lit while the charge runs. */
+.btn-toggle {
+  display: inline-flex; align-items: center; gap: .55rem;
+  background: #1f6feb; color: #fff;
+  border: none; border-radius: 6px;
+  padding: .5rem 1.4rem;
+  font-size: .9rem; font-weight: 600; cursor: pointer;
+  transition: transform .06s, box-shadow .06s, background .15s;
+}
+.btn-toggle:hover:not(:disabled) { background: #388bfd; }
+.btn-toggle:active:not(:disabled) { transform: translateY(1px); }
+.btn-toggle .led { width: .6rem; height: .6rem; border-radius: 50%; background: rgba(255,255,255,.35); }
+.btn-toggle.pressed {
+  background: #0d419d; transform: translateY(1px);
+  box-shadow: inset 0 3px 6px rgba(0,0,0,.5);
+}
+.btn-toggle.pressed:hover:not(:disabled) { background: #1158c7; }
+.btn-toggle.pressed .led { background: #ff7b72; box-shadow: 0 0 6px #ff7b72;
+  animation: hw-led 1.2s ease-in-out infinite; }
+.btn-toggle:disabled { cursor: wait; opacity: .8; }
+@keyframes hw-led { 50% { opacity: .35; } }
+.hw-timeline { position: relative; height: 34px; margin: 1rem 0 1.6rem; background: #161b22;
+  border: 1px solid #30363d; border-radius: 6px; }
+.hw-axis { position: absolute; inset: 0; }
+.hw-axis i { position: absolute; top: 0; bottom: 0; width: 1px; background: #30363d; }
+.hw-axis em { position: absolute; top: 36px; transform: translateX(-50%); font-size: .7rem;
+  font-style: normal; color: #8b949e; }
+.hw-seg { position: absolute; top: 5px; bottom: 5px; border-radius: 4px; opacity: .9; }
+.hw-req { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #d29922; }
+.hw-proj { width: 100%; height: 180px; background: #161b22; border: 1px solid #30363d;
+  border-radius: 6px; }
+.hw-proj-line { fill: none; stroke: #58a6ff; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+.hw-proj-min { stroke: #f85149; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+.hw-proj-day { stroke: #d29922; stroke-dasharray: 2 4; vector-effect: non-scaling-stroke; }
+.hw-proj-shutoff { stroke: #3fb950; stroke-dasharray: 8 4; vector-effect: non-scaling-stroke; }
+.hw-proj-req { fill: #d29922; }
+.hw-proj-label { fill: #8b949e; font-size: 12px; }
+
+/* ── Settings: control mode section ─────────────────────── */
+.mode-status { display: flex; gap: 1.2rem; flex-wrap: wrap; align-items: center; margin: 0 0 .6rem; }
+.mode-hint   { font-size: .8rem; margin-top: .4rem; }
+.sim-badge.mode-off { background: #30363d; color: #8b949e; }
+.log-hw { font-size: .72rem; font-weight: 700; color: #58a6ff; white-space: nowrap; margin-right: .3rem; }
+.hw-draw { margin-top: .3rem; font-size: .8rem; font-weight: 600; color: #58a6ff; }
+.hw-draw-row td { color: #58a6ff; font-weight: 600; }
