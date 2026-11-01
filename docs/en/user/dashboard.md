@@ -80,8 +80,9 @@ Shows remaining PV expected for today, today's total, and tomorrow's total from 
 
 Internal consumption model output. Shows the predicted load and fallback PV yield estimate. The badge indicates the data source:
 
-- **historically estimated** — based on temperature-matched historical days
-- **fallback estimation** — based on temperature rules (not enough history yet)
+- **historically estimated** — median of temperature-matched days (daily mean)
+- **last 14 days** — median of the last 14 days (too few temperature matches)
+- **fallback estimation** — fixed temperature rules (no measured day yet)
 
 ### Mode Change Log (compact)
 

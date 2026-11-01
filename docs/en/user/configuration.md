@@ -109,6 +109,13 @@ To create one: **HA → Profile → Long-Lived Access Tokens → Create Token**.
 !!! warning "Enable Simulation Mode first"
     Before enabling live control, run with `Simulation Mode` on. Verify the log shows the correct commands for your inverter.
 
+!!! tip "Quick switches: “Control Mode” section"
+    At the top of the Settings tab, four switches take effect **immediately, without a restart**:
+    **Simulation** (battery and heat pump together), **battery control on/off**,
+    **heat pump control on/off** and **fill missing history** (import from HA statistics, see
+    [Forecast & Prediction](#forecast-prediction); switching it on runs the import at once).
+    They are saved to `config.json` and survive restarts; their values in `options.json` are ignored.
+
 !!! info "Amps, not watts"
     The Deye charge/discharge limits are entities in **amps**, not watts — unlike in miniEMS versions before v2.0. The old `*_power_w` field names are migrated automatically to the new `*_current_a` fields on startup; any previously stored watt values are **not** converted, since there is no valid 1:1 conversion. Double-check the migrated values in Settings once after updating from an older version.
 
@@ -180,13 +187,27 @@ Optional strategy that **exports** PV surplus to the grid instead of storing it,
 |---|---|---|
 | `weather_entity` | `weather.openweathermap` | HA weather entity for temperature-based load prediction |
 
-The prediction model uses historical consumption data from similar-temperature days. If no history exists yet, temperature-based fallback rules apply:
+Tomorrow's load forecast looks for days in the last 60 days whose outdoor
+**daily mean** temperature is within ±4 °C of tomorrow's forecast daily mean and
+takes their median load (at least 3 days). With fewer, the median of the last
+14 days is used. Only without any measured day do fixed rules apply, based on
+the daily forecast:
 
 | Condition | Predicted Load |
 |---|---|
-| Night temp < 0 °C and day temp < 0 °C | 30 kWh |
-| Night temp < 0 °C and day temp < 10 °C | 20 kWh |
-| Night temp > 0 °C and day temp < 15 °C | 10 kWh |
+| Low < 0 °C and high < 0 °C | 30 kWh |
+| Low < 0 °C and high < 10 °C | 20 kWh |
+| Low > 0 °C and high < 15 °C | 10 kWh |
+
+Set `outdoor_temp_entity` (section below) for the temperature match – otherwise
+the daily mean is built from the hourly forecast.
+
+!!! tip "Empty history after a reinstall"
+    With the **fill missing history** switch (top, under *Control Mode*,
+    `history_backfill_enabled`) miniEMS takes missing days of the last 60 days
+    from Home Assistant's long-term statistics – daily load from the lifetime
+    counter, outdoor daily mean temperature. Measured days are never
+    overwritten. Details: [Calculations](../technical/calculations.md).
 
 ---
 
@@ -202,6 +223,7 @@ The hourly history is **always** recorded, even with the switch off, so history 
 | `load_forecast_min_days` | `14` | Days of hourly history before the plan decides. Until then it is computed and shown, the old logic decides. 1–60. |
 | `heat_pump_power_entity` | empty | Heat pump power in W, optional. Several comma-separated entities are summed (e.g. the three phases of a Shelly 3EM). Empty = temperature dependence learned from the total load. |
 | `outdoor_temp_entity` | empty | Outdoor temperature in °C, optional. Empty = current hour from `weather_entity`'s hourly forecast. |
+| `history_backfill_enabled` | `false` | Switch at the top of Settings (“Control Mode”), no restart needed: switching it on runs the import at once. At every start, fill missing days of the last 60 days (daily load from `load_consumption_total_entity`, outdoor daily mean from `outdoor_temp_entity`) from HA's long-term statistics. Gaps only – measured days and today are never overwritten, a rerun changes nothing. |
 | `heating_limit_temp_c` | `15.0` | Heating limit: above it the heat pump does not heat. Hot water is learned as a flat share. 5–25. |
 | `pv_forecast_scenario` | `blend` | Solcast scenario: `estimate`, `estimate10` (pessimistic) or `blend`. |
 | `pv_forecast_blend_weight` | `0.7` | For `blend`: weight of `estimate`, rest `estimate10`. |

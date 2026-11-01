@@ -110,12 +110,13 @@ Zum Erstellen: **HA → Profil → Langlebige Zugriffstoken → Token erstellen*
     Bevor du die Live-Steuerung aktivierst, betreibe miniEMS mit aktiviertem `Simulationsmodus`. Überprüfe im Log, ob die richtigen Befehle für deinen Wechselrichter angezeigt werden.
 
 !!! tip "Schnell umschalten: Abschnitt „Control Mode“"
-    Ganz oben im Einstellungs-Tab stehen drei Schalter, die **sofort und ohne Neustart** wirken:
-    **Simulation** (gilt für Akku und Wärmepumpe gemeinsam), **Batteriesteuerung an/aus** und
-    **WP-Steuerung an/aus**. Beim Verlassen von LIVE werden Wechselrichter bzw. Boiler-Sollwert
+    Ganz oben im Einstellungs-Tab stehen vier Schalter, die **sofort und ohne Neustart** wirken:
+    **Simulation** (gilt für Akku und Wärmepumpe gemeinsam), **Batteriesteuerung an/aus**,
+    **WP-Steuerung an/aus** und **Historie nachfüllen** (Import aus der HA-Statistik, siehe
+    [Vorhersage & Prognose](#vorhersage-prognose); Einschalten startet den Import sofort). Beim Verlassen von LIVE werden Wechselrichter bzw. Boiler-Sollwert
     zuerst in den sicheren Zustand gebracht (wie beim Beenden des Add-ons).
     Die Schalter werden in `config.json` gespeichert und überstehen jeden Neustart.
-    Werte dieser vier Schlüssel in `options.json` werden ignoriert.
+    Werte dieser Schlüssel in `options.json` werden ignoriert.
 
 !!! info "Ampere statt Watt"
     Die Deye-Ladungslimits sind Entitäten in **Ampere**, nicht in Watt — anders als in miniEMS-Versionen vor v2.0. Die alten `*_power_w`-Feldnamen werden beim Start automatisch auf die neuen `*_current_a`-Felder migriert; bereits gespeicherte Watt-Werte werden dabei **nicht** umgerechnet, da 1:1 keine gültige Umrechnung existiert. Prüfe die migrierten Werte einmal in den Einstellungen nach einem Update von einer Vorversion.
@@ -188,13 +189,27 @@ Optionale Strategie, die PV-Überschuss so lange **ins Netz exportiert**, statt 
 |---|---|---|
 | `weather_entity` | `weather.openweathermap` | HA-Wetter-Entität für temperaturbasierte Lastvorhersage |
 
-Das Vorhersagemodell verwendet historische Verbrauchsdaten von Tagen mit ähnlicher Temperatur. Wenn noch keine Historie vorhanden ist, gelten temperaturbasierte Fallback-Regeln:
+Die Verbrauchsprognose für morgen sucht Tage der letzten 60 Tage, deren
+Außentemperatur-**Tagesmittel** höchstens ±4 °C vom vorhergesagten Tagesmittel
+für morgen abweicht, und nimmt deren mittleren Verbrauch (mindestens 3 Tage).
+Gibt es weniger, gilt der Median der letzten 14 Tage. Nur ganz ohne gemessene
+Tage greifen feste Regeln nach der Tagesprognose:
 
 | Bedingung | Vorhergesagte Last |
 |---|---|
-| Nachttemperatur < 0 °C und Tagestemperatur < 0 °C | 30 kWh |
-| Nachttemperatur < 0 °C und Tagestemperatur < 10 °C | 20 kWh |
-| Nachttemperatur > 0 °C und Tagestemperatur < 15 °C | 10 kWh |
+| Tiefstwert < 0 °C und Höchstwert < 0 °C | 30 kWh |
+| Tiefstwert < 0 °C und Höchstwert < 10 °C | 20 kWh |
+| Tiefstwert > 0 °C und Höchstwert < 15 °C | 10 kWh |
+
+Für den Temperaturabgleich sollte `outdoor_temp_entity` (Abschnitt unten)
+gesetzt sein – sonst wird das Tagesmittel aus der Stundenprognose gebildet.
+
+!!! tip "Leere Historie nach Neuinstallation"
+    Mit dem Schalter **Historie nachfüllen** (oben unter *Control Mode*,
+    `history_backfill_enabled`) übernimmt miniEMS fehlende Tage der letzten
+    60 Tage aus den Langzeitstatistiken von Home Assistant – Tagesverbrauch aus
+    dem Lebenszeitzähler, Außentemperatur-Tagesmittel. Gemessene Tage werden
+    nie überschrieben. Details: [Berechnungen](../technical/calculations.md).
 
 ---
 

@@ -97,7 +97,11 @@ sodass jeder zur Laufzeit den Token wechseln kann.
 - `web_server.py` — um `http://supervisor/core/api/config` nach der HA-Sprache
   (de/en Auto-Detection) abzufragen
 - `integration_installer.py` — um die Custom-Integration-Dateien nach
-  `/config/custom_components/miniems` zu installieren/aktualisieren
+  `custom_components/miniems` im HA-Konfigverzeichnis zu installieren/aktualisieren.
+  Im Add-on-Container liegt dieses unter `/homeassistant` (Map
+  `homeassistant_config`); `/config` ist dort der eigene Bereich des Add-ons, den
+  HA nie liest. Der Installer schreibt nur, wenn dort eine `configuration.yaml`
+  liegt (seit v3.6.1).
 
 ## Sensor-Veröffentlichung: Custom Integration (Pull)
 

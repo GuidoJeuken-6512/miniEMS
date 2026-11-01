@@ -146,7 +146,8 @@ The dashboard renders these with their translated text in the warnings banner.
 | Value | Meaning |
 |---|---|
 | `"historical"` | Median of temperature-matched historical days |
-| `"fallback"` | Temperature rule-based estimate |
+| `"recent"` | Median of the last 14 days (too few temperature matches) |
+| `"fallback"` | Temperature rule-based estimate (no history) |
 
 ---
 

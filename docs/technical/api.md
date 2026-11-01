@@ -148,7 +148,8 @@ Das Dashboard rendert diese mit ihrem übersetzten Text im Warnungsbanner.
 | Wert | Bedeutung |
 |---|---|
 | `"historical"` | Median temperaturähnlicher Historientage |
-| `"fallback"` | Temperaturregelbasierte Schätzung |
+| `"recent"` | Median der letzten 14 Tage (zu wenige temperaturähnliche Tage) |
+| `"fallback"` | Temperaturregelbasierte Schätzung (keine Historie) |
 
 ---
 

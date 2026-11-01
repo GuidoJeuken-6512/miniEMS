@@ -79,8 +79,9 @@ Zeigt die verbleibende erwartete PV für heute, die Tagessumme und die morgige G
 
 Ausgabe des internen Verbrauchsmodells. Zeigt die vorhergesagte Last und die Fallback-PV-Ertragsschätzung. Das Badge gibt die Datenquelle an:
 
-- **historically estimated** — basierend auf temperaturabgeglichenen historischen Tagen
-- **fallback estimation** — basierend auf Temperaturregeln (noch nicht genug Historie)
+- **historisch geschätzt** — Median temperaturähnlicher Tage (Tagesmittel)
+- **Ø letzte 14 Tage** — Median der letzten 14 Tage (zu wenige temperaturähnliche Tage)
+- **Fallback-Schätzung** — feste Temperaturregeln (noch kein gemessener Tag)
 
 ### Moduswechsel-Log (kompakt)
 

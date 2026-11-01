@@ -90,7 +90,7 @@ CREATE TABLE daily_stats (
     load_total_kwh     REAL DEFAULT 0,
     load_cost_eur      REAL DEFAULT 0,
     avg_price_eur_kwh  REAL DEFAULT 0,
-    avg_outdoor_temp_c REAL,
+    avg_outdoor_temp_c REAL,               -- Tagesmittel 0–24 h (Sensor bzw. Stundenprognose; ggf. aus HA-Statistik nachgefüllt)
     ticks              INTEGER DEFAULT 0,
     -- per ALTER TABLE beim Upgrade hinzugefügt:
     peak_pv_w          REAL DEFAULT 0,

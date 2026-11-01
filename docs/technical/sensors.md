@@ -180,7 +180,8 @@ Die `/api/status`-Antwort enthält ein `prediction_source`-Feld (kein HA-Sensor)
 | Wert | Bedeutung |
 |---|---|
 | `"historical"` | Median temperaturähnlicher Tage aus `daily_stats` |
-| `"fallback"` | Temperaturregelbasierte Schätzung |
+| `"recent"` | Median der letzten 14 Tage aus `daily_stats` |
+| `"fallback"` | Temperaturregelbasierte Schätzung (keine Historie) |
 
 ---
 
@@ -247,7 +248,7 @@ verwendet, sind aber **nicht** als Home-Assistant-Sensor-Entities registriert:
 | `charge_power_limit_w` | int? | Aktives Ladelimits |
 | `discharge_power_limit_w` | int? | Aktives Entladelimit |
 | `prediction_confidence` | string | `"high"` / `"medium"` / `"low"` / `"none"` |
-| `prediction_source` | string | `"historical"` oder `"fallback"` |
+| `prediction_source` | string | `"historical"`, `"recent"` oder `"fallback"` |
 | `temp_today_c` | float? | Heutige Außentemperatur von der HA-Wetter-Entity |
 | `temp_tomorrow_c` | float? | Außentemperaturvorhersage für morgen |
 

@@ -589,27 +589,57 @@ Data source: SQLite daily history (`store.py`) + optional HA weather forecast.
 ### Predicted Load (`predicted_load_kwh`)
 
 ```
-If weather_entity configured AND forecast available:
-  target_temp   = tomorrow's forecast value the model keeps as "night temp"
-                  (actually: tomorrow's daytime high from the HA forecast — the
-                  naming is historical, see the source comment in consumption_model.py)
-  similar_days  = days in last 60 d with |avg_temp − target| ≤ 4 °C
-  If len(similar_days) ≥ 3:
-    predicted_load = median(load_total_kwh of similar_days)  → source: "historical"
-  Else:
-    → temperature fallback rules (see below)                 → source: "fallback"
-Else:
-  → temperature fallback rules                               → source: "fallback"
+1. Temperature match (weather_entity configured and forecast available):
+     target_temp  = tomorrow's daily mean, 0–24 h local time
+                    (mean of the hourly weather forecast; fallback
+                     (high + low) / 2 of the daily forecast)
+     similar_days = days in the last 60 d with |avg_outdoor_temp_c − target| ≤ 4 °C
+     len(similar_days) ≥ 3 → median(load_total_kwh)        → source: "historical"
+2. Else, if measured days exist:
+     median(load_total_kwh) of the last 14 complete days
+     (today excluded)                                      → source: "recent"
+3. Else (no history): temperature fallback rules           → source: "fallback"
+4. Else: 0 kWh                                             → source: "fallback"
 ```
 
-#### Temperature Fallback Rules
+The match compares **daily mean with daily mean**: `avg_outdoor_temp_c` in
+`daily_stats` is the mean of all ticks of a day – from the outdoor temperature
+sensor (`outdoor_temp_entity`), otherwise from the hourly forecast. The history
+backfill (see below) writes the same daily mean from HA's statistics.
 
-| Condition                                                | Predicted Load                                    |
-| --------------------------------------------------------- | ----------------------------------------------------- |
-| Night temp < 0 °C and day temp < 0 °C                    | 30 kWh                                             |
-| Night temp < 0 °C and day temp < 10 °C                   | 20 kWh                                             |
-| Night temp > 0 °C and day temp < 15 °C                   | 10 kWh                                             |
-| Otherwise (e.g. mild/warm days outside the three rules)  | Median of available historical days, else `0.0 kWh` |
+!!! note "Up to v3.6.4"
+    The stored "daily mean" was actually today's *forecast* daily high, matched
+    against tomorrow's daily high (called "night temp" in the code). Combined
+    with real daily means from the backfill this picked days that were too warm
+    → forecast too low. Before v3.6.2 the fixed rules also kicked in with < 3
+    similar days even when measured days existed, and without a weather forecast
+    the result was 0 kWh.
+
+#### Temperature Fallback Rules (only without any measured day)
+
+| Condition (tomorrow's daily forecast) | Predicted Load |
+| ---|---|
+| Low < 0 °C and high < 0 °C | 30 kWh |
+| Low < 0 °C and high < 10 °C | 20 kWh |
+| Low > 0 °C and high < 15 °C | 10 kWh |
+| Otherwise | `0.0 kWh` |
+
+### History backfill from HA statistics (`history_backfill.py`, since v3.6.3)
+
+A new install – or an add-on reinstalled under a different slug, which gets an
+empty `/data` – would have no days to match against for weeks. With
+`history_backfill_enabled` on, miniEMS fetches the last 60 days from Home
+Assistant's long-term statistics at every start (and immediately when switched on):
+
+| Field in `daily_stats` | Source |
+|---|---|
+| `load_total_kwh` | daily `change` of the lifetime counter `load_consumption_total_entity` |
+| `avg_outdoor_temp_c` | daily `mean` of `outdoor_temp_entity` |
+
+- Only missing values are written (`load_total_kwh ≤ 0` or temperature empty);
+  measured days and today are never touched → a rerun changes nothing.
+- Daily values ≤ 0 or > 200 kWh (counter reset/replacement) are dropped.
+- If HA is unreachable only a warning is logged; the next start retries.
 
 ### Predicted PV Yield (`predicted_pv_kwh`)
 

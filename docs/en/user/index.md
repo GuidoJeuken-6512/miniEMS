@@ -34,7 +34,7 @@ revision_date: 2026-04-07
 ## Quick Start
 
 1. **Install the add-on** — copy `miniems/` to `/addons/local/miniems/` and install from the Add-on Store (see [Installation](installation.md)).
-2. **Install the custom integration** — copy `integration/` to `/config/custom_components/miniems/`, restart HA, then add via **Settings → Integrations → miniEMS**.
+2. **Set up the custom integration** — the add-on installs it automatically to `custom_components/miniems/` on startup; restart HA once, then add via **Settings → Integrations → miniEMS**.
 3. **Open the dashboard** via the HA sidebar → miniEMS.
 4. **Configure** — go to **Settings** tab and enter your entity IDs and thresholds.
 5. **Enable Battery Control** — use **Simulation Mode** first to verify the logic is correct.

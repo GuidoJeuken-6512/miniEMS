@@ -178,7 +178,8 @@ The `/api/status` response includes a `prediction_source` field (not a HA sensor
 | Value | Meaning |
 |---|---|
 | `"historical"` | Median of temperature-matched days from `daily_stats` |
-| `"fallback"` | Temperature rule-based estimate |
+| `"recent"` | Median of the last 14 days from `daily_stats` |
+| `"fallback"` | Temperature rule-based estimate (no history) |
 
 ---
 
@@ -227,7 +228,7 @@ but are **not** registered as Home Assistant sensor entities:
 | `charge_power_limit_w` | int? | Active charge power limit |
 | `discharge_power_limit_w` | int? | Active discharge power limit |
 | `prediction_confidence` | string | `"high"` / `"medium"` / `"low"` / `"none"` |
-| `prediction_source` | string | `"historical"` or `"fallback"` |
+| `prediction_source` | string | `"historical"`, `"recent"` or `"fallback"` |
 | `temp_today_c` | float? | Today's outdoor temperature from HA weather entity |
 | `temp_tomorrow_c` | float? | Tomorrow's outdoor temperature forecast |
 

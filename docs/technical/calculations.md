@@ -589,27 +589,60 @@ Datenquelle: SQLite-Tageshistorie (`store.py`) + optionale HA-Wettervorhersage.
 ### Vorhergesagte Last (`predicted_load_kwh`)
 
 ```
-Wenn weather_entity konfiguriert UND Vorhersage verfügbar:
-  target_temp   = morgiger Vorhersagewert, den das Modell als "Nachttemperatur" führt
-                  (tatsächlich: morgige Tageshöchsttemperatur aus der HA-Vorhersage — die
-                  Benennung ist historisch, siehe Quellcode-Kommentar in consumption_model.py)
-  similar_days  = Tage der letzten 60 Tage mit |avg_temp − target| ≤ 4 °C
-  Wenn len(similar_days) ≥ 3:
-    predicted_load = Median(load_total_kwh ähnlicher Tage)  → Quelle: "historical"
-  Sonst:
-    → temperaturbasierte Fallback-Regeln (siehe unten)       → Quelle: "fallback"
-Sonst:
-  → temperaturbasierte Fallback-Regeln                       → Quelle: "fallback"
+1. Temperaturabgleich (wenn weather_entity konfiguriert und Vorhersage da):
+     target_temp  = Tagesmittel morgen, 0–24 Uhr Ortszeit
+                    (Mittel der stündlichen Wetterprognose; ersatzweise
+                     (Höchst- + Tiefstwert) / 2 der Tagesprognose)
+     similar_days = Tage der letzten 60 Tage mit |avg_outdoor_temp_c − target| ≤ 4 °C
+     len(similar_days) ≥ 3 → Median(load_total_kwh)        → Quelle: "historical"
+2. Sonst, wenn gemessene Tage vorhanden:
+     Median(load_total_kwh) der letzten 14 abgeschlossenen
+     Tage (heute ausgenommen)                              → Quelle: "recent"
+3. Sonst (keine Historie): Temperatur-Fallback-Regeln      → Quelle: "fallback"
+4. Sonst: 0 kWh                                            → Quelle: "fallback"
 ```
 
-#### Temperatur-Fallback-Regeln
+Verglichen wird **Tagesmittel mit Tagesmittel**: `avg_outdoor_temp_c` in
+`daily_stats` ist das Mittel aller Ticks eines Tages – vom
+Außentemperatursensor (`outdoor_temp_entity`), sonst aus der Stundenprognose.
+Der Historien-Import (siehe unten) schreibt dasselbe Tagesmittel aus der
+HA-Statistik.
 
-| Bedingung | Vorhergesagte Last |
+!!! note "Bis v3.6.4"
+    Gespeichert wurde als „Tagesmittel“ die *vorhergesagte* Tageshöchsttemperatur
+    von heute, gesucht mit der Tageshöchsttemperatur von morgen (im Code
+    „Nachttemperatur“ genannt). Mit Tagesmitteln aus dem Import passte das nicht
+    zusammen und traf zu warme Tage → zu niedrige Prognose. Vor v3.6.2 griffen
+    außerdem die festen Regeln schon bei < 3 ähnlichen Tagen, auch wenn echte
+    Messtage vorlagen, und ohne Wettervorhersage kam 0 kWh heraus.
+
+#### Temperatur-Fallback-Regeln (nur ohne jeden gemessenen Tag)
+
+| Bedingung (Tagesprognose morgen) | Vorhergesagte Last |
 | ---|---|
-| Nachttemp. < 0 °C und Tagtemp. < 0 °C | 30 kWh |
-| Nachttemp. < 0 °C und Tagtemp. < 10 °C | 20 kWh |
-| Nachttemp. > 0 °C und Tagtemp. < 15 °C | 10 kWh |
-| Andernfalls (z. B. milde/warme Tage außerhalb der drei Regeln) | Median vorhandener historischer Tage, sonst `0,0 kWh` |
+| Tiefstwert < 0 °C und Höchstwert < 0 °C | 30 kWh |
+| Tiefstwert < 0 °C und Höchstwert < 10 °C | 20 kWh |
+| Tiefstwert > 0 °C und Höchstwert < 15 °C | 10 kWh |
+| Andernfalls | `0,0 kWh` |
+
+### Historien-Import aus der HA-Statistik (`history_backfill.py`, seit v3.6.3)
+
+Eine Neuinstallation – oder ein Add-on, das unter neuem Slug neu installiert
+wurde und damit ein leeres `/data` hat – hätte wochenlang keine Tage für den
+Abgleich. Ist `history_backfill_enabled` an, holt miniEMS bei jedem Start (und
+sofort beim Einschalten) die letzten 60 Tage aus den Langzeitstatistiken von
+Home Assistant:
+
+| Feld in `daily_stats` | Quelle |
+|---|---|
+| `load_total_kwh` | Tages-`change` des Lebenszeitzählers `load_consumption_total_entity` |
+| `avg_outdoor_temp_c` | Tages-`mean` von `outdoor_temp_entity` |
+
+- Geschrieben wird nur, was fehlt (`load_total_kwh ≤ 0` bzw. Temperatur leer);
+  gemessene Tage und der laufende Tag bleiben unangetastet → ein erneuter Lauf
+  ändert nichts.
+- Tageswerte ≤ 0 oder > 200 kWh (Zähler-Reset/-Tausch) werden verworfen.
+- Ist HA nicht erreichbar, wird nur gewarnt; beim nächsten Start neuer Versuch.
 
 ### Vorhergesagter PV-Ertrag (`predicted_pv_kwh`)
 
