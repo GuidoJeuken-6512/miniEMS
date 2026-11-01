@@ -93,6 +93,7 @@ temp_today: Temp Today
 temp_tomorrow: Temp Tomorrow
 pred_source_historical: historically estimated
 pred_source_fallback: fallback estimation
+pred_source_recent: last 14 days
 
 # Event Log (Phase 6+)
 event_log: Event Log

@@ -238,6 +238,8 @@
         <p class="section-title">${T.forecast_prediction || 'Forecast &amp; Prediction'}
           ${d.prediction_source === 'historical'
             ? `<span class="conf-badge conf-high">${T.pred_source_historical || 'historically estimated'}</span>`
+            : d.prediction_source === 'recent'
+            ? `<span class="conf-badge conf-low">${T.pred_source_recent || 'last 14 days'}</span>`
             : d.prediction_source === 'fallback'
             ? `<span class="conf-badge conf-low">${T.pred_source_fallback || 'fallback estimation'}</span>`
             : (d.prediction_confidence ? '<span class="conf-badge conf-' + d.prediction_confidence + '">' + d.prediction_confidence + '</span>' : '')}

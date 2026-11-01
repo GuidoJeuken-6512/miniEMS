@@ -1,5 +1,17 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.6.2
+
+### Fixed
+
+- **Lastprognose für morgen zeigte 0 oder pauschal 10 kWh statt echter Werte.**
+  Gab es weniger als 3 Tage mit ähnlicher Nachttemperatur, griffen sofort die
+  festen Temperaturregeln (10/20/30 kWh); ohne Wettervorhersage (z.B. falsche
+  Wetter-Entity) kam sogar 0 kWh heraus – obwohl die Datenbank gemessene Tage
+  mit ~20 kWh enthielt. Jetzt gilt: temperaturähnliche Tage (≥3) → sonst
+  Median der letzten 14 vollständigen Tage (Dashboard-Badge „Ø letzte 14 Tage“)
+  → feste Regeln nur noch ohne jeden gemessenen Tag.
+
 ## 3.6.1
 
 ### Fixed

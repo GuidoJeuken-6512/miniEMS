@@ -87,15 +87,45 @@ async def test_predict_no_weather_and_no_history_gives_zero_and_none_confidence(
 
 
 @pytest.mark.asyncio
-async def test_predict_last_resort_uses_median_of_whatever_history_exists(make_config):
-    """Fewer than 3 similar days, no forecast at all -> use what's there anyway."""
+async def test_predict_without_forecast_uses_recent_days(make_config):
+    """Regression: a missing/misconfigured weather entity gave 0 kWh although
+    9 measured ~20 kWh days were in the DB."""
     cfg = make_config(weather_entity="")
     store = FakeStore()
-    store.similar_temp_days = [{"load_total_kwh": 7.0}]   # only 1 – below _MIN_SAMPLES
+    store.recent_days = [
+        {"date": "2020-01-01", "load_total_kwh": 18.0},
+        {"date": "2020-01-02", "load_total_kwh": 20.0},
+        {"date": "2020-01-03", "load_total_kwh": 22.0},
+    ]
     model = ConsumptionModel(cfg, store, None)
     pred = await model.predict(bat_soc=50.0)
-    # No forecast means query_days_similar_temp is never even called (weather
-    # disabled) -> history stays empty -> loads == [] -> predicted 0.0.
+    assert pred.predicted_load_kwh == 20.0
+    assert pred.source == "recent"
+
+
+@pytest.mark.asyncio
+async def test_predict_recent_days_beat_temperature_rule(make_config):
+    """Regression: fewer than 3 temperature matches fell to the fixed 10 kWh
+    mild-day rule even with real ~20 kWh days measured."""
+    cfg = make_config(weather_entity="weather.test")
+    store = FakeStore()
+    store.similar_temp_days = [{"load_total_kwh": 19.0}]   # below _MIN_SAMPLES
+    store.recent_days = [{"date": "2020-01-01", "load_total_kwh": 21.0}]
+    forecast = ForecastSummary(avg_night_temp_c=11.0, temp_today_c=13.0, temp_tomorrow_c=13.0)
+    model = ConsumptionModel(cfg, store, FakeWeather(forecast))
+    pred = await model.predict(bat_soc=50.0)
+    assert pred.predicted_load_kwh == 21.0
+    assert pred.source == "recent"
+
+
+@pytest.mark.asyncio
+async def test_predict_recent_ignores_today_in_progress(make_config):
+    from datetime import date
+    cfg = make_config(weather_entity="")
+    store = FakeStore()
+    store.recent_days = [{"date": str(date.today()), "load_total_kwh": 3.0}]
+    model = ConsumptionModel(cfg, store, None)
+    pred = await model.predict(bat_soc=50.0)
     assert pred.predicted_load_kwh == 0.0
 
 

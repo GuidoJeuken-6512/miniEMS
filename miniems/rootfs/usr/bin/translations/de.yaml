@@ -93,6 +93,7 @@ temp_today: Temperatur heute
 temp_tomorrow: Temperatur morgen
 pred_source_historical: historisch geschätzt
 pred_source_fallback: Fallback-Schätzung
+pred_source_recent: Ø letzte 14 Tage
 
 # Ereignis-Protokoll (Phase 6+)
 event_log: Ereignis-Protokoll

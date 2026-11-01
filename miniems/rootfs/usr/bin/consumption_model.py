@@ -12,7 +12,8 @@ rules when fewer than 3 similar days exist.
 
 Prediction source labels:
   "historical"  – median of temperature-matched DB days
-  "fallback"    – temperature rules (no historical data available)
+  "recent"      – median of the last 14 complete days (too few temp matches)
+  "fallback"    – temperature rules (no measured day at all)
 """
 import logging
 import statistics
@@ -38,7 +39,7 @@ class Prediction:
     predicted_load_kwh: float
     predicted_pv_kwh: float
     confidence: str          # "high" | "low" | "none"
-    source: str              # "historical" | "fallback"
+    source: str              # "historical" | "recent" | "fallback"
     temp_today_c: float | None = None
     temp_tomorrow_c: float | None = None
 
@@ -103,12 +104,7 @@ class ConsumptionModel:
         Returns None when no historical day exists yet (fresh install) –
         callers must treat that as "unknown", not as zero remaining load.
         """
-        days = await self._store.query_recent_days(_REMAINING_LOAD_LOOKBACK_DAYS)
-        today_str = str(date.today())
-        totals = [
-            d["load_total_kwh"] for d in days
-            if d["date"] != today_str and (d.get("load_total_kwh") or 0) > 0
-        ]
+        totals = await self._recent_complete_day_loads()
         if not totals:
             return None
         predicted_total = statistics.median(totals)
@@ -135,7 +131,14 @@ class ConsumptionModel:
         if len(loads) >= _MIN_SAMPLES:
             return statistics.median(loads), "historical"
 
-        # Temperature fallback rules (when historical data insufficient)
+        # Measured days beat the fixed rules below, even without temperature
+        # match: a fresh install (or a missing forecast) must not show 0/10 kWh
+        # while the DB already holds real ~20 kWh days.
+        recent = await self._recent_complete_day_loads()
+        if recent:
+            return statistics.median(recent), "recent"
+
+        # Temperature fallback rules (no measured day at all)
         if forecast is not None:
             # avg_night_temp_c serves as "minimum" proxy; temp_tomorrow_c as "maximum"
             min_t = forecast.avg_night_temp_c
@@ -151,11 +154,17 @@ class ConsumptionModel:
                     _LOGGER.debug("Fallback rule: mild day → 10 kWh")
                     return 10.0, "fallback"
 
-        # Last resort: use whatever data we have
-        if loads:
-            return statistics.median(loads), "fallback"
-
         return 0.0, "fallback"
+
+    async def _recent_complete_day_loads(self) -> list[float]:
+        """load_total_kwh of the last _REMAINING_LOAD_LOOKBACK_DAYS complete
+        days (today excluded – still in progress)."""
+        days = await self._store.query_recent_days(_REMAINING_LOAD_LOOKBACK_DAYS)
+        today_str = str(date.today())
+        return [
+            d["load_total_kwh"] for d in days
+            if d.get("date") != today_str and (d.get("load_total_kwh") or 0) > 0
+        ]
 
     async def _predict_pv(self, forecast: "ForecastSummary | None") -> float:
         recent = await self._store.query_recent_days(14)
