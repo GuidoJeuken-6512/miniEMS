@@ -1,0 +1,11 @@
+# Build context = this folder (Supervisor and builder.yaml). The image only
+# needs requirements.txt and rootfs/usr/bin – everything else is dev-only.
+tests/
+pyproject.toml
+requirements-dev.txt
+.venv*/
+htmlcov/
+.coverage
+.pytest_cache/
+**/__pycache__/
+**/*.pyc

@@ -76,6 +76,9 @@ async def backfill_daily_stats(
 ) -> int:
     """Returns the number of days written. Never raises – a failed backfill
     only means the forecast keeps learning from scratch."""
+    if not cfg.history_backfill_enabled:
+        _LOGGER.info("History backfill disabled in settings")
+        return 0
     today = today or date.today()
     load_id = cfg.load_consumption_total_entity
     temp_id = cfg.outdoor_temp_entity

@@ -116,6 +116,9 @@ def migrate(data: dict, *, is_fresh: bool = False) -> dict:
     if version < 23:
         data = _v22_to_v23(data)
 
+    if version < 24:
+        data = _v23_to_v24(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -431,6 +434,14 @@ def _v22_to_v23(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v22→v23: set %s = %r", key, default)
+    return data
+
+
+def _v23_to_v24(data: dict) -> dict:
+    """v23 → v24: history backfill switch, off by default (opt-in)."""
+    if "history_backfill_enabled" not in data:
+        data["history_backfill_enabled"] = False
+        _LOGGER.info("Migration v23→v24: set history_backfill_enabled = False")
     return data
 
 

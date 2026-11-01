@@ -29,7 +29,7 @@
   <script>
     const BOOL_FIELDS = new Set([
       'battery_control_enabled', 'battery_control_simulation',
-      'pv_export_priority_enabled', 'load_forecast_enabled',
+      'pv_export_priority_enabled', 'load_forecast_enabled', 'history_backfill_enabled',
       'hw_control_enabled', 'hw_control_simulation'
     ]);
     const INT_FIELDS = new Set([
@@ -146,6 +146,7 @@
           { key: 'load_forecast_min_days',   label: 'Days of hourly history before the plan decides' },
           { key: 'heat_pump_power_entity',   label: 'Heat pump power entity/entities (W, comma-separated, optional)' },
           { key: 'outdoor_temp_entity',      label: 'Outdoor temperature entity (optional, else weather forecast)' },
+          { key: 'history_backfill_enabled', label: 'At startup, fill missing days (last 60) from HA statistics (on/off)' },
           { key: 'heating_limit_temp_c',     label: 'Heating limit temperature (°C)' },
           { key: 'pv_forecast_scenario',     label: 'Solcast scenario: estimate | estimate10 | blend' },
           { key: 'pv_forecast_blend_weight', label: 'Blend weight of estimate (0–1, rest = estimate10)' },

@@ -78,7 +78,7 @@ def load_translations(lang: str) -> dict:
 _BOOL_FIELDS = {
     "battery_control_enabled", "battery_control_simulation",
     "pv_export_priority_enabled", "device_detection_enabled",
-    "load_forecast_enabled",
+    "load_forecast_enabled", "history_backfill_enabled",
     "hw_control_enabled", "hw_control_simulation",
 }
 # Dict-valued fields never have a settings.html form control (no free-text

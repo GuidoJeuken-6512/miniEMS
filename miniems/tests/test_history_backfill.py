@@ -52,6 +52,7 @@ class TestPlan:
 @pytest.mark.asyncio
 async def test_backfill_writes_into_store(db, make_config):
     cfg = make_config(
+        history_backfill_enabled=True,
         load_consumption_total_entity="sensor.load_total",
         outdoor_temp_entity="sensor.outdoor",
     )
@@ -77,9 +78,38 @@ async def test_backfill_writes_into_store(db, make_config):
 
 @pytest.mark.asyncio
 async def test_backfill_survives_ha_errors(db, make_config):
-    cfg = make_config(load_consumption_total_entity="sensor.load_total")
+    cfg = make_config(history_backfill_enabled=True,
+                      load_consumption_total_entity="sensor.load_total")
 
     async def failing_fetch(ids, start, end):
         raise ConnectionError("boom")
 
     assert await backfill_daily_stats(cfg, db, fetch=failing_fetch, today=TODAY) == 0
+
+
+@pytest.mark.asyncio
+async def test_backfill_switched_off_does_not_query_ha(db, make_config):
+    cfg = make_config(load_consumption_total_entity="sensor.load_total")   # default: off
+
+    async def must_not_be_called(ids, start, end):
+        raise AssertionError("queried HA although disabled")
+
+    assert await backfill_daily_stats(cfg, db, fetch=must_not_be_called, today=TODAY) == 0
+
+
+@pytest.mark.asyncio
+async def test_second_run_changes_nothing(db, make_config):
+    """Runs on every start: once the gaps are filled, a rerun is a no-op –
+    even if HA's statistics changed meanwhile."""
+    cfg = make_config(history_backfill_enabled=True,
+                      load_consumption_total_entity="sensor.load_total")
+    d = TODAY - timedelta(days=3)
+    value = {"change": 18.2}
+
+    async def fetch(ids, start, end):
+        return {"sensor.load_total": [{"start": _ms(d), **value}]}
+
+    assert await backfill_daily_stats(cfg, db, fetch=fetch, today=TODAY) == 1
+    value["change"] = 25.0
+    assert await backfill_daily_stats(cfg, db, fetch=fetch, today=TODAY) == 0
+    assert (await db.load_day(d))["load_total_kwh"] == 18.2

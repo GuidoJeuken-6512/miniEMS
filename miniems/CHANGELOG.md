@@ -1,5 +1,13 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.6.4
+
+### Added
+
+- **Schalter für das Nachfüllen der Historie** (`history_backfill_enabled`,
+  Einstellungen → „Load Forecast & Bridging Plan“). Standard: aus. Config-Schema
+  v24.
+
 ## 3.6.3
 
 ### Added

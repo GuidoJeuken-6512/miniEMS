@@ -260,3 +260,9 @@ def test_v22_to_v23_keeps_explicit_values():
     result = _v22_to_v23({"hw_volume_l": 300.0, "hw_control_simulation": False})
     assert result["hw_volume_l"] == 300.0
     assert result["hw_control_simulation"] is False
+
+
+def test_v23_to_v24_history_backfill_off_by_default():
+    from migration import _v23_to_v24
+    assert _v23_to_v24({})["history_backfill_enabled"] is False
+    assert _v23_to_v24({"history_backfill_enabled": True})["history_backfill_enabled"] is True

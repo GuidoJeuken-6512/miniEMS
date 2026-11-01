@@ -203,6 +203,9 @@ class Config:
     # Optional outdoor temperature sensor (°C). Empty = the current hour's
     # value from the weather entity's hourly forecast is recorded instead.
     outdoor_temp_entity: str = ""
+    # At startup, fill missing daily load/temperature of the last 60 days
+    # from HA's long-term statistics (history_backfill.py). Gaps only. Opt-in.
+    history_backfill_enabled: bool = False
     # Heating limit temperature: above it the heat pump does not heat (only
     # hot water, which the model learns as a flat base).
     heating_limit_temp_c: float = 15.0
