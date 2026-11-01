@@ -162,3 +162,70 @@ class TestHourlyTemps:
     @pytest.mark.asyncio
     async def test_hourly_disabled(self):
         assert await WeatherClient("").fetch_hourly_temps() == {}
+
+
+class TestTomorrowMean:
+    """temp_tomorrow_mean_c must be the same quantity as daily_stats'
+    avg_outdoor_temp_c (a 0–24 h local daily mean) – not the daily high."""
+
+    @staticmethod
+    def _tomorrow_local(hour: int) -> datetime:
+        tomorrow = datetime.now().astimezone().date() + timedelta(days=1)
+        return datetime.combine(tomorrow, datetime.min.time()).astimezone() + timedelta(hours=hour)
+
+    def _daily_payload(self, high, low=None):
+        slot = {"datetime": self._tomorrow_local(12).astimezone(timezone.utc).isoformat(),
+                "temperature": high, "cloud_coverage": 50}
+        if low is not None:
+            slot["templow"] = low
+        return {"service_response": {"weather.test": {"forecast": [slot]}}}
+
+    @pytest.mark.asyncio
+    async def test_mean_from_hourly_forecast(self):
+        client = WeatherClient("weather.test", supervisor_token="tok")
+        client._hourly = {
+            self._tomorrow_local(h).astimezone(timezone.utc): (4.0 if h < 12 else 10.0)
+            for h in range(24)
+        }
+        client._hourly_time = datetime.now(timezone.utc)   # cache valid -> no hourly request
+        with aioresponses() as m:
+            m.get(_HA_CONFIG_URL, payload={"latitude": 51.0})
+            m.post(f"{_HA_FORECAST_URL}?return_response=true", payload=self._daily_payload(11.0, 2.0))
+            summary = await client.fetch_forecast()
+        assert summary.temp_tomorrow_c == 11.0        # daily high, unchanged
+        assert summary.temp_tomorrow_low_c == 2.0
+        assert summary.temp_tomorrow_mean_c == 7.0    # hourly mean, not the high
+
+    @pytest.mark.asyncio
+    async def test_mean_falls_back_to_high_low_average(self):
+        client = WeatherClient("weather.test", supervisor_token="tok")
+        with aioresponses() as m:
+            m.get(_HA_CONFIG_URL, payload={"latitude": 51.0})
+            m.post(f"{_HA_FORECAST_URL}?return_response=true", payload=self._daily_payload(11.0, 3.0))
+            summary = await client.fetch_forecast()   # hourly request unmocked -> {}
+        assert summary.temp_tomorrow_mean_c == 7.0
+
+    @pytest.mark.asyncio
+    async def test_no_mean_from_high_alone(self):
+        client = WeatherClient("weather.test", supervisor_token="tok")
+        with aioresponses() as m:
+            m.get(_HA_CONFIG_URL, payload={"latitude": 51.0})
+            m.post(f"{_HA_FORECAST_URL}?return_response=true", payload=self._daily_payload(11.0))
+            summary = await client.fetch_forecast()
+        assert summary.temp_tomorrow_c == 11.0
+        assert summary.temp_tomorrow_mean_c is None
+
+    @pytest.mark.asyncio
+    async def test_tomorrow_is_the_local_date(self):
+        """A slot shortly after local midnight is tomorrow, even when its UTC
+        timestamp still falls on today's UTC date."""
+        client = WeatherClient("weather.test", supervisor_token="tok")
+        slot = {"datetime": self._tomorrow_local(0).astimezone(timezone.utc).isoformat(),
+                "temperature": 6.0, "templow": 1.0, "cloud_coverage": 0}
+        with aioresponses() as m:
+            m.get(_HA_CONFIG_URL, payload={"latitude": 51.0})
+            m.post(f"{_HA_FORECAST_URL}?return_response=true",
+                   payload={"service_response": {"weather.test": {"forecast": [slot]}}})
+            summary = await client.fetch_forecast()
+        assert summary.temp_tomorrow_c == 6.0
+        assert summary.temp_tomorrow_mean_c == 3.5

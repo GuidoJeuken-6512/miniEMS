@@ -36,7 +36,7 @@ async def test_predict_uses_historical_median_with_enough_similar_days(make_conf
         {"load_total_kwh": 10.0}, {"load_total_kwh": 12.0}, {"load_total_kwh": 14.0},
     ]
     store.recent_days = [{"peak_pv_w": 3000}]
-    forecast = ForecastSummary(avg_night_temp_c=5.0, temp_today_c=8.0, temp_tomorrow_c=9.0, pv_factor=0.6, daylight_hours=10.0)
+    forecast = ForecastSummary(temp_tomorrow_mean_c=5.0, temp_today_c=8.0, temp_tomorrow_c=9.0, pv_factor=0.6, daylight_hours=10.0)
     model = ConsumptionModel(cfg, store, FakeWeather(forecast))
     pred = await model.predict(bat_soc=50.0)
     assert pred.predicted_load_kwh == 12.0   # median of [10,12,14]
@@ -48,7 +48,7 @@ async def test_predict_uses_historical_median_with_enough_similar_days(make_conf
 async def test_predict_falls_back_to_temperature_rule_very_cold(make_config):
     cfg = make_config(weather_entity="weather.test")
     store = FakeStore()   # no similar days at all
-    forecast = ForecastSummary(avg_night_temp_c=-5.0, temp_today_c=-3.0, temp_tomorrow_c=-2.0)
+    forecast = ForecastSummary(temp_tomorrow_mean_c=-3.5, temp_tomorrow_low_c=-5.0, temp_today_c=-3.0, temp_tomorrow_c=-2.0)
     model = ConsumptionModel(cfg, store, FakeWeather(forecast))
     pred = await model.predict(bat_soc=50.0)
     assert pred.predicted_load_kwh == 30.0
@@ -59,7 +59,7 @@ async def test_predict_falls_back_to_temperature_rule_very_cold(make_config):
 async def test_predict_falls_back_to_temperature_rule_cold(make_config):
     cfg = make_config(weather_entity="weather.test")
     store = FakeStore()
-    forecast = ForecastSummary(avg_night_temp_c=-2.0, temp_today_c=5.0, temp_tomorrow_c=5.0)
+    forecast = ForecastSummary(temp_tomorrow_mean_c=1.5, temp_tomorrow_low_c=-2.0, temp_today_c=5.0, temp_tomorrow_c=5.0)
     model = ConsumptionModel(cfg, store, FakeWeather(forecast))
     pred = await model.predict(bat_soc=50.0)
     assert pred.predicted_load_kwh == 20.0
@@ -69,7 +69,7 @@ async def test_predict_falls_back_to_temperature_rule_cold(make_config):
 async def test_predict_falls_back_to_temperature_rule_mild(make_config):
     cfg = make_config(weather_entity="weather.test")
     store = FakeStore()
-    forecast = ForecastSummary(avg_night_temp_c=5.0, temp_today_c=12.0, temp_tomorrow_c=12.0)
+    forecast = ForecastSummary(temp_tomorrow_mean_c=8.5, temp_tomorrow_low_c=5.0, temp_today_c=12.0, temp_tomorrow_c=12.0)
     model = ConsumptionModel(cfg, store, FakeWeather(forecast))
     pred = await model.predict(bat_soc=50.0)
     assert pred.predicted_load_kwh == 10.0
@@ -111,7 +111,7 @@ async def test_predict_recent_days_beat_temperature_rule(make_config):
     store = FakeStore()
     store.similar_temp_days = [{"load_total_kwh": 19.0}]   # below _MIN_SAMPLES
     store.recent_days = [{"date": "2020-01-01", "load_total_kwh": 21.0}]
-    forecast = ForecastSummary(avg_night_temp_c=11.0, temp_today_c=13.0, temp_tomorrow_c=13.0)
+    forecast = ForecastSummary(temp_tomorrow_mean_c=11.0, temp_tomorrow_low_c=9.0, temp_today_c=13.0, temp_tomorrow_c=13.0)
     model = ConsumptionModel(cfg, store, FakeWeather(forecast))
     pred = await model.predict(bat_soc=50.0)
     assert pred.predicted_load_kwh == 21.0
@@ -137,7 +137,7 @@ async def test_predict_pv_uses_p75_of_recent_peaks(make_config):
     store.recent_days = [
         {"peak_pv_w": 50}, {"peak_pv_w": 1000}, {"peak_pv_w": 2000}, {"peak_pv_w": 3000},
     ]
-    forecast = ForecastSummary(pv_factor=1.0, daylight_hours=10.0, avg_night_temp_c=None)
+    forecast = ForecastSummary(pv_factor=1.0, daylight_hours=10.0, temp_tomorrow_mean_c=None)
     model = ConsumptionModel(cfg, store, FakeWeather(forecast))
     pred = await model.predict(bat_soc=None)
     # sorted [1000,2000,3000], p75 index = int(3*0.75)=2 -> 3000 W

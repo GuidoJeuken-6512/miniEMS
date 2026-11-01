@@ -5,7 +5,12 @@ via the HA service call API.  No external API key or coordinates needed — the
 existing HA OpenWeatherMap integration provides all required data.
 
 Derived values:
-  - avg_night_temp_c  – templow of the next day's forecast slot
+  - temp_tomorrow_mean_c – tomorrow's 0–24 h local mean, from the hourly
+                           forecast; (high + low) / 2 of the daily slot as
+                           fallback. Same quantity as daily_stats'
+                           avg_outdoor_temp_c, which the load forecast
+                           matches it against.
+  - temp_tomorrow_low_c  – templow of tomorrow's daily slot
   - pv_factor         – cloud_coverage of upcoming day slots → 0.0–1.0 PV yield
   - daylight_hours    – from HA instance latitude (fetched once, cached)
 
@@ -14,7 +19,7 @@ Cache TTL: 30 minutes (matching typical HA forecast update rate).
 import logging
 import math
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import aiohttp
 
@@ -23,6 +28,8 @@ from const import WEATHER_HOURLY_CACHE_SEC
 _LOGGER = logging.getLogger(__name__)
 
 _CACHE_TTL_SEC = 30 * 60   # 30 minutes
+# Fewer hourly values for tomorrow than this → hourly mean not trusted.
+_MIN_HOURS_FOR_MEAN = 18
 _HA_FORECAST_URL = "http://hassio/homeassistant/api/services/weather/get_forecasts"
 _HA_CONFIG_URL   = "http://supervisor/core/api/config"
 
@@ -33,16 +40,18 @@ class WeatherSlot:
     temp_c: float
     cloud_pct: float
     rain_mm: float = 0.0
+    temp_low_c: float | None = None
 
 
 @dataclass
 class ForecastSummary:
     slots: list[WeatherSlot] = field(default_factory=list)
-    avg_night_temp_c: float | None = None
+    temp_tomorrow_mean_c: float | None = None
     pv_factor: float = 0.5
     daylight_hours: float = 12.0
     temp_today_c: float | None = None      # daytime high today
     temp_tomorrow_c: float | None = None   # daytime high tomorrow
+    temp_tomorrow_low_c: float | None = None
 
 
 def daylight_hours_approx(month: int, lat_deg: float) -> float:
@@ -132,13 +141,15 @@ class WeatherClient:
             return self._cache
 
         slots = self._parse_slots(raw_slots)
+        await self.fetch_hourly_temps()   # cached; feeds tomorrow's daily mean
         summary = await self._summarise(slots)
         self._cache = summary
         self._cache_time = now
         _LOGGER.info(
-            "Forecast updated (%s): night_temp=%s°C pv_factor=%.2f daylight=%.1f h",
+            "Forecast updated (%s): tomorrow mean=%s°C low=%s°C pv_factor=%.2f daylight=%.1f h",
             self._entity,
-            f"{summary.avg_night_temp_c:.1f}" if summary.avg_night_temp_c is not None else "n/a",
+            f"{summary.temp_tomorrow_mean_c:.1f}" if summary.temp_tomorrow_mean_c is not None else "n/a",
+            f"{summary.temp_tomorrow_low_c:.1f}" if summary.temp_tomorrow_low_c is not None else "n/a",
             summary.pv_factor,
             summary.daylight_hours,
         )
@@ -208,6 +219,13 @@ class WeatherClient:
         key = moment.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
         return self._hourly.get(key)
 
+    def _hourly_mean_for(self, day) -> float | None:
+        """Mean of the cached hourly forecast over local `day` 0–24 h."""
+        values = [t for k, t in self._hourly.items() if k.astimezone().date() == day]
+        if len(values) < _MIN_HOURS_FOR_MEAN:
+            return None
+        return round(sum(values) / len(values), 2)
+
     def _parse_slots(self, raw: list[dict]) -> list[WeatherSlot]:
         slots = []
         for entry in raw:
@@ -220,6 +238,8 @@ class WeatherClient:
                     temp_c=float(entry.get("temperature") or 0),
                     cloud_pct=float(entry.get("cloud_coverage") or 0),
                     rain_mm=float(entry.get("precipitation") or 0),
+                    temp_low_c=(float(entry["templow"])
+                                if entry.get("templow") is not None else None),
                 ))
             except Exception as exc:
                 _LOGGER.debug("Skipping forecast slot: %s", exc)
@@ -230,14 +250,21 @@ class WeatherClient:
         month = datetime.now(timezone.utc).month
         dl = daylight_hours_approx(month, lat)
 
-        today = datetime.now(timezone.utc).date()
-        today_slots = [s for s in slots if s.dt.date() == today]
-        tomorrow_slots = [s for s in slots if s.dt.date() > today]
+        # Local dates: a daily slot stamped e.g. 23:00 UTC belongs to the next
+        # local day, and the stored daily stats are cut at local midnight.
+        today = datetime.now().astimezone().date()
+        tomorrow = today + timedelta(days=1)
+        today_slots = [s for s in slots if s.dt.astimezone().date() == today]
+        tomorrow_slots = [s for s in slots if s.dt.astimezone().date() == tomorrow]
 
         temp_today = float(today_slots[0].temp_c) if today_slots else None
-        temp_tomorrow = float(tomorrow_slots[0].temp_c) if tomorrow_slots else None
-        # avg_night_temp: daytime high of tomorrow as proxy for load matching
-        avg_night = temp_tomorrow
+        tomorrow_slot = tomorrow_slots[0] if tomorrow_slots else None
+        temp_tomorrow = float(tomorrow_slot.temp_c) if tomorrow_slot else None
+        temp_low = tomorrow_slot.temp_low_c if tomorrow_slot else None
+
+        mean = self._hourly_mean_for(tomorrow)
+        if mean is None and temp_tomorrow is not None and temp_low is not None:
+            mean = round((temp_tomorrow + temp_low) / 2, 2)
 
         # pv_factor: average clear-sky fraction of all available day slots
         if slots:
@@ -248,9 +275,10 @@ class WeatherClient:
 
         return ForecastSummary(
             slots=slots,
-            avg_night_temp_c=avg_night,
+            temp_tomorrow_mean_c=mean,
             pv_factor=pv_factor,
             daylight_hours=dl,
             temp_today_c=temp_today,
             temp_tomorrow_c=temp_tomorrow,
+            temp_tomorrow_low_c=temp_low,
         )

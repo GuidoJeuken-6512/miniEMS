@@ -430,6 +430,31 @@ class TestControlMode:
         c, *_ = self._app()
         assert c.post("/api/control_mode", json={}).status_code == 400
 
+    def test_history_backfill_switch_persists_and_runs_once(self, _isolated_files, monkeypatch):
+        import web_server
+        config_file, _ = _isolated_files
+        runs = []
+
+        async def fake_backfill(cfg, store):
+            runs.append(cfg.history_backfill_enabled)
+            return 0
+
+        monkeypatch.setattr(web_server, "backfill_daily_stats", fake_backfill)
+        cfg = Config()
+        c = TestClient(create_app({}, cfg, supervisor_token="t", store=object()))
+        assert c.get("/api/control_mode").json()["history_backfill"] is False
+
+        r = c.post("/api/control_mode", json={"history_backfill": True})
+        assert r.json()["history_backfill"] is True
+        assert cfg.history_backfill_enabled is True
+        assert json.loads(config_file.read_text())["history_backfill_enabled"] is True
+        assert runs == [True]                       # ran right away, no restart
+
+        c.post("/api/control_mode", json={"history_backfill": True})
+        assert runs == [True]                       # already on: no second run
+        c.post("/api/control_mode", json={"history_backfill": False})
+        assert cfg.history_backfill_enabled is False and runs == [True]
+
 
 class TestHeatPumpTab:
     def test_page_renders(self, client):

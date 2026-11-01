@@ -1,6 +1,30 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
-## 3.6.4
+## 3.6.5
+
+### Changed
+
+- **Schalter „Historie nachfüllen“ nach oben verschoben** – in den Abschnitt
+  „Control Mode“ zu Simulation / Akku / Wärmepumpe. Wirkt ohne Neustart:
+  Einschalten startet den Import sofort einmal, danach bei jedem Start.
+
+### Fixed
+
+- **Lastprognose verglich unterschiedliche Temperaturen.** Gespeichert wurde
+  als „Tagesmittel“ in Wahrheit die *vorhergesagte Tageshöchsttemperatur* von
+  heute (der Außentemperatursensor ging nur in die Stundenhistorie), gesucht
+  wurde mit der Tageshöchsttemperatur von morgen – unter dem irreführenden
+  Namen „Nachttemperatur“. Der Historien-Import schreibt dagegen echte
+  Tagesmittel. Jetzt durchgängig das **Tagesmittel 0–24 Uhr Ortszeit**:
+  - gespeichert: Mittel aus Außentemperatursensor (sonst Stundenprognose)
+  - Vorhersage morgen: Mittel der stündlichen Wetterprognose, ersatzweise
+    (Höchst- + Tiefstwert) / 2 der Tagesprognose
+  - die festen Fallback-Regeln (10/20/30 kWh) erhalten den echten Tiefstwert
+    (`templow`) statt des Höchstwerts
+  - „morgen“ wird nach lokalem statt UTC-Datum bestimmt
+  Bereits gespeicherte Tage mit dem alten Höchstwert werden über die nächsten
+  60 Tage herausrotiert.
+
 
 ### Added
 

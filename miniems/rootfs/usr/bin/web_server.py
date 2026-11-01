@@ -21,6 +21,7 @@ from fastapi.templating import Jinja2Templates
 
 import const
 import ha_ws_api
+from history_backfill import backfill_daily_stats
 from config_loader import Config
 from const import CONFIG_FILE, OPTIONS_FILE, SUPERVISOR_RESTART_URL
 from device_profile import load_profiles
@@ -453,6 +454,7 @@ def create_app(
             "hw_control": bool(c.hw_control_enabled),
             "battery_live": bool(c.battery_control_enabled and not c.battery_control_simulation),
             "hw_live": bool(c.hw_control_enabled and not c.hw_control_simulation),
+            "history_backfill": bool(c.history_backfill_enabled),
         }
 
     @app.get("/api/control_mode")
@@ -487,6 +489,9 @@ def create_app(
             updates["battery_control_enabled"] = _coerce("battery_control_enabled", body["battery_control"])
         if "hw_control" in body:
             updates["hw_control_enabled"] = _coerce("hw_control_enabled", body["hw_control"])
+        if "history_backfill" in body:
+            updates["history_backfill_enabled"] = _coerce(
+                "history_backfill_enabled", body["history_backfill"])
         if not updates:
             return JSONResponse({"error": "nothing to change"}, status_code=400)
 
@@ -510,6 +515,8 @@ def create_app(
                 except Exception as exc:
                     _LOGGER.error("Hot-water restore on mode switch failed: %s", exc)
 
+            backfill_switched_on = (updates.get("history_backfill_enabled")
+                                    and not config.history_backfill_enabled)
             for key, value in updates.items():
                 setattr(config, key, value)
             # Simulated writes count as confirmed without being sent – start fresh.
@@ -544,6 +551,10 @@ def create_app(
                 _LOGGER.error("Failed to write config: %s", exc)
                 return JSONResponse({**after, "error": f"active, but not saved: {exc}"},
                                     status_code=500)
+        if backfill_switched_on and store is not None:
+            # Normally runs at startup; switching it on should not need a restart.
+            _LOGGER.info("History backfill switched on – running it now")
+            asyncio.create_task(backfill_daily_stats(config, store), name="history_backfill")
         return JSONResponse(after)
 
     # ── Raw file viewer / editor ────────────────────────────────────────

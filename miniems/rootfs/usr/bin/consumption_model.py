@@ -6,8 +6,9 @@ Uses SQLite history + HA weather forecast to predict:
   - remaining_load_kwh  – expected *remaining* consumption for the rest of
                           today, feeds EMSController._should_hold_pv_charge()
 
-Temperature-based matching: find historical days with similar night-temp and
-use their median load as the prediction.  Falls back to explicit temperature
+Temperature-based matching: find historical days whose daily mean outdoor
+temperature is close to tomorrow's forecast daily mean and use their median
+load as the prediction.  Falls back to explicit temperature
 rules when fewer than 3 similar days exist.
 
 Prediction source labels:
@@ -68,7 +69,7 @@ class ConsumptionModel:
 
         if predicted_load == 0:
             confidence = "none"
-        elif forecast and forecast.avg_night_temp_c is not None:
+        elif forecast and forecast.temp_tomorrow_mean_c is not None:
             confidence = "high"
         else:
             confidence = "low"
@@ -118,10 +119,10 @@ class ConsumptionModel:
 
         if (
             forecast is not None
-            and forecast.avg_night_temp_c is not None
+            and forecast.temp_tomorrow_mean_c is not None
             and self._cfg.weather_entity
         ):
-            target = forecast.avg_night_temp_c
+            target = forecast.temp_tomorrow_mean_c
             history = await self._store.query_days_similar_temp(
                 target, _TEMP_WINDOW, _LOOKBACK_DAYS
             )
@@ -140,8 +141,7 @@ class ConsumptionModel:
 
         # Temperature fallback rules (no measured day at all)
         if forecast is not None:
-            # avg_night_temp_c serves as "minimum" proxy; temp_tomorrow_c as "maximum"
-            min_t = forecast.avg_night_temp_c
+            min_t = forecast.temp_tomorrow_low_c
             max_t = forecast.temp_tomorrow_c
             if min_t is not None and max_t is not None:
                 if min_t < 0 and max_t < 0:

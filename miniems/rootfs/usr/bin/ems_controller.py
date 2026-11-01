@@ -178,9 +178,6 @@ class EMSController:
         else:
             self._remaining_load_kwh = None
 
-        # Use today's temperature from weather forecast (provided by WeatherClient via ConsumptionModel)
-        outdoor_temp = self._prediction.temp_today_c if self._prediction else None
-
         # Refresh before deciding: _grid_charge_pays() needs it, and _decide()
         # is synchronous. Memoised per day inside the optimizer, so this is a DB
         # query once a day rather than once a tick.
@@ -345,7 +342,9 @@ class EMSController:
             battery_power_w=bat_w or 0.0,
             price_eur_kwh=price if price is not None else 0.0,
             interval_sec=cfg.update_interval_sec,
-            outdoor_temp_c=outdoor_temp,
+            # Measured/hourly value, averaged into daily_stats.avg_outdoor_temp_c
+            # – the same daily mean the load forecast matches tomorrow against.
+            outdoor_temp_c=self._outdoor_temp_c(now),
             feed_in_kwh_ha=feed_in_kwh_ha,
             grid_import_kwh_ha=grid_import_kwh_ha,
             load_total_kwh_ha=load_total_kwh_ha,
