@@ -1,5 +1,25 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.6.1
+
+### Fixed
+
+- **Die HA-Integration wurde seit 3.6.0 nicht mehr installiert oder aktualisiert.**
+  In `config.yaml` wurde `map: config:rw` durch `homeassistant_config` ersetzt.
+  Damit hängt das HA-Konfigverzeichnis im Container unter `/homeassistant`,
+  nicht mehr unter `/config`. Der Installer schrieb aber weiter nach
+  `/config/custom_components/miniems`, ein Verzeichnis nur im Container, das
+  HA nie liest. Bei jedem Start stand im Log „18 written, was: vnone“, ohne
+  Fehler, und in HA blieb die alte Integration aktiv. Das Ziel ist jetzt
+  `/homeassistant/custom_components/miniems`; nur wenn es `/homeassistant`
+  nicht gibt, wird auf `/config` zurückgefallen.
+- Der Installer schreibt nur noch, wenn neben `custom_components` eine
+  `configuration.yaml` liegt. Sonst bricht er mit einem deutlichen Fehler im
+  Log ab, damit ein falsches Volume-Mapping nicht mehr unbemerkt bleibt.
+
+**Nach dem Update:** Home Assistant einmal neu starten, damit die aktuelle
+Integration geladen wird.
+
 ## 3.6.0
 
 ### Changed

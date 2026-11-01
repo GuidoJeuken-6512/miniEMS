@@ -11,8 +11,11 @@ import const
 @pytest.fixture(autouse=True)
 def _isolated_dirs(tmp_path, monkeypatch):
     src = tmp_path / "src"
-    dst = tmp_path / "dst"
+    ha_config = tmp_path / "homeassistant"
+    dst = ha_config / "custom_components" / "miniems"
     src.mkdir()
+    ha_config.mkdir()
+    (ha_config / "configuration.yaml").write_text("homeassistant: {}")
     monkeypatch.setattr(ii, "INTEGRATION_SOURCE_DIR", src)
     monkeypatch.setattr(ii, "INTEGRATION_TARGET_DIR", dst)
     monkeypatch.setenv("SUPERVISOR_TOKEN", "sup-token")
@@ -50,6 +53,19 @@ class TestFileHashAndManifest:
 
 
 class TestInstallIntegration:
+    @pytest.mark.asyncio
+    async def test_refuses_dir_that_is_not_ha_config(self, _isolated_dirs, monkeypatch, tmp_path, caplog):
+        """Regression: with the `homeassistant_config` map HA's config is at
+        /homeassistant; writing to /config filled a container-local dir HA
+        never reads, on every start, without any error."""
+        src, _ = _isolated_dirs
+        _write_manifest(src, "3.6.1")
+        wrong = tmp_path / "addon_config" / "custom_components" / "miniems"
+        monkeypatch.setattr(ii, "INTEGRATION_TARGET_DIR", wrong)
+        await ii.install_integration()
+        assert not wrong.exists()
+        assert "not Home Assistant's config dir" in caplog.text
+
     @pytest.mark.asyncio
     async def test_missing_source_dir_skips_silently(self, _isolated_dirs, monkeypatch):
         src, dst = _isolated_dirs

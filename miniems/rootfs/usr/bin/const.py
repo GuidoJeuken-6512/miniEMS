@@ -8,7 +8,7 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "3.6.0"
+VERSION = "3.6.1"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
 CONFIG_SCHEMA_VERSION = 23
@@ -208,7 +208,12 @@ PLAN_STOP_BELOW_KWH = 0.2
 # ── Custom integration installer ──────────────────────────────────────────────
 from pathlib import Path
 INTEGRATION_SOURCE_DIR = Path("/usr/bin/integration")
-INTEGRATION_TARGET_DIR = Path("/config/custom_components/miniems")
+# The add-on maps HA's config dir with `homeassistant_config`, which mounts it at
+# /homeassistant. The legacy `config:rw` map mounted it at /config – today /config
+# is the add-on's own space, invisible to HA. Prefer /homeassistant, fall back
+# for installs still built with the old map.
+HA_CONFIG_DIR = Path("/homeassistant") if Path("/homeassistant").is_dir() else Path("/config")
+INTEGRATION_TARGET_DIR = HA_CONFIG_DIR / "custom_components" / "miniems"
 
 # ── EMS operating modes ───────────────────────────────────────────────────────
 class EMSMode(str, Enum):

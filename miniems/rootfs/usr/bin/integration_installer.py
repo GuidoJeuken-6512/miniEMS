@@ -57,6 +57,18 @@ async def install_integration() -> None:
         )
         return
 
+    ha_config = INTEGRATION_TARGET_DIR.parent.parent
+    if not (ha_config / "configuration.yaml").is_file():
+        # Writing anyway would "succeed" into a directory HA never reads and
+        # leave the old integration running – exactly what a changed volume
+        # map in config.yaml caused once, silently, on every start.
+        _LOGGER.error(
+            "%s has no configuration.yaml – not Home Assistant's config dir. "
+            "Integration NOT installed; check the add-on's `map:` in config.yaml.",
+            ha_config,
+        )
+        return
+
     src_version = _manifest_version(INTEGRATION_SOURCE_DIR)
     dst_version = _manifest_version(INTEGRATION_TARGET_DIR)
 
