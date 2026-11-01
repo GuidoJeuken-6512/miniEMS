@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from datetime import datetime
 from typing import Any
 
 import aiohttp
@@ -145,6 +146,23 @@ async def list_entities(long_lived_token: str = "") -> list[dict[str, Any]]:
     """Raw HA entity-registry entries (`config/entity_registry/list`)."""
     responses = await _run([{"type": "config/entity_registry/list"}], long_lived_token)
     return _unwrap(responses[0], "config/entity_registry/list") or []
+
+
+async def get_daily_statistics(
+    statistic_ids: list[str], start: datetime, end: datetime, long_lived_token: str = "",
+) -> dict[str, list[dict[str, Any]]]:
+    """HA recorder long-term statistics in day buckets (local midnight to
+    midnight): `{statistic_id: [{"start": ms, "change": …, "mean": …}, …]}`.
+    Ids without statistics are simply absent from the result."""
+    responses = await _run([{
+        "type": "recorder/statistics_during_period",
+        "start_time": start.isoformat(),
+        "end_time": end.isoformat(),
+        "statistic_ids": statistic_ids,
+        "period": "day",
+        "types": ["change", "mean"],
+    }], long_lived_token)
+    return _unwrap(responses[0], "recorder/statistics_during_period") or {}
 
 
 async def get_registry_snapshot(

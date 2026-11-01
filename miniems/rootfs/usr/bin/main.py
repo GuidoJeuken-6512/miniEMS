@@ -14,6 +14,7 @@ from battery_capability import BatteryCapabilityTracker
 from config_loader import load_config
 from consumption_model import ConsumptionModel
 from heat_pump_recorder import HeatPumpRecorder
+from history_backfill import backfill_daily_stats
 from load_forecast import HourlyLoadRecorder, LoadForecaster
 from cost_optimizer import CostOptimizer
 from ems_controller import EMSController
@@ -134,6 +135,7 @@ async def main() -> None:
                      hot_water=hot_water, inverter=inverter)
 
     await install_integration()
+    await backfill_daily_stats(cfg, store)
 
     # Uvicorn config (ingress port 8080)
     uvi_config = uvicorn.Config(

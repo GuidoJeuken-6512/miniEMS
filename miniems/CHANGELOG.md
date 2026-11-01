@@ -1,5 +1,20 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.6.3
+
+### Added
+
+- **Verbrauchshistorie wird beim Start aus der HA-Statistik nachgefüllt.**
+  Eine Neuinstallation – oder ein Add-on, das unter neuem Slug neu installiert
+  wurde und dadurch ein leeres `/data` bekommt – hatte wochenlang keine
+  Historie für die Lastprognose. Jetzt holt miniEMS beim Start die letzten
+  60 Tage aus den Langzeitstatistiken von Home Assistant: Tagesverbrauch aus
+  dem Lebenszeitzähler (`load_consumption_total_entity`, Tages-`change`) und
+  Außentemperatur-Tagesmittel (`outdoor_temp_entity`). Gefüllt wird nur, was
+  fehlt; selbst gemessene Tage und der laufende Tag bleiben unangetastet,
+  Zählersprünge (Reset/Tausch) werden verworfen. Ergebnis im Log:
+  „History backfill from HA statistics: …“.
+
 ## 3.6.2
 
 ### Fixed
