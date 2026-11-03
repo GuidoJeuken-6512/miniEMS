@@ -89,7 +89,8 @@
         }
       },
       "energy_plan_deficit": { "name": "Energy Plan Deficit" },
-      "hot_water_mode": { "name": "Hot Water Mode" }
+      "hot_water_mode": { "name": "Hot Water Mode" },
+      "hot_water_plan": { "name": "Hot Water Plan" }
     }
   }
 }

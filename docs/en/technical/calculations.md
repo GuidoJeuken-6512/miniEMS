@@ -321,8 +321,6 @@ grid).
     still reported yesterday's closing total, and the override wrote it into the new
     day. Stage 1 derives the daily delta itself and cuts the day where cost is cut.
     The daily counter stays in use as the anchor bootstrap after a mid-day restart.
-    Details: [Tageswechsel & Energiezählung](../../roadmap/tageswechsel-energiezaehlung.md)
-    (German).
 
 !!! warning "Which figures are commensurable"
     Since stage 1, **kWh totals and € totals no longer cover the same window**: the

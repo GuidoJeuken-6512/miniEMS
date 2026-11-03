@@ -322,8 +322,7 @@ aus dem Netz bezogen worden wäre, unabhängig von der tatsächlichen Quelle (PV
     Fenster meldete Stufe 2 noch den Vortagesstand, und der Override schrieb ihn in
     den neuen Tag. Stufe 1 bildet das Tagesdelta selbst und schneidet den Tag dort,
     wo auch die Kosten geschnitten werden. Der Tageszähler bleibt als Startwert für
-    den Anker nach einem Neustart mitten am Tag in Gebrauch. Details:
-    [Tageswechsel & Energiezählung](../roadmap/tageswechsel-energiezaehlung.md).
+    den Anker nach einem Neustart mitten am Tag in Gebrauch.
 
 !!! warning "Welche Größen vergleichbar sind"
     Seit Stufe 1 sind **kWh-Summen und €-Summen nicht mehr deckungsgleich**: Die

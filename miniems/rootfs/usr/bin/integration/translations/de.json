@@ -89,7 +89,8 @@
         }
       },
       "energy_plan_deficit": { "name": "Energiefahrplan-Defizit" },
-      "hot_water_mode": { "name": "Warmwasser-Modus" }
+      "hot_water_mode": { "name": "Warmwasser-Modus" },
+      "hot_water_plan": { "name": "Warmwasser-Plan" }
     }
   }
 }

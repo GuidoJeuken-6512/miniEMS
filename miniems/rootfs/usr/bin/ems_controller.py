@@ -1118,7 +1118,7 @@ class EMSController:
             _LOGGER.warning("Hot-water control failed: %s", exc, exc_info=True)
 
     async def _record_heat_pump(self, now: datetime) -> None:
-        """Feed the heat-pump / hot-water history (docs/roadmap/v3.4-warmwasser.md)."""
+        """Feed the heat-pump / hot-water history (docs/technical/warmwasser-steuerung.md)."""
         rec = self._hp_recorder
         if rec is None or not rec.enabled:
             return

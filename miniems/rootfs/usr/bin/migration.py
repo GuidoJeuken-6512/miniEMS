@@ -392,7 +392,7 @@ _V22_DEFAULTS: dict = {
 
 
 def _v21_to_v22(data: dict) -> dict:
-    """v21 → v22: heat-pump / hot-water data collection (docs/roadmap/v3.4-warmwasser.md).
+    """v21 → v22: heat-pump / hot-water data collection (docs/technical/warmwasser-steuerung.md).
 
     All entities default to empty, so nothing is recorded until configured.
     """

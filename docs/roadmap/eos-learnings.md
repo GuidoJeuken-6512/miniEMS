@@ -226,6 +226,9 @@ nichts bringt oder kostet.
   verdient Geld), Hold-Logik für spätere PV aber weiter beachten.
 - Neue Grund-Strings im Log: `"negative price"`, `"feed-in not remunerated"`.
 
+Konkretisiert in [W1 der EnergyWizard-Lehren](energywizard-learnings.md#w1-negative-preise-als-erganzung-des-netzdienlichen-modus)
+(inkl. Warmwasser-Boost und Einspeisebegrenzung bei vollem Akku).
+
 ## E7 — Preis-Bausteine für Day-Ahead
 
 **Bei EOS:** `prediction/elecfee*.py` trennt den Endpreis in Bestandteile:

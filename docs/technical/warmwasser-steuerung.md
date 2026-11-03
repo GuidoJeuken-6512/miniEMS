@@ -6,7 +6,6 @@ revision_date: 2026-10-31
 
 Diese Seite beschreibt Aufbau, Datenfluss und Entscheidungslogik der WW-Steuerung
 ab v3.5.0. Für Bedienung und Einrichtung siehe [Warmwasser (Benutzer)](../user/warmwasser.md).
-Planungsstand und offene Punkte stehen in der Roadmap `docs/roadmap/v3.4-warmwasser.md`.
 
 Grundprinzip wie beim Netzladen des Akkus: **fail safe**. Fehlt die Boiler-Temperatur,
 gibt miniEMS die Regelung an die Wärmepumpe zurück (Sollwert = Tagesziel). Es wird

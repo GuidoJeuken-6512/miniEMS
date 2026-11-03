@@ -1,7 +1,9 @@
 /* miniEMS Energy Plan card – grid-charge windows from energy_plan.py
  * (sensor.miniems_energy_plan_deficit_kwh and its attributes) on a time
  * axis, each window coloured by its price relative to the cheapest/dearest
- * window of the plan.
+ * window of the plan. Also shows the hot-water plan
+ * (sensor.miniems_hot_water_plan_kwh) with `state_label` and
+ * `rate_key: cost_th_eur_kwh` (cost per kWh of heat incl. COP and PV).
  */
 (() => {
   // shared helpers normally load first (see __init__.py); if this card won
@@ -51,8 +53,10 @@
       const time = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "–" :
         d.toLocaleTimeString(h.language || undefined, { hour: "2-digit", minute: "2-digit" }); };
       const deficit = parseFloat(st.state);
+      const stateLabel = this._config.state_label ? M.esc(this._config.state_label) : t.deficit;
+      const rateKey = this._config.rate_key || "rate_eur_kwh";
       const tiles = `<div class="tiles">
-        ${M.tile(t.deficit, M.fmtKwh(Number.isNaN(deficit) ? null : deficit, 2))}
+        ${M.tile(stateLabel, M.fmtKwh(Number.isNaN(deficit) ? null : deficit, 2))}
         ${M.tile(t.cost, M.fmtEur(a.estimated_cost_eur ?? null))}
         ${M.tile(t.windows, String(windows.length))}</div>`;
 
@@ -63,7 +67,7 @@
 
       const ts = windows.map((w) => [new Date(w.start).getTime(), new Date(w.end).getTime()]);
       const lo = Math.min(...ts.map((x) => x[0])), hi = Math.max(...ts.map((x) => x[1])), span = Math.max(1, hi - lo);
-      const rates = windows.map((w) => Number(w.rate_eur_kwh) || 0);
+      const rates = windows.map((w) => Number(w[rateKey] ?? w.rate_eur_kwh) || 0);
       const rMin = Math.min(...rates), rMax = Math.max(...rates);
       const colorFor = (r) => {
         const f = rMax > rMin ? (r - rMin) / (rMax - rMin) : 0;

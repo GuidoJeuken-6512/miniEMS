@@ -71,10 +71,9 @@ nav = [
   { "Roadmap" = [
     { "v3.0 – Geräteprofile" = "roadmap/v3.0-geraeteprofile.md" },
     { "Energiefahrplan" = "roadmap/energiefahrplan.md" },
-    { "Tageswechsel & Energiezählung" = "roadmap/tageswechsel-energiezaehlung.md" },
     { "Lehren aus Akkudoktor-EOS" = "roadmap/eos-learnings.md" },
+    { "Lehren aus EnergyWizard" = "roadmap/energywizard-learnings.md" },
     { "v3.3 – Bedarfsprognose" = "roadmap/v3.3-bedarfsprognose.md" },
-    { "v3.4 – Warmwasser" = "roadmap/v3.4-warmwasser.md" },
   ]},
   { "User Guide (EN)" = [
     { "Getting Started" = "en/user/index.md" },

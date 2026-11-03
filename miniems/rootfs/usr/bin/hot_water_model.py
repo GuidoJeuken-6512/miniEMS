@@ -1,4 +1,4 @@
-"""Learned hot-water parameters (docs/roadmap/v3.4-warmwasser.md, Schritt 2).
+"""Learned hot-water parameters (docs/technical/warmwasser-steuerung.md).
 
 Fitted from the history heat_pump_recorder.py collects. While that history is
 thin, a configured prior (e.g. COP 4.77 at 8.5 °C) stands in. The prior is

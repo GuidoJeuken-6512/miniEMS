@@ -433,6 +433,17 @@ HOT_WATER_DESCRIPTION = MiniEMSSensorDescription(
     icon="mdi:water-boiler",
 )
 
+# Hot-water plan: state = planned electricity, attributes in the shape the
+# miniems-plan-card reads (windows / estimated_cost_eur / feasible / reason).
+HOT_WATER_PLAN_DESCRIPTION = MiniEMSSensorDescription(
+    key="miniems_hot_water_plan_kwh",
+    translation_key="hot_water_plan",
+    status_key="hot_water",
+    native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+    state_class=SensorStateClass.MEASUREMENT,
+    icon="mdi:water-boiler-auto",
+)
+
 
 class MiniEMSSensor(CoordinatorEntity[MiniEMSCoordinator], SensorEntity):
     """A single miniEMS sensor backed by the coordinator."""
@@ -559,6 +570,36 @@ class MiniEMSHotWaterSensor(MiniEMSSensor):
         }
 
 
+class MiniEMSHotWaterPlanSensor(MiniEMSSensor):
+    """hot_water.plan – see HOT_WATER_PLAN_DESCRIPTION above."""
+
+    def _plan(self) -> dict[str, Any] | None:
+        if not self.coordinator.data:
+            return None
+        return (self.coordinator.data.get("hot_water") or {}).get("plan")
+
+    @property
+    def native_value(self) -> Any:
+        plan = self._plan()
+        return plan.get("energy_kwh") if plan else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        plan = self._plan()
+        if not plan:
+            return None
+        return {
+            "feasible": plan.get("feasible"),
+            "reason": plan.get("reason"),
+            "estimated_cost_eur": plan.get("estimated_cost_eur"),
+            "heat_kwh_th": plan.get("heat_kwh_th"),
+            "boil_c": plan.get("boil_c"),
+            "need_at": plan.get("need_at"),
+            "windows": plan.get("windows"),
+            "computed_at": plan.get("computed_at"),
+        }
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -579,6 +620,7 @@ async def async_setup_entry(
             for description in SENSOR_DESCRIPTIONS
         ]
         + [MiniEMSEnergyPlanSensor(coordinator, ENERGY_PLAN_DESCRIPTION, device_info),
-           MiniEMSHotWaterSensor(coordinator, HOT_WATER_DESCRIPTION, device_info)]
+           MiniEMSHotWaterSensor(coordinator, HOT_WATER_DESCRIPTION, device_info),
+           MiniEMSHotWaterPlanSensor(coordinator, HOT_WATER_PLAN_DESCRIPTION, device_info)]
     )
 

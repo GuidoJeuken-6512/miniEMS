@@ -1,4 +1,4 @@
-"""Hot-water heating decision and actuator (docs/roadmap/v3.4-warmwasser.md, Schritt 3+4).
+"""Hot-water heating decision and actuator (docs/technical/warmwasser-steuerung.md).
 
 Mirrors the battery's grid-charge decision: a pure per-tick decision with a
 reason, fed by a plan (hot_water_planner.py), with a protection rule that

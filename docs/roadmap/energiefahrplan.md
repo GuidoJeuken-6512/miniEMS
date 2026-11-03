@@ -370,9 +370,8 @@ UPSERT battery_charge_capability_today
   WHERE date = heute AND soc_bucket = bucket
 ```
 
-**Beim Tageswechsel** (derselbe lokale Mitternachts-Schnitt, den
-[Tageswechsel & Energiezählung](tageswechsel-energiezaehlung.md) beschreibt — kein neuer
-Timer, derselbe Hook wie für `daily_stats`):
+**Beim Tageswechsel** (derselbe lokale Mitternachts-Schnitt wie für `daily_stats` — kein
+neuer Timer, derselbe Hook):
 
 ```
 für jeden Bucket mit sample_count(gestern) ≥ MIN_SAMPLES_PER_DAY:

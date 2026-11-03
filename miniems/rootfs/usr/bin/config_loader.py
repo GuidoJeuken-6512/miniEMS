@@ -210,7 +210,7 @@ class Config:
     # hot water, which the model learns as a flat base).
     heating_limit_temp_c: float = 15.0
     # --- Wärmepumpe / Warmwasser – Datensammlung (v3.4.0) ------------------
-    # docs/roadmap/v3.4-warmwasser.md, Schritt 1. All empty = nothing recorded.
+    # docs/technical/warmwasser-steuerung.md. All empty = nothing recorded.
     heat_pump_cop_entity: str = ""
     # Numeric operating-mode / ad-hoc request-type sensors of the heat pump.
     heat_pump_mode_entity: str = ""
@@ -227,7 +227,7 @@ class Config:
     # A boiler-temperature drop of at least this many K within
     # HW_DRAW_WINDOW_SEC is a hot-water draw, not standby loss.
     hw_draw_drop_k: float = 1.5
-    # --- Warmwasser-Steuerung (v3.5.0, docs/roadmap/v3.4-warmwasser.md) ---
+    # --- Warmwasser-Steuerung (v3.5.0, docs/technical/warmwasser-steuerung.md) ---
     # Off = decisions are only computed and shown; simulation = logged as
     # [SIM], never written. Both must be changed on purpose to go live.
     hw_control_enabled: bool = False

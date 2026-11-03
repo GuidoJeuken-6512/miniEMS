@@ -296,7 +296,7 @@ Revisionen). Das Verhältnis trägt nicht.
   Entity-Attribute (`activation_rules` des Tarifsensors) würde eine Plausibilitätsprüfung
   gegen den echten Tarif-Fahrplan erlauben, die heute mangels Attribut-Zugriff nicht
   existiert.
-- [Tageswechsel & Energiezählung](../roadmap/tageswechsel-energiezaehlung.md) — die
+- **Tageswechsel** (siehe [Berechnungen](calculations.md)) — die
   Datums-Prüfung (`is_stale_daily`) setzt voraus, dass miniEMS' eigener Tagesschnitt
-  zuverlässig auf lokaler Mitternacht liegt; dort gemessen und bestätigt
+  zuverlässig auf lokaler Mitternacht liegt; gemessen und bestätigt
   (`TZ=Europe/Berlin`, Schnitt beobachtet bei `21:59:38 → 22:00:08 UTC`).

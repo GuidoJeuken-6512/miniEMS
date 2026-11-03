@@ -1,4 +1,4 @@
-"""Battery state per planning slot, for pricing hot water (docs/roadmap/v3.4-warmwasser.md, Schritt 5).
+"""Battery state per planning slot, for pricing hot water (docs/technical/warmwasser-steuerung.md).
 
 Pure, no I/O. A deliberately simple forward simulation in the spirit of
 bridge_planner.plan_bridge's shortfall():

@@ -1,4 +1,4 @@
-"""Heat pump / hot water history (docs/roadmap/v3.4-warmwasser.md, Schritt 1).
+"""Heat pump / hot water history (docs/technical/warmwasser-steuerung.md).
 
 Data collection only – nothing here controls the heat pump. Three outputs:
 

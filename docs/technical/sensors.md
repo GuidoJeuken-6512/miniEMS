@@ -198,6 +198,7 @@ Die `/api/status`-Antwort enthält ein `prediction_source`-Feld (kein HA-Sensor)
 | Entity-ID | Key | Device Class | Beschreibung |
 |---|---|---|---|
 | `sensor.miniems_hot_water_mode` | `hot_water` (verschachtelt) | – | Seit v3.5.0: `hot_water.mode`. Eigene Unterklasse `MiniEMSHotWaterSensor`, weil `hot_water` ein verschachteltes Objekt ist (wie `energy_plan`). Attribute aus `hot_water`, `hot_water.setpoint` und `hot_water.adhoc`: `reason`, `boil_temp_c`, `setpoint_c`, `setpoint_confirmed`, `control_enabled`, `simulation`, `adhoc_active`, `adhoc_target_c`, `adhoc_setpoint_c`, `adhoc_delta_k`, `adhoc_elapsed_sec`. Nicht verfügbar, solange das Add-on kein `hot_water` liefert (keine Boiler-Temperatur konfiguriert). |
+| `sensor.miniems_hot_water_plan_kwh` | `hot_water.plan` (verschachtelt) | kWh | Seit v3.6.6: geplanter Strom für die WW-Ladungen (`plan.energy_kwh`). Unterklasse `MiniEMSHotWaterPlanSensor`. Attribute im Format, das die `miniems-plan-card` liest: `windows` (je Fenster `start`, `end`, `energy_kwh`, `rate_eur_kwh`, `cost_th_eur_kwh`, `cop`, `source`, `goal_c` …), `estimated_cost_eur`, `feasible`, `reason`, dazu `heat_kwh_th`, `boil_c`, `need_at`, `computed_at`. |
 
 Dazu die Aktion **`miniems.hot_water_adhoc`** (`action`: `start` | `cancel`, Antwort
 optional). Sie leitet an `POST /api/hot_water/adhoc` des Add-ons weiter und ruft danach

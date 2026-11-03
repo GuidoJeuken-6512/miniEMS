@@ -1,4 +1,4 @@
-"""Hot-water heating plan (docs/roadmap/v3.4-warmwasser.md, Schritt 5). Pure, no I/O.
+"""Hot-water heating plan (docs/technical/warmwasser-steuerung.md). Pure, no I/O.
 
 The boiler is simulated slot by slot (standby loss ∝ T − room, plus the
 learned draw profile). Heating happens only in *whole charges*: a charge

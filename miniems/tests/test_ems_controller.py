@@ -875,7 +875,7 @@ class TestBuildSensorWarnings:
 
 
 class TestRecordHeatPump:
-    """_record_heat_pump()'s mode_code() helper – docs/roadmap/v3.4-warmwasser.md.
+    """_record_heat_pump()'s mode_code() helper – docs/technical/warmwasser-steuerung.md.
 
     Regression for a bug found live 2026-10-29 against the production Lambda
     heat pump integration: heat_pump_mode_entity there (sensor.eu08l_hp1_

@@ -1,6 +1,17 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
-## 3.6.5
+## 3.6.6
+
+### Added
+
+- **HA-Sensor für den Warmwasser-Plan** `sensor.miniems_hot_water_plan_kwh`
+  (Integration 3.6.6): Zustand = geplanter Strom, Attribute = Ladefenster im
+  Format der `miniems-plan-card`. Das generierte Dashboard zeigt ihn im Tab
+  „Plan“ unter dem Energiefahrplan – Farbe nach Kosten je kWh Wärme
+  (`cost_th_eur_kwh`, inkl. COP und PV). Die Karte kennt dafür die neuen
+  Optionen `state_label` und `rate_key`. Bestehende Dashboards werden einmal
+  neu erzeugt (Layout 3), danach HA neu starten.
+
 
 ### Changed
 

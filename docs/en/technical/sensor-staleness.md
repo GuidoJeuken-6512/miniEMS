@@ -292,7 +292,6 @@ out.
   planned access to entity attributes (`activation_rules` of the price sensor) would
   allow a plausibility check against the actual tariff schedule, which does not exist
   today for lack of attribute access.
-- [Tageswechsel & Energiezählung](../../roadmap/tageswechsel-energiezaehlung.md)
-  (German) — the date check (`is_stale_daily`) relies on miniEMS's own day boundary
-  reliably sitting on local midnight; measured and confirmed there
+- **Day boundary** (see [Calculations](calculations.md)) — the date check (`is_stale_daily`) relies on miniEMS's own day boundary
+  reliably sitting on local midnight; measured and confirmed
   (`TZ=Europe/Berlin`, cut observed live at `21:59:38 → 22:00:08 UTC`).

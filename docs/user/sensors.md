@@ -162,6 +162,7 @@ Nur vorhanden, wenn im Add-on eine Boiler-Temperatur (`boil_temp_entity`) einget
 | Entität | Zustände | Beschreibung |
 |---|---|---|
 | `sensor.miniems_hot_water_mode` | `HW Idle`, `HW Charging (Plan)`, `HW Charging (PV Surplus)`, `HW Protection (Min Temp)`, `HW Charging (Manual)`, `HW Handoff (Heat Pump Control)` | Aktuelle Entscheidung der WW-Steuerung. Attribute: `reason`, `boil_temp_c`, `setpoint_c`, `setpoint_confirmed`, `control_enabled`, `simulation`, `adhoc_active`, `adhoc_target_c` (Abschalttemperatur), `adhoc_setpoint_c` (Startimpuls), `adhoc_delta_k`, `adhoc_elapsed_sec`. |
+| `sensor.miniems_hot_water_plan_kwh` | kWh | Geplanter Strom für die kommenden WW-Ladungen (seit v3.6.6). Die Attribute enthalten die Ladefenster; das generierte Dashboard zeigt sie im Tab „Plan“ mit der `miniems-plan-card` (Farbe = Kosten je kWh Wärme inkl. COP und PV). |
 
 **Aktion `miniems.hot_water_adhoc`** mit `action: start` oder `action: cancel` startet bzw.
 beendet eine Ad-hoc-Warmwasserladung, genau wie der Button. Beispiel für eine

@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS hourly_stats (
 """
 
 
-# Heat pump / hot water (docs/roadmap/v3.4-warmwasser.md, Schritt 1). One row
+# Heat pump / hot water (docs/technical/warmwasser-steuerung.md). One row
 # per local hour and raw operating-mode code; cop_* only counts ticks whose
 # COP survived the settle/plausibility filter.
 _CREATE_HP_HOURLY_TABLE = """

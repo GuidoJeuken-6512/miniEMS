@@ -77,7 +77,7 @@ _HOT_WATER_ADHOC_SCHEMA = vol.Schema(
 # Bump when the generated dashboard's layout changes: an install that has the
 # dashboard option on then regenerates it once (tabs, new cards) instead of
 # keeping the stored old layout forever.
-_DASHBOARD_LAYOUT = 2
+_DASHBOARD_LAYOUT = 3
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -199,7 +199,12 @@ async def async_generate_dashboard(hass: HomeAssistant, entry: ConfigEntry) -> N
             _tab(
                 "Plan", "plan", "mdi:calendar-clock", "plan",
                 [{"type": "custom:miniems-plan-card",
-                  "entity": "sensor.miniems_energy_plan_deficit_kwh"}],
+                  "entity": "sensor.miniems_energy_plan_deficit_kwh"},
+                 {"type": "custom:miniems-plan-card",
+                  "entity": "sensor.miniems_hot_water_plan_kwh",
+                  "title": "Warmwasser-Plan" if de else "Hot water plan",
+                  "state_label": "Geplant" if de else "Planned",
+                  "rate_key": "cost_th_eur_kwh"}],
             ),
             _tab(
                 "Kosten" if de else "Costs", "costs", "mdi:cash-multiple", "costs",
