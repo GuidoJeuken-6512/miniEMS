@@ -16,8 +16,10 @@ from const import (
     PLAN_SLOT_MIN,
     PLAN_STOP_BELOW_KWH,
     PRICE_MAX_AGE_SEC,
+    PV_STALE_SUN_BUFFER_SEC,
     SENSOR_MAX_AGE_SEC,
     SOLCAST_DATA_MAX_AGE_SEC,
+    SUN_ENTITY,
     EMSMode,
 )
 from energy_plan import EnergyPlan, compute_energy_plan
@@ -1502,6 +1504,37 @@ class EMSController:
             datetime.now().astimezone(), labels, self._ws.get_state_raw, impact
         )
 
+    def _pv_dark(self, now: datetime | None = None) -> bool:
+        """Is it too dark for PV – sun below the horizon, or within
+        PV_STALE_SUN_BUFFER_SEC after sunrise / before sunset?
+
+        Read from HA's sun.sun. False when that entity is missing or its
+        attributes unparsable, so the staleness warning stays as before.
+        """
+        state = self._ws.get_state_raw(SUN_ENTITY)
+        if state == "below_horizon":
+            return True
+        if state != "above_horizon":
+            return False
+        now = now or datetime.now(timezone.utc)
+
+        def ts(attr: str) -> datetime | None:
+            raw = self._ws.get_state_attribute(SUN_ENTITY, attr)
+            try:
+                return datetime.fromisoformat(str(raw)) if raw else None
+            except ValueError:
+                return None
+
+        setting, rising = ts("next_setting"), ts("next_rising")
+        if setting is not None and (setting - now).total_seconds() < PV_STALE_SUN_BUFFER_SEC:
+            return True
+        # Above the horizon next_rising is tomorrow's – today's sunrise ≈ one day earlier.
+        if rising is not None:
+            since_rise = (now - (rising - timedelta(days=1))).total_seconds()
+            if 0 <= since_rise < PV_STALE_SUN_BUFFER_SEC:
+                return True
+        return False
+
     def _build_sensor_warnings(self) -> list[str]:
         """Return warnings for required sensors that are unavailable or stale."""
         ws = self._ws
@@ -1532,11 +1565,14 @@ class EMSController:
             required.append(
                 (cfg.solcast_remaining_today_entity, "Solcast remaining today", FORECAST_MAX_AGE_SEC)
             )
+        pv_dark = self._pv_dark()
         for entity, label, max_age in required:
             if not entity:
                 warnings.append(f"Config missing: {label} entity not set")
             elif ws.get_state_value(entity) is None:
                 warnings.append(f"Sensor unavailable: {label} ({entity})")
+            elif entity == cfg.pv_power_entity and pv_dark:
+                continue   # 0 W all night is not a frozen sensor
             else:
                 age = ws.get_state_age_sec(entity)
                 if age is not None and age > max_age:

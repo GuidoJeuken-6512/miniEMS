@@ -8,7 +8,7 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "3.7.1"
+VERSION = "3.7.2"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
 CONFIG_SCHEMA_VERSION = 25
@@ -57,6 +57,10 @@ HA_WS_QUERY_TIMEOUT_SEC = 15   # one-shot WS query (ha_ws_api.py) – connect+au
 # HA only advances last_updated when a value actually changes, so these must be
 # generous enough that a legitimately constant reading is not flagged.
 SENSOR_MAX_AGE_SEC   = 300     # power/SoC: move constantly, 5 min frozen = broken
+# PV power legitimately sits at 0 W in the dark – no staleness warning while
+# sun.sun is below the horizon, nor this long after sunrise / before sunset.
+SUN_ENTITY = "sun.sun"
+PV_STALE_SUN_BUFFER_SEC = 3600
 FORECAST_MAX_AGE_SEC = 28800   # Solcast: updates ~every 30 min in daylight, but can
                                 # go quiet for ~6h overnight (observed) – 8h gives margin
 PRICE_MAX_AGE_SEC    = 21720   # 6 h + 2 min. A time-of-use tariff is written only at

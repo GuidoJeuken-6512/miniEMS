@@ -883,6 +883,57 @@ class TestBuildSensorWarnings:
         warnings = ctrl._build_sensor_warnings()
         assert any("PV power" in w and "stale" in w for w in warnings)
 
+    def _stale_pv(self, make_config, fake_ws):
+        ctrl = make_controller(make_config, fake_ws, pv_power_entity="sensor.pv",
+                                battery_soc_entity="")
+        fake_ws.values["sensor.pv"] = 0.0
+        fake_ws.ages["sensor.pv"] = 1800.0          # 0.5 h without a change
+        return ctrl
+
+    @staticmethod
+    def _sun(fake_ws, state, rising=None, setting=None):
+        fake_ws.state_cache["sun.sun"] = {"state": state}
+        fake_ws.attributes["sun.sun"] = {
+            "next_rising": rising.isoformat() if rising else None,
+            "next_setting": setting.isoformat() if setting else None,
+        }
+
+    def test_stale_pv_silent_after_sunset(self, make_config, fake_ws):
+        ctrl = self._stale_pv(make_config, fake_ws)
+        self._sun(fake_ws, "below_horizon")
+        assert not any("PV power" in w for w in ctrl._build_sensor_warnings())
+
+    def test_stale_pv_silent_within_buffer_around_sunrise_and_sunset(self, make_config, fake_ws):
+        ctrl = self._stale_pv(make_config, fake_ws)
+        now = datetime.now(timezone.utc)
+        # 30 min after sunrise (next_rising is tomorrow's, one day later)
+        self._sun(fake_ws, "above_horizon", rising=now + timedelta(days=1, minutes=-30),
+                  setting=now + timedelta(hours=8))
+        assert not any("PV power" in w for w in ctrl._build_sensor_warnings())
+        # 30 min before sunset
+        self._sun(fake_ws, "above_horizon", rising=now + timedelta(hours=15),
+                  setting=now + timedelta(minutes=30))
+        assert not any("PV power" in w for w in ctrl._build_sensor_warnings())
+
+    def test_stale_pv_warns_at_midday(self, make_config, fake_ws):
+        ctrl = self._stale_pv(make_config, fake_ws)
+        now = datetime.now(timezone.utc)
+        self._sun(fake_ws, "above_horizon", rising=now + timedelta(hours=20),
+                  setting=now + timedelta(hours=4))
+        assert any("PV power" in w and "stale" in w for w in ctrl._build_sensor_warnings())
+
+    def test_stale_pv_warns_without_sun_entity(self, make_config, fake_ws):
+        ctrl = self._stale_pv(make_config, fake_ws)
+        assert any("PV power" in w and "stale" in w for w in ctrl._build_sensor_warnings())
+
+    def test_other_sensors_still_warn_at_night(self, make_config, fake_ws):
+        ctrl = make_controller(make_config, fake_ws, grid_power_entity="sensor.grid",
+                                battery_soc_entity="")
+        fake_ws.values["sensor.grid"] = 10.0
+        fake_ws.ages["sensor.grid"] = 1800.0
+        self._sun(fake_ws, "below_horizon")
+        assert any("Grid power" in w and "stale" in w for w in ctrl._build_sensor_warnings())
+
     def test_peak_time_entity_uses_datetime_presence_not_value(self, make_config, fake_ws):
         """A timestamp-valued sensor must not be flagged unavailable via get_state_value."""
         ctrl = make_controller(

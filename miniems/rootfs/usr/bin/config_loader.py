@@ -25,6 +25,7 @@ from const import (
     OPTIONS_FILE,
     PRICE_MAX_AGE_SEC,
     SENSOR_MAX_AGE_SEC,
+    SUN_ENTITY,
 )
 from migration import migrate
 
@@ -375,7 +376,9 @@ class Config:
             ]
             if e
         ]
-        return base + solcast + optional + scenario2 + control + forecast + heat_pump
+        # sun.sun: is it dark? Silences the PV-power staleness warning at night.
+        context = [SUN_ENTITY]
+        return base + solcast + optional + scenario2 + control + forecast + heat_pump + context
 
 
 def _defaults() -> dict:

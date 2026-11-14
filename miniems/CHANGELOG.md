@@ -1,5 +1,17 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.7.2
+
+### Fixed
+
+- **„Sensor stale: PV power“ nachts unterdrückt.** Nach Sonnenuntergang steht
+  die PV-Leistung legitim stundenlang auf 0 W, die Meldung war ein Fehlalarm.
+  Sie erscheint jetzt nicht mehr, solange `sun.sun` unter dem Horizont steht,
+  und eine Stunde nach Sonnenaufgang bzw. vor Sonnenuntergang
+  (`PV_STALE_SUN_BUFFER_SEC`). Fehlt `sun.sun`, bleibt es beim alten Verhalten.
+  Alle anderen Sensoren werden weiter auch nachts geprüft.
+
+
 ## 3.7.1
 
 ### Fixed

@@ -141,6 +141,15 @@ der Fahrplan liegt fest, und das längste Fenster ist exakt 6 h (06–12 Uhr,
 dem längsten legitimen Fenster; 120 s Marge reichen, um das zu vermeiden, ohne die
 Erkennungszeit unnötig zu verschlechtern.
 
+**PV-Leistung nachts (seit v3.7.2):** Nach Sonnenuntergang bleibt
+`pv_power_entity` legitim stundenlang auf 0 W. Die Warnung „Sensor stale: PV
+power“ wird deshalb nicht erzeugt, solange `sun.sun` `below_horizon` meldet,
+und `PV_STALE_SUN_BUFFER_SEC` (1 h) nach Sonnenaufgang bzw. vor
+Sonnenuntergang (`EMSController._pv_dark()`, aus `next_rising` /
+`next_setting`). Ohne `sun.sun` bleibt die Warnung wie bisher. Die
+Entscheidungslogik selbst ist davon nicht betroffen: Ein veralteter PV-Wert
+schaltet die Überschussprüfung weiterhin ab.
+
 ### d: Datums-Prüfung (`is_stale_daily`) statt Alters-Prüfung
 
 `HAStateClient.is_stale_daily(entity_id, grace_sec)` (`ha_state_client.py:122`) fragt
