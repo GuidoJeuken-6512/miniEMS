@@ -1107,10 +1107,16 @@ class EMSController:
         battery = None
         if bat_kwh_use is not None and bat_kwh_free is not None:
             eta = self._optimizer.today_efficiency()
+            # Grid-charge windows the energy plan will buy: a battery kWh used
+            # for hot water before them is bought there, not refilled by PV.
+            ep = self._energy_plan
+            windows = (tuple((w.start, w.end) for w in ep.windows if w.energy_kwh > 0)
+                       if ep is not None and self._cfg.battery_control_enabled else ())
             battery = BatteryContext(
                 stored_kwh=bat_kwh_use, free_kwh=bat_kwh_free,
                 eta=eta if eta and eta > 0 else _DEFAULT_ETA,
                 grid_charging=self._cfg.battery_control_enabled,
+                grid_charge_windows=windows,
             )
         try:
             await hw.update(now, slots, pv_known, load_known, grid_w, price, battery)

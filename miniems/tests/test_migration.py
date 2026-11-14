@@ -266,3 +266,12 @@ def test_v23_to_v24_history_backfill_off_by_default():
     from migration import _v23_to_v24
     assert _v23_to_v24({})["history_backfill_enabled"] is False
     assert _v23_to_v24({"history_backfill_enabled": True})["history_backfill_enabled"] is True
+
+
+def test_v24_to_v25_minimum_charge_defaults():
+    from migration import _v24_to_v25
+    result = _v24_to_v25({})
+    assert result["hw_min_charge_k"] == 3.0
+    assert result["hw_min_charge_running_k"] == 1.5
+    assert result["hw_compressor_entity"] == "sensor.eu08l_hp1_compressor_unit_rating"
+    assert _v24_to_v25({"hw_min_charge_k": 5.0})["hw_min_charge_k"] == 5.0

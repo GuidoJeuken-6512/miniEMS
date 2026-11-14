@@ -74,6 +74,7 @@ nav = [
     { "Lehren aus Akkudoktor-EOS" = "roadmap/eos-learnings.md" },
     { "Lehren aus EnergyWizard" = "roadmap/energywizard-learnings.md" },
     { "v3.3 – Bedarfsprognose" = "roadmap/v3.3-bedarfsprognose.md" },
+    { "Warmwasser: Startverluste lernen" = "roadmap/warmwasser-startverluste.md" },
   ]},
   { "User Guide (EN)" = [
     { "Getting Started" = "en/user/index.md" },

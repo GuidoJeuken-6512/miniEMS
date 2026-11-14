@@ -19,10 +19,18 @@ Planning (greedy, like energy_plan.compute_energy_plan but per charge):
    where cost per kWh_th = Σ electricity × effective price ÷ heat. Heating
    earlier loses more on the way, the retention divides that in.
 3. "Charge now" (slot 0) wins whenever it is at most `tolerance_pct` dearer
-   than the best later candidate – so the question "do I make it to the next
-   cheap window?" is answered with "no" only when waiting saves more than the
-   tolerance. Otherwise the cheapest candidate wins, ties go to the later slot.
+   than the best later candidate – but only if the next low-price slot
+   (rate < `cheap_rate_eur`) cannot fix the violation any more, i.e. the
+   learned draws cause a real shortfall before the cheap window. Otherwise
+   the cheapest candidate wins, ties go to the later slot – except while the
+   compressor already runs: then "now" also wins a tie (no extra start).
 4. Add that charge, simulate again, repeat until nothing is violated.
+
+Minimum charge: a charge may only start in a slot whose temperature is at
+least `min_charge_k` below shut-off (`min_charge_running_k` in slot 0 while
+the compressor runs). Every start costs – compressor start, flow pipes,
+trailing run – so tiny top-ups are not planned. Only if no such charge can
+meet a requirement, the planner falls back to the old 0.5 K margin.
 
 Effective price per kWh of electricity in a slot (see HWSlot's battery fields):
 
@@ -43,7 +51,8 @@ from const import HW_WH_PER_L_K
 if TYPE_CHECKING:
     from hot_water_model import HotWaterModel
 
-# A charge only starts below shut-off minus this – same rule as the controller.
+# Fallback start margin below shut-off when no charge of the minimum size can
+# meet a requirement – same rule as the controller.
 _START_MARGIN_K = 0.5
 _MAX_CHARGES = 48
 _EPS = 1e-9
@@ -134,6 +143,10 @@ class HotWaterPlan:
     need_c: float | None = None              # the temperature required then
     now_cost_th_eur_kwh: float | None = None  # a charge started now, per kWh heat
     now_pv_cost_th_eur_kwh: float | None = None  # pure PV heat now (feed-in / COP)
+    # A charge in slot 0 may start up to this boiler temperature (shut-off
+    # minus the minimum charge that applied); the controller checks it again.
+    now_start_max_c: float | None = None
+    compressor_running: bool | None = None
     decision: str = ""
     # Per-slot pricing, for diagnosis ("why grid and not battery?").
     slot_info: list[dict[str, Any]] = field(default_factory=list)
@@ -166,6 +179,9 @@ class HotWaterPlan:
             "reason": self.reason,
             "decision": self.decision,
             "charge_now": self.charge_now,
+            "now_start_max_c": (round(self.now_start_max_c, 1)
+                                if self.now_start_max_c is not None else None),
+            "compressor_running": self.compressor_running,
             "need_at": self.need_at.isoformat() if self.need_at else None,
             "now_cost_th_eur_kwh": (round(self.now_cost_th_eur_kwh, 4)
                                     if self.now_cost_th_eur_kwh is not None else None),
@@ -215,9 +231,13 @@ def plan_hot_water(
     feed_in_eur_kwh: float,
     requirements: list[HWRequirement],
     tolerance_pct: float = 5.0,
+    min_charge_k: float = _START_MARGIN_K,
+    min_charge_running_k: float | None = None,
+    compressor_running: bool | None = None,
+    cheap_rate_eur: float | None = None,
 ) -> HotWaterPlan:
     plan = HotWaterPlan(computed_at=now, boil_c=boil_c, floor_c=floor_c, shutoff_c=shutoff_c,
-                        requirements=list(requirements))
+                        requirements=list(requirements), compressor_running=compressor_running)
     if not slots:
         plan.feasible = False
         plan.reason = "no planning horizon"
@@ -265,14 +285,25 @@ def plan_hot_water(
         if idx is not None:
             required[idx] = max(required[idx], r.min_c)
 
-    def simulate(starts: set[int]) -> tuple[list[float], list[float], list[float]]:
-        """Slot start/end temperatures and heat (K) added per slot."""
+    # Minimum charge per slot: only slot 0 can know that the compressor runs.
+    hub = [max(_START_MARGIN_K, min_charge_k)] * n
+    running = bool(compressor_running) and min_charge_running_k is not None
+    if running:
+        hub[0] = max(_START_MARGIN_K, min(hub[0], min_charge_running_k))   # type: ignore[arg-type]
+    fallback = [_START_MARGIN_K] * n
+
+    def simulate(starts: dict[int, float]) -> tuple[list[float], list[float], list[float]]:
+        """Slot start/end temperatures and heat (K) added per slot.
+
+        `starts` maps a start slot to its start margin: the charge only
+        starts if the boiler is at least that far below shut-off then.
+        """
         t = boil_c
         charging = False
         st, en, heat = [], [], []
         for i, s in enumerate(slots):
             st.append(t)
-            if i in starts and t < shutoff_c - _START_MARGIN_K:
+            if i in starts and t <= shutoff_c - starts[i] + 1e-6:
                 charging = True
             add = 0.0
             if charging:
@@ -304,12 +335,12 @@ def plan_hot_water(
         return (heat_kwh, cost, last) if heat_kwh > _EPS else None
 
     # ── decision info for "now", before any charge is planned ──────────
-    _, en0, heat0 = simulate(set())
+    _, en0, heat0 = simulate({})
     v0 = first_violation(en0)
     if v0 is not None:
         plan.need_at = slots[v0].end
         plan.need_c = required[v0]
-    _, _, heat_now = simulate({0})
+    _, _, heat_now = simulate({0: fallback[0]})
     now_charge = charge_cost(heat0, heat_now)
     if now_charge is not None:
         plan.now_cost_th_eur_kwh = now_charge[1] / now_charge[0]
@@ -317,18 +348,21 @@ def plan_hot_water(
         plan.now_cost_th_eur_kwh = cost_th[0]
     plan.now_pv_cost_th_eur_kwh = feed_in_eur_kwh / cop[0]
 
-    # ── greedy: whole charges until no requirement is violated ─────────
-    charges: list[int] = []
-    for _ in range(_MAX_CHARGES):
-        _, en, heat = simulate(set(charges))
-        v = first_violation(en)
-        if v is None:
-            break
-        candidates: list[tuple[int, float]] = []
+    # First low-price slot after now: the "charge now" bonus only applies when
+    # a charge there can no longer prevent the violation.
+    cheap_idx = None
+    if cheap_rate_eur is not None:
+        cheap_idx = next((j for j in range(1, n) if slots[j].rate_eur_kwh is not None
+                          and slots[j].rate_eur_kwh < cheap_rate_eur), None)
+
+    def collect(v: int, heat: list[float], charges: dict[int, float],
+                margins: list[float]) -> list[tuple[int, float, float]]:
+        """Valid start slots for violation v: (slot, score, start margin)."""
+        out: list[tuple[int, float, float]] = []
         for j in range(v + 1):
             if j in charges:
                 continue
-            _, en2, heat2 = simulate(set(charges) | {j})
+            _, en2, heat2 = simulate({**charges, j: margins[j]})
             if en2[v] < required[v] - 1e-6:
                 continue
             cc = charge_cost(heat, heat2)
@@ -340,7 +374,21 @@ def plan_hot_water(
                 retention *= max(0.0, 1.0 - model.loss_coeff * slots[m].hours)
             if retention <= 0:
                 continue
-            candidates.append((j, cost / heat_kwh / retention))
+            out.append((j, cost / heat_kwh / retention, margins[j]))
+        return out
+
+    # ── greedy: whole charges until no requirement is violated ─────────
+    charges: dict[int, float] = {}
+    for _ in range(_MAX_CHARGES):
+        _, en, heat = simulate(charges)
+        v = first_violation(en)
+        if v is None:
+            break
+        candidates = collect(v, heat, charges, hub)
+        if not candidates and hub != fallback:
+            # No charge of the minimum size meets the requirement – a smaller
+            # one is better than missing it.
+            candidates = collect(v, heat, charges, fallback)
         if not candidates:
             plan.feasible = False
             label = next((r.label for r in requirements
@@ -348,15 +396,21 @@ def plan_hot_water(
             plan.reason = (f"cannot hold {required[v]:.0f} °C ({label}) at "
                            f"{slots[v].end.strftime('%H:%M')}")
             break
-        best = min(score for _, score in candidates)
-        now_c = next((score for j, score in candidates if j == 0), None)
-        if now_c is not None and now_c <= best * (1.0 + tolerance_pct / 100.0) + _EPS:
+        best = min(score for _, score, _ in candidates)
+        now_c = next((score for j, score, _ in candidates if j == 0), None)
+        # Real shortfall before the next cheap window: no candidate there or later.
+        bonus = cheap_idx is None or not any(j >= cheap_idx for j, _, _ in candidates)
+        if (now_c is not None and bonus
+                and now_c <= best * (1.0 + tolerance_pct / 100.0) + _EPS):
             pick = 0
+        elif now_c is not None and running and now_c <= best + _EPS:
+            pick = 0      # compressor already runs: switching costs no extra start
         else:
-            pick = max(j for j, score in candidates if score <= best + _EPS)   # ties: later
-        charges.append(pick)
+            pick = max(j for j, score, _ in candidates if score <= best + _EPS)   # ties: later
+        charges[pick] = next(m for j, _, m in candidates if j == pick)
 
-    st, en, heat = simulate(set(charges))
+    plan.now_start_max_c = shutoff_c - charges.get(0, hub[0])
+    st, en, heat = simulate(charges)
     plan.projection = [(slots[0].start, boil_c)] + [(s.end, en[i]) for i, s in enumerate(slots)]
 
     # ── windows = one per charge (contiguous heated slots) ─────────────

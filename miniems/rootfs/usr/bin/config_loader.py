@@ -272,6 +272,18 @@ class Config:
     # heat) than the best later option – "will I make it to the next cheap
     # window?" is answered with "no" only when waiting saves more than this.
     hw_decision_tolerance_pct: float = 5.0
+    # Minimum charge (K below the shut-off temperature) before a planned charge
+    # may start: every start costs (compressor start, flow pipes, trailing run),
+    # so tiny top-ups are avoided. A protection or ad-hoc charge ignores it; a
+    # requirement that no charge of this size can meet falls back to 0.5 K.
+    hw_min_charge_k: float = 3.0
+    # The same while the compressor already runs (space heating): switching to
+    # hot water then needs no extra start, so a smaller top-up is worth it.
+    hw_min_charge_running_k: float = 1.5
+    # Shows whether the compressor runs: a numeric sensor (> 0 = running, e.g.
+    # the Lambda's compressor rating in %) or a text state (CH/DHW/CC/DEFROST =
+    # running). Empty or unavailable = treated as off (hw_min_charge_k).
+    hw_compressor_entity: str = "sensor.eu08l_hp1_compressor_unit_rating"
     # Which Solcast scenario feeds the plan: "estimate" (median), "estimate10"
     # (pessimistic) or "blend" = w × estimate + (1−w) × estimate10. Under-
     # charging costs the full tariff spread per kWh, over-charging only the
@@ -359,6 +371,7 @@ class Config:
                 self.boil_temp_entity,
                 self.hw_target_entity,
                 self.hw_workday_entity,
+                self.hw_compressor_entity,
             ]
             if e
         ]
@@ -463,6 +476,8 @@ def _validate(cfg: "Config") -> None:
         ("hw_min_off_sec", 0, 14400),
         ("hw_adhoc_delta_k", 2.0, 20.0),
         ("hw_decision_tolerance_pct", 0.0, 50.0),
+        ("hw_min_charge_k", 0.5, 15.0),
+        ("hw_min_charge_running_k", 0.5, 15.0),
     )
     for name, lo, hi in clamps:
         value = getattr(cfg, name)
@@ -507,6 +522,11 @@ def _validate(cfg: "Config") -> None:
         _LOGGER.warning("hw_max_temp_c (%s) below a hot-water target – raised to %s",
                         cfg.hw_max_temp_c, new)
         cfg.hw_max_temp_c = new
+
+    if cfg.hw_min_charge_running_k > cfg.hw_min_charge_k:
+        _LOGGER.warning("hw_min_charge_running_k (%s) above hw_min_charge_k (%s) – lowered",
+                        cfg.hw_min_charge_running_k, cfg.hw_min_charge_k)
+        cfg.hw_min_charge_running_k = cfg.hw_min_charge_k
 
     if cfg.pv_export_priority_enabled and not cfg.battery_control_enabled:
         _LOGGER.warning(

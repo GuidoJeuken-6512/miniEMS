@@ -119,6 +119,9 @@ def migrate(data: dict, *, is_fresh: bool = False) -> dict:
     if version < 24:
         data = _v23_to_v24(data)
 
+    if version < 25:
+        data = _v24_to_v25(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -442,6 +445,22 @@ def _v23_to_v24(data: dict) -> dict:
     if "history_backfill_enabled" not in data:
         data["history_backfill_enabled"] = False
         _LOGGER.info("Migration v23→v24: set history_backfill_enabled = False")
+    return data
+
+
+_V25_DEFAULTS: dict = {
+    "hw_min_charge_k": 3.0,
+    "hw_min_charge_running_k": 1.5,
+    "hw_compressor_entity": "sensor.eu08l_hp1_compressor_unit_rating",
+}
+
+
+def _v24_to_v25(data: dict) -> dict:
+    """v24 → v25: minimum hot-water charge (K), depending on whether the compressor runs."""
+    for key, default in _V25_DEFAULTS.items():
+        if key not in data:
+            data[key] = default
+            _LOGGER.info("Migration v24→v25: set %s = %r", key, default)
     return data
 
 

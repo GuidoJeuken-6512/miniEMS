@@ -17,6 +17,8 @@ costs:
 * if PV later spills at least _SPILL_MIN_KWH while the battery never runs
   empty in between, the kWh is simply not exported later – it costs the
   feed-in tariff (e.g. a sunny day with the battery half full in the morning);
+* but not if the energy plan grid-charges before that spill: every kWh taken
+  now is then charged from the grid in that window instead;
 * otherwise it has to be bought back from the grid: the cheapest tariff later
   in the horizon divided by the round-trip efficiency.
 """
@@ -40,6 +42,8 @@ class BatteryContext:
     free_kwh: float              # room up to max SoC now
     eta: float                   # round-trip efficiency 0..1
     grid_charging: bool = False  # miniEMS may grid-charge (battery control on)
+    # Planned grid-charge windows of the energy plan, (start, end).
+    grid_charge_windows: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -57,8 +61,12 @@ def project_battery(
     load_kwh: list[float],
     ctx: BatteryContext,
     feed_in_eur_kwh: float | None = None,
+    grid_charge: list[bool] | None = None,
 ) -> list[BatterySlot]:
+    """`grid_charge[i]`: the energy plan grid-charges the battery in slot i."""
     n = len(rates)
+    planned = [bool(grid_charge[i]) if grid_charge and i < len(grid_charge) else False
+               for i in range(n)]
     known = [r for r in rates if r is not None]
     cheap_rate = min(known) if known else None
     eta = ctx.eta if ctx.eta and ctx.eta > 0 else 0.9
@@ -97,6 +105,8 @@ def project_battery(
         for j in range(i, n):
             if j > i and level[j] <= _EMPTY_EPS_KWH:
                 return False             # runs empty first – the gap is bought from the grid
+            if planned[j]:
+                return False             # grid-charged first – the gap is bought in that window
             acc += spill[j]
             if acc >= _SPILL_MIN_KWH:
                 return True

@@ -71,6 +71,7 @@ class HomeAssistantAPI(CoreSysAttributes):
         self._token_lock: asyncio.Lock = asyncio.Lock()
         self._unix_session: aiohttp.ClientSession | None = None
         self._core_connected: bool = False
+        self._core_used_supervisor_socket: bool = False
         self._core_container_running: bool | None = None
 
     @property
@@ -81,10 +82,9 @@ class HomeAssistantAPI(CoreSysAttributes):
 
         Used to decide whether to configure the env var when starting Core.
 
-        PATCHED (miniEMS devcontainer, see docs/technical/devcontainer-supervisor-patches.md,
-        section 3): force TCP transport when SUPERVISOR_DEV=1. The devcontainer's supervisor
-        container does not have /run/supervisor in its bind-mount list, so the Unix socket
-        Core creates there is invisible to it - only TCP on the hassio bridge network works.
+        Devcontainer patch (miniEMS, docs/technical/devcontainer-supervisor-patches.md):
+        always TCP in developer mode – the supervisor container cannot reach
+        Core's Unix socket inside the Docker-in-Docker devcontainer.
         """
         if self.sys_dev:
             return False
@@ -130,6 +130,19 @@ class HomeAssistantAPI(CoreSysAttributes):
             if name == ENV_CORE_API_SOCKET:
                 return self._supervisor_view_of_core_socket(value)
         return None
+
+    @property
+    def core_used_supervisor_socket(self) -> bool:
+        """Return True if the running Core container has called Supervisor's socket.
+
+        Such a Core makes all of its own Supervisor requests over the socket.
+        """
+        return self._core_used_supervisor_socket
+
+    @core_used_supervisor_socket.setter
+    def core_used_supervisor_socket(self, value: bool) -> None:
+        """Set if the running Core container has called Supervisor's socket."""
+        self._core_used_supervisor_socket = value
 
     @property
     def use_unix_socket(self) -> bool:
@@ -192,6 +205,7 @@ class HomeAssistantAPI(CoreSysAttributes):
             return
 
         self._core_connected = False
+        self._core_used_supervisor_socket = False
         if self._unix_session and not self._unix_session.closed:
             await self._unix_session.close()
             self._unix_session = None

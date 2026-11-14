@@ -161,15 +161,25 @@ neu laden, sonst zeigt er noch die alte Karte.
     - **PV-Überschuss:** Einspeisevergütung. Ist der Akku noch nicht voll, gilt der Preis,
       zu dem diese kWh später nachgeladen werden müsste.
     - **Akku:** Hat der Akku Energie, gilt sein Nachladepreis (günstigster Tarif danach ÷
-      Akku-Wirkungsgrad), nicht der teure Abendtarif.
+      Akku-Wirkungsgrad), nicht der teure Abendtarif. Die Einspeisevergütung gilt nur,
+      wenn später PV übrig bleibt **und** miniEMS vorher keine Netzladung plant – sonst
+      wird jede entnommene kWh in diesem Ladefenster aus dem Netz nachgekauft.
     - **Netz:** Tarif aus dem Tarifkalender.
 
    Wer früher lädt, verliert bis zum Bedarf mehr Wärme. Das ist eingerechnet. Ist
    „jetzt laden“ höchstens 5 % teurer als die beste spätere Möglichkeit
-   (`hw_decision_tolerance_pct`), wird sofort geladen.
-4. **Immer sofort**, unabhängig vom Preis: Schutzladung unter dem Minimum, Ad-hoc-Button,
+   (`hw_decision_tolerance_pct`), wird sofort geladen – aber nur, wenn das nächste
+   Niedrigpreisfenster (Tarif unter `cheap_rate_threshold_eur`) den Engpass nicht mehr
+   abwenden kann. Reicht der Speicher mit den gelernten Zapfungen bis dorthin, wird gewartet.
+4. **Mindest-Ladehub:** Eine geplante Ladung startet erst, wenn der Speicher mindestens
+   `hw_min_charge_k` (3 K) unter der Abschalttemperatur liegt. Jeder Start kostet –
+   Verdichterstart, Leitungen, Nachlauf –, deshalb keine Mini-Ladungen von 49,3 auf 50 °C.
+   Läuft der Verdichter schon (Heizbetrieb, `hw_compressor_entity`), genügt
+   `hw_min_charge_running_k` (1,5 K): Das Umschalten braucht keinen zusätzlichen Start,
+   und bei gleichem Preis wird dann lieber jetzt geladen. Kann keine Ladung dieser Größe
+   eine Anforderung (z. B. das Morgenziel) erfüllen, darf ausnahmsweise eine kleinere starten.
+5. **Immer sofort**, unabhängig vom Preis: Schutzladung unter dem Minimum, Ad-hoc-Button,
    spontaner PV-Überschuss (Einspeisung ≥ 1500 W).
-
 Jede Entscheidung und jede Ladung steht im **Ereignisprotokoll** (Tab *Protokoll*,
 Kennzeichen „Warmwasser“), mit Begründung und den angenommenen Kosten in ct/kWh Wärme.
 Zum Beispiel: „tariff change 30.1 ct: wait – enough until 02:30 (45.9 °C then); now
@@ -197,6 +207,9 @@ Strom, den die Wärmepumpe aus PV nimmt, steht dem Akku nicht zur Verfügung.
 | `hw_idle_setpoint_c` | `35` | Sollwert, wenn keine Ladung läuft (Abschalttemperatur erreicht, abgebrochen, Pause). Muss mindestens 5 K unter `hot_water_min_temp_c` liegen, sonst wird er beim Start abgesenkt. |
 | `hw_adhoc_delta_k` | `10` | Startimpuls beim Ad-hoc-Button: Ist + dieser Wert |
 | `hw_decision_tolerance_pct` | `5` | Jetzt laden, wenn das höchstens so viel Prozent teurer je kWh Wärme ist als die beste spätere Möglichkeit |
+| `hw_min_charge_k` | `3` | Mindest-Ladehub: eine geplante Ladung startet erst so weit unter der Abschalttemperatur (Verdichter aus) |
+| `hw_min_charge_running_k` | `1.5` | Mindest-Ladehub, wenn der Verdichter schon läuft (Umschalten aus dem Heizbetrieb, kein Extra-Start) |
+| `hw_compressor_entity` | Lambda-Sensor | Zeigt, ob der Verdichter läuft: Zahl > 0 (z. B. `sensor.eu08l_hp1_compressor_unit_rating` in %) oder Text CH/DHW/CC/DEFROST. Leer = gilt als aus |
 | `hw_volume_l` | `200` | Speichervolumen in Litern |
 | `hw_heat_power_kw` | `4` | Thermische Heizleistung, bis sie gelernt ist |
 | `hw_cop_prior` / `hw_cop_prior_temp_c` | `4.77` / `8.5` | Start-COP und zugehörige Außentemperatur |

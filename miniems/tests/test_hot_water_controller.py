@@ -55,6 +55,51 @@ async def tick(ctrl, fake_ws, now=NOW, boil=None, grid_w=0.0, sl=None):
     await ctrl.update(now, sl if sl is not None else slots(now), True, True, grid_w, 0.30)
 
 
+class TestMinimumCharge:
+    """v3.7.0: minimum charge depends on whether the compressor already runs."""
+
+    def test_compressor_state_numeric_and_text(self, cfg, fake_ws):
+        cfg.hw_compressor_entity = "sensor.compressor"
+        ctrl, _ = make(cfg, fake_ws)
+        assert ctrl._compressor_running() is None              # unavailable
+        fake_ws.values["sensor.compressor"] = 24.9            # Lambda rating in %
+        assert ctrl._compressor_running() is True
+        fake_ws.values["sensor.compressor"] = 0.0
+        assert ctrl._compressor_running() is False
+        fake_ws.values["sensor.compressor"] = None
+        fake_ws.state_cache["sensor.compressor"] = {"state": "CH"}
+        assert ctrl._compressor_running() is True
+        fake_ws.state_cache["sensor.compressor"] = {"state": "STBY"}
+        assert ctrl._compressor_running() is False
+        cfg.hw_compressor_entity = ""
+        assert ctrl._compressor_running() is None
+
+    async def test_no_top_up_just_below_shutoff(self, cfg, fake_ws):
+        """49.3 °C in a cheap slot: before v3.7.0 this started a 0.7 K charge."""
+        cfg.hw_compressor_entity = "sensor.compressor"
+        fake_ws.values["sensor.compressor"] = 0.0
+        ctrl, _ = make(cfg, fake_ws, boil=49.3)
+        later = NOW.replace(hour=12)                          # no morning requirement close by
+        await tick(ctrl, fake_ws, now=later, sl=slots(later))
+        st = ctrl.status(later)
+        assert ctrl.mode is HWMode.IDLE
+        assert st["compressor_running"] is False
+        assert st["plan"]["now_start_max_c"] == 47.0          # shut-off 50 − 3 K
+
+    async def test_replans_when_the_compressor_starts(self, cfg, fake_ws):
+        cfg.hw_compressor_entity = "sensor.compressor"
+        fake_ws.values["sensor.compressor"] = 0.0
+        ctrl, _ = make(cfg, fake_ws, boil=49.3)
+        later = NOW.replace(hour=12)
+        await tick(ctrl, fake_ws, now=later, sl=slots(later))
+        assert ctrl.plan.now_start_max_c == 47.0
+        fake_ws.values["sensor.compressor"] = 25.0
+        soon = later + timedelta(seconds=30)
+        await tick(ctrl, fake_ws, now=soon, sl=slots(later))
+        assert ctrl.plan.compressor_running is True
+        assert ctrl.plan.now_start_max_c == 48.5              # shut-off 50 − 1.5 K
+
+
 class TestDecision:
     async def test_handoff_without_boiler_temperature(self, cfg, fake_ws):
         ctrl, _ = make(cfg, fake_ws)

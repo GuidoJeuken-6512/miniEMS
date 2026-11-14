@@ -136,6 +136,9 @@ ab dem aktuellen nutzbaren Akkuinhalt.
     Überschuss wird eingespeist), ohne dass der Akku vorher leer wird. Die entnommene
     kWh wird dann einfach später nicht eingespeist (`refilled_by_pv`). Typisch: sonniger
     Tag, Akku morgens halb voll.
+    **Nicht**, wenn vorher ein Netzladefenster des Energiefahrplans liegt
+    (`BatteryContext.grid_charge_windows`, seit v3.7.0): Dann wird jede jetzt entnommene
+    kWh dort aus dem Netz nachgekauft, auch wenn danach PV überläuft.
   - sonst **günstigster Tarif danach ÷ η** (η = `cost_optimizer.today_efficiency()`,
     ersatzweise 0,9): Die kWh muss aus dem Netz zurückgekauft werden.
 - Der Akku zählt nur mit SoC und Lastprognose. Die Last der WW-Ladung selbst wird nicht
@@ -152,12 +155,22 @@ ab dem aktuellen nutzbaren Akkuinhalt.
 1. Ohne Heizen simulieren. Die erste Verletzung ist der Bedarfszeitpunkt
    (`need_at`).
 2. Jeder Slot `j ≤ v` ist ein Kandidat für einen Ladungsstart. Gültig ist er nur, wenn
-   seine Ladung (bis Abschalttemperatur) die Verletzung `v` behebt.
+   seine Ladung (bis Abschalttemperatur) die Verletzung `v` behebt **und** der Speicher
+   dort mindestens den **Mindest-Ladehub** unter der Abschalttemperatur liegt
+   (seit v3.7.0): `hw_min_charge_k` (3 K), in Slot 0 bei laufendem Verdichter
+   `hw_min_charge_running_k` (1,5 K, `hw_compressor_entity`). Für spätere Slots ist der
+   Verdichterzustand unbekannt, dort gilt immer der große Hub. Gibt es so keinen
+   gültigen Kandidaten, wird mit dem alten Rand 0,5 K erneut gesucht – eine kleine
+   Ladung ist besser als eine verfehlte Anforderung.
 3. Bewertung: `score = Kosten je kWh_th der Ladung ÷ Haltefaktor(Ladungsende → v)`,
    Haltefaktor = Π (1 − k · h). Früheres Laden zahlt den zusätzlichen Verlust mit.
 4. **„Jetzt“ (Slot 0) gewinnt**, wenn sein Score höchstens `hw_decision_tolerance_pct`
-   (5 %) über dem besten liegt. Sonst gewinnt der günstigste Kandidat, bei Gleichstand
-   der spätere (weniger Verlust).
+   (5 %) über dem besten liegt – aber nur bei einem **echten Engpass**: Kein gültiger
+   Kandidat liegt im nächsten Niedrigpreis-Slot (Tarif < `cheap_rate_threshold_eur`)
+   oder danach. Die Zapfungen sind in der Simulation enthalten, die Tariffenster sind
+   fest. Läuft der Verdichter, gewinnt „jetzt“ außerdem jeden Gleichstand
+   (Umschalten ohne Extra-Start). Sonst gewinnt der günstigste Kandidat, bei
+   Gleichstand der spätere (weniger Verlust).
 5. Ladung übernehmen, neu simulieren und mit Schritt 1 weitermachen, bis keine
    Anforderung mehr verletzt ist (höchstens 48 Ladungen). Gibt es für eine Verletzung
    keinen gültigen Kandidaten, gilt der Plan als `feasible = false`, mit Begründung.
@@ -186,7 +199,7 @@ geschriebene Sollwert.
 | 3 | Ad-hoc aktiv | `HW Charging (Manual)` | `hw_morning_target_c` |
 | 4 | Ladung läuft | wie gestartet | unverändert |
 | 5 | Ladung vor < `hw_min_off_sec` beendet | `HW Idle` | – |
-| 6 | Plan sagt `charge_now` (Ladung beginnt im aktuellen Slot) und T < Ziel − 0,5 K | `HW Charging (Plan)` / `(PV Surplus)` | `hw_morning_target_c` |
+| 6 | Plan sagt `charge_now` (Ladung beginnt im aktuellen Slot) und T ≤ `plan.now_start_max_c` (Ziel − Mindest-Ladehub; neu geplant, sobald der Verdichter startet oder stoppt) | `HW Charging (Plan)` / `(PV Surplus)` | `hw_morning_target_c` |
 | 7 | Netzexport ≥ `hw_pv_min_export_w` und T < `hw_max_temp_c` − 1 K | `HW Charging (PV Surplus)` | `hw_max_temp_c` |
 | 8 | sonst | `HW Idle`, Begründung = `plan.decision` | – |
 

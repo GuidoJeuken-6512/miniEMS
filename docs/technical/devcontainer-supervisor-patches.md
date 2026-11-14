@@ -179,7 +179,50 @@ docker run --rm -v "$(pwd)/supervisor_api_patch.py:/tmp/check.py:ro" \
   --entrypoint python3 ghcr.io/home-assistant/amd64-hassio-supervisor:<current-tag> -m py_compile /tmp/check.py
 ```
 
+**Seen again 2026-11-14** (supervisor `2026.11.1.dev1203`), with a different symptom:
+the supervisor started, but every TCP request from Core failed with HTTP 500 –
+`AttributeError: 'HomeAssistantAPI' object has no attribute 'core_used_supervisor_socket'`
+in `api/middleware/security.py`. HA's *Settings → Apps* page stays empty and no add-on
+panel opens. Same fix (re-derive from the image, re-add the `sys_dev` guard in
+`supports_unix_socket`), then `docker restart hassio_supervisor`.
+
+Same day, a second new requirement: starting a local add-on failed with
+`bind source path does not exist: /run/supervisor/supervisor/apps/local_miniems`.
+`postStartCommand` now creates that directory together with `/run/supervisor`.
+
 `supervisor_firewall_patch.py` (fix 2) is far smaller and apparently still closely tracks upstream (13-line diff as of 2026-10-29, imports unchanged) – it has not needed this treatment yet, but the same re-derive approach applies if it ever does.
+
+---
+
+## 6. Add-on update fails: `[404] manifest unknown` (prebuilt image)
+
+**Symptom**
+
+```
+ERROR [supervisor.apps.app] Could not pull image to update app local_miniems:
+  Can't install ghcr.io/guidojeuken-6512/amd64-addon-miniems:3.7.0: [404] manifest unknown
+WARNING [supervisor.jobs] Background job app_manager_update failed: An unknown error occurred with app local_miniems
+```
+
+**Root cause**
+
+Since v3.6.0, `miniems/config.yaml` has `image: "ghcr.io/guidojeuken-6512/{arch}-addon-miniems"`
+(installation as an add-on repository). With an `image` key the supervisor **pulls** the
+add-on instead of building it from the `Dockerfile`, also for the local copy in the
+devcontainer. An unreleased version has no image on ghcr.io yet → 404.
+
+**Fix — `dev_update_addon.sh`**
+
+```bash
+bash dev_update_addon.sh     # in the devcontainer
+```
+
+The script bind-mounts a copy of `config.yaml` without the `image:` line over the file
+**inside the `hassio_supervisor` container** (a mount made in the devcontainer itself does
+not propagate into it – `rprivate`), reloads the store via the supervisor API (a store
+reload pulls every add-on git repository and exceeds the `ha` CLI's timeout), updates or
+rebuilds `local_miniems` from the `Dockerfile`, then removes the mount again. The file on
+the host is never touched. The built image is `local/amd64-addon-miniems:<version>`.
 
 ---
 
@@ -205,6 +248,7 @@ As of v1.5.6, the patches are applied statically, not at runtime:
 | `devcontainer_bootstrap` | `postCreateCommand`: bind-mounts both patch files into `supervisor_run`'s `docker run`, patches the `stty sane` bug in `/etc/supervisor_scripts/common` |
 | `supervisor_firewall_patch.py` | Patched `host/firewall.py` — skips gateway check in dev mode |
 | `supervisor_api_patch.py` | Patched `homeassistant/api.py` — forces TCP transport in dev mode |
+| `dev_update_addon.sh` | Local build + update of `local_miniems` despite the `image:` key (section 6) |
 | `apply_supervisor_patch.sh` | Manual fallback: hot-patches and restarts an already-running `hassio_supervisor` without recreating the devcontainer |
 
 ---

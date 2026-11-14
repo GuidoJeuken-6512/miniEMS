@@ -116,6 +116,7 @@ _FLOAT_FIELDS = {
     "hw_volume_l", "hw_day_target_c", "hw_morning_target_c", "hw_boost_delta_k", "hw_idle_setpoint_c",
     "hw_max_temp_c", "hw_heat_power_kw", "hw_cop_prior",
     "hw_cop_prior_temp_c", "hw_adhoc_delta_k", "hw_decision_tolerance_pct",
+    "hw_min_charge_k", "hw_min_charge_running_k",
 }
 
 

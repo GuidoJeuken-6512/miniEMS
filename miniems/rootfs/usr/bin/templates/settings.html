@@ -55,6 +55,7 @@
       'hw_volume_l', 'hw_day_target_c', 'hw_morning_target_c', 'hw_boost_delta_k', 'hw_idle_setpoint_c',
       'hw_max_temp_c', 'hw_heat_power_kw', 'hw_cop_prior',
       'hw_cop_prior_temp_c', 'hw_adhoc_delta_k', 'hw_decision_tolerance_pct',
+      'hw_min_charge_k', 'hw_min_charge_running_k',
     ]);
 
     const SECTIONS = [
@@ -190,6 +191,9 @@
           { key: 'hw_min_off_sec',        label: 'Minimum pause between charges (s)' },
           { key: 'hw_adhoc_delta_k',      label: 'Ad-hoc start impulse: boiler temperature + (K)' },
           { key: 'hw_decision_tolerance_pct', label: 'Charge now if at most this much dearer per kWh heat than later (%)' },
+          { key: 'hw_min_charge_k',         label: 'Minimum charge: start only this far below shut-off (K, compressor off)' },
+          { key: 'hw_min_charge_running_k', label: 'Minimum charge while the compressor already runs (K)' },
+          { key: 'hw_compressor_entity',    label: 'Compressor running entity (numeric > 0, or CH/DHW/CC/DEFROST)' },
         ]
       },
       {

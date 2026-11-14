@@ -61,6 +61,9 @@ _PSEUDO_MARGIN_K = 2.0
 # survive even one slot of standby loss.
 _MORNING_SLACK_K = 1.0
 _CHARGING_MODES = (HWMode.CHARGING, HWMode.PV, HWMode.PROTECT, HWMode.MANUAL)
+# Text states of hw_compressor_entity that mean "the compressor runs" (Lambda
+# operating state: central heating, hot water, cooling, defrost).
+_COMPRESSOR_RUNNING_STATES = frozenset({"CH", "DHW", "CC", "DEFROST"})
 
 
 @dataclass
@@ -234,11 +237,15 @@ class HotWaterController:
         self._outdoor_c = (self._value(cfg.outdoor_temp_entity) if cfg.outdoor_temp_entity
                            else (self._weather.hourly_temp_at(now) if self._weather else None))
         model = await self._loader.refresh(now)
+        compressor = self._compressor_running()
 
         if self._boil_c is not None and (
             self._plan is None or self._plan_at is None
             or (now - self._plan_at).total_seconds() >= HW_PLAN_RECOMPUTE_SEC
             or (self._plan_slot_end is not None and now >= self._plan_slot_end)
+            # The compressor just started or stopped: the minimum charge for
+            # "now" changed (switching from heating needs no extra start).
+            or bool(compressor) != bool(self._plan.compressor_running)
         ):
             hw_slots = self._hw_slots(now, slots, pv_known, load_known, price, battery)
             self._plan = plan_hot_water(
@@ -251,6 +258,10 @@ class HotWaterController:
                 feed_in_eur_kwh=cfg.feed_in_tariff_eur_kwh,
                 requirements=self._requirements(now, hw_slots[-1].end if hw_slots else now),
                 tolerance_pct=cfg.hw_decision_tolerance_pct,
+                min_charge_k=cfg.hw_min_charge_k,
+                min_charge_running_k=cfg.hw_min_charge_running_k,
+                compressor_running=compressor,
+                cheap_rate_eur=cfg.cheap_rate_threshold_eur,
             )
             self._plan_at = now
             self._plan_slot_end = hw_slots[0].end if hw_slots else None
@@ -330,6 +341,9 @@ class HotWaterController:
             "day_target_c": self._floor_c(),
             "shutoff_c": self._shutoff_c(),
             "max_temp_c": cfg.hw_max_temp_c,
+            "min_charge_k": cfg.hw_min_charge_k,
+            "min_charge_running_k": cfg.hw_min_charge_running_k,
+            "compressor_running": self._compressor_running(),
             "decision": self._plan.decision if self._plan else None,
             "now_cost_th_eur_kwh": (round(self._plan.now_cost_th_eur_kwh, 4)
                                     if self._plan and self._plan.now_cost_th_eur_kwh is not None
@@ -424,7 +438,10 @@ class HotWaterController:
 
         plan = self._plan
         goal = self._shutoff_c()
-        if plan is not None and plan.charge_now and plan.windows and t < goal - 0.5:
+        # The minimum charge the plan applied (default: the old 0.5 K margin).
+        start_max = (plan.now_start_max_c if plan is not None and plan.now_start_max_c is not None
+                     else goal - 0.5)
+        if plan is not None and plan.charge_now and plan.windows and t <= start_max + 1e-6:
             window = plan.windows[0]
             self._start(now, HWMode.PV if window.source == "pv" else HWMode.CHARGING,
                         goal, t, f"plan: {plan.decision}")
@@ -584,6 +601,23 @@ class HotWaterController:
     def _value(self, entity: str) -> float | None:
         return self._ws.get_state_value(entity) if entity else None
 
+    def _compressor_running(self) -> bool | None:
+        """Does the compressor run right now? None = unknown (treated as off).
+
+        Numeric sensor: > 0 = running (Lambda compressor rating in %). Text
+        sensor: one of _COMPRESSOR_RUNNING_STATES (Lambda operating state).
+        """
+        entity = self._cfg.hw_compressor_entity
+        if not entity:
+            return None
+        numeric = self._ws.get_state_value(entity)
+        if numeric is not None:
+            return numeric > 0
+        raw = self._ws.get_state_raw(entity)
+        if raw is None or raw in ("unavailable", "unknown", ""):
+            return None
+        return str(raw).strip().upper() in _COMPRESSOR_RUNNING_STATES
+
     def _is_workday(self, day, today) -> bool:
         entity = self._cfg.hw_workday_entity
         if entity and day == today:
@@ -634,9 +668,15 @@ class HotWaterController:
         if slots:
             # The battery only enters the price with a load forecast – without
             # one its projected state would be guesswork.
+            grid_charge = None
+            if battery is not None and battery.grid_charge_windows:
+                grid_charge = [any(ws < s.end and s.start < we
+                                   for ws, we in battery.grid_charge_windows)
+                               for s in slots]
             bat = (project_battery([s.rate_eur_kwh for s in slots], [s.pv_kwh for s in slots],
                                    [s.load_kwh for s in slots], battery,
-                                   feed_in_eur_kwh=self._cfg.feed_in_tariff_eur_kwh)
+                                   feed_in_eur_kwh=self._cfg.feed_in_tariff_eur_kwh,
+                                   grid_charge=grid_charge)
                    if battery is not None and load_known else None)
             return [
                 HWSlot(

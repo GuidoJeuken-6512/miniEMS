@@ -1,9 +1,9 @@
 {
   "name": "Example devcontainer for add-on repositories",
   "image": "ghcr.io/home-assistant/devcontainer:2-addons",
-  "appPort": ["7123:8123", "7357:4357"],
+  "appPort": ["8222:8123", "7357:4357"],
   "postCreateCommand": "bash devcontainer_bootstrap",
-  "postStartCommand": "bash -c 'sudo mkdir -p /run/supervisor /run/os; sudo ln -sf /run/supervisor/core.sock /run/os/core.sock 2>/dev/null; if docker ps 2>/dev/null | grep -q hassio_supervisor; then echo \"Home Assistant supervisor is already running\"; else echo \"Starting Home Assistant supervisor in the background (see /tmp/supervisor_run.log)...\"; nohup supervisor_run > /tmp/supervisor_run.log 2>&1 & fi; true'",
+  "postStartCommand": "bash -c 'sudo mkdir -p /run/supervisor/supervisor/apps/local_miniems /run/os; sudo ln -sf /run/supervisor/core.sock /run/os/core.sock 2>/dev/null; if docker ps 2>/dev/null | grep -q hassio_supervisor; then echo \"Home Assistant supervisor is already running\"; else echo \"Starting Home Assistant supervisor in the background (see /tmp/supervisor_run.log)...\"; nohup supervisor_run > /tmp/supervisor_run.log 2>&1 & fi; true'",
   "runArgs": ["-e", "GIT_EDITOR=code --wait", "--privileged", "--name", "miniems-devcontainer"],
   "containerEnv": {
     "WORKSPACE_DIRECTORY": "${containerWorkspaceFolder}"

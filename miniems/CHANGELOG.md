@@ -1,5 +1,42 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.7.0
+
+### Fixed
+
+- **Warmwasser wurde viel zu oft nachgeladen.** Am 14.11. vier Ladungen, zwei davon
+  von 49,3 bzw. 49,4 °C auf 50 °C (7–8 min, eine mit zusätzlichem Verdichterstart).
+  Ursache: Eine Ladung durfte schon 0,5 K unter der Abschalttemperatur starten, ein
+  Start kostete in der Bewertung nichts, und der 5-%-Bonus für „jetzt laden“ griff auch,
+  wenn der Engpass 10 h entfernt war.
+  - **Mindest-Ladehub** (neu, konfigurierbar): Eine geplante Ladung startet erst
+    `hw_min_charge_k` (3 K) unter der Abschalttemperatur. Läuft der Verdichter schon
+    (Heizbetrieb), genügt `hw_min_charge_running_k` (1,5 K), denn das Umschalten braucht
+    keinen zusätzlichen Start. Verdichterzustand aus `hw_compressor_entity`
+    (Standard `sensor.eu08l_hp1_compressor_unit_rating`, > 0 = läuft; auch Text
+    CH/DHW/CC/DEFROST). Erfüllt keine Ladung dieser Größe eine Anforderung, darf
+    ausnahmsweise eine kleinere starten. Schutz- und Ad-hoc-Ladung sind nicht betroffen.
+  - **Umschalten nutzen:** Läuft der Verdichter und ist „jetzt“ nicht teurer als die
+    beste Alternative, wird jetzt geladen. Startet oder stoppt der Verdichter, wird
+    sofort neu geplant.
+  - **„Jetzt“-Bonus nur bei echtem Engpass:** Die Toleranz `hw_decision_tolerance_pct`
+    gilt nur noch, wenn das nächste Niedrigpreisfenster (Tarif unter
+    `cheap_rate_threshold_eur`) den Engpass nicht mehr abwenden kann. Die gelernten
+    Zapfungen sind dabei eingerechnet.
+- **Akkustrom zur Einspeisevergütung bewertet, obwohl Netzladung geplant war.** Lief
+  später PV über, galt eine jetzt entnommene Akku-kWh als „kostet nur 7,9 ct“. Plant
+  der Energiefahrplan vorher eine Netzladung, wird sie dort aber für Niedrigtarif ÷ η
+  (z. B. 27,4 ct ÷ 0,89) nachgekauft. Jetzt zählt in diesem Fall der Nachkaufpreis.
+
+### Added
+
+- Konfiguration v25: `hw_min_charge_k`, `hw_min_charge_running_k`,
+  `hw_compressor_entity`. `/api/status` → `hot_water` zeigt `min_charge_k`,
+  `min_charge_running_k`, `compressor_running`, im Plan `now_start_max_c`.
+- Roadmap „Warmwasser: Startverluste lernen“: den festen Hub später durch gelernte
+  Kosten pro Start ersetzen.
+
+
 ## 3.6.6
 
 ### Added

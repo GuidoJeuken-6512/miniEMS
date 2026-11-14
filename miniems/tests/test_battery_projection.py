@@ -52,6 +52,21 @@ def test_battery_kwh_refilled_by_later_pv_costs_feed_in():
     assert out[5].refill_eur_kwh == pytest.approx(0.30 / 0.9)
 
 
+def test_no_pv_refill_when_grid_charge_is_planned_first():
+    """A battery kWh used now is bought in the planned grid-charge window (low
+    tariff ÷ η), not refilled by the later PV spill (feed-in)."""
+    pv = [0.0, 0.0, 3.0, 3.0, 3.0, 0.0]
+    load = [0.5] * 6
+    rates = [0.3444, 0.27441, 0.3444, 0.3444, 0.3444, 0.3444]
+    out = project_battery(rates, pv, load,
+                          BatteryContext(stored_kwh=5.0, free_kwh=3.0, eta=0.89),
+                          feed_in_eur_kwh=0.079,
+                          grid_charge=[False, True, False, False, False, False])
+    assert not out[0].refilled_by_pv
+    assert out[0].refill_eur_kwh == pytest.approx(0.27441 / 0.89)
+    assert out[2].refilled_by_pv                 # after the window the spill still counts
+
+
 def test_no_pv_refill_when_battery_runs_empty_first():
     pv = [0.0, 0.0, 0.0, 4.0, 4.0]
     load = [1.0, 1.0, 1.0, 0.0, 0.0]
