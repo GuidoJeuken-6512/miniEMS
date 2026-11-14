@@ -93,14 +93,20 @@ Installation wochenlang gar nicht netzladen.
 
 ### Zu Schritt 9 (PV-Prognose)
 
-- **Heutige Rest-Prognose vorhanden:** Netzladen nur, wenn der freie Speicher
-  größer ist als `Rest × 1,2 + 1,0 kWh`. Die Schwelle ist asymmetrisch:
-  Einsteigen erfordert +10 %, ein laufendes Netzladen bricht erst bei −10 %
-  ab. So pendelt der Modus nicht.
+- **Heutige Rest-Prognose vorhanden:** PV deckt zuerst das Haus. Netzladen
+  unterbleibt nur, wenn `PV-Rest ≥ (freier Speicher + restlicher
+  Hausverbrauch heute) × 1,2` (seit v3.7.1; vorher `freier Speicher ≤ Rest ×
+  1,2 + 1,0` ohne Hausverbrauch – am 14.11.2026 „deckten“ 27 kWh Prognose
+  10 kWh freien Speicher, obwohl das Haus 17 der 18 erzeugten kWh verbrauchte).
+  Der restliche Verbrauch ist der Median der letzten Tage minus dem heute
+  schon gemessenen; ohne Historie zählt nur der Speicher. Die Schwelle ist
+  asymmetrisch: Einsteigen erfordert eine um 10 % kleinere Prognose, ein
+  laufendes Netzladen endet erst bei 10 % darüber. So pendelt der Modus nicht.
 - **Keine nutzbare Rest-Prognose** (abends ≈ 0, oder Sensor/Solcast-Daten
   veraltet):
-  1. Reicht laut frischer Prognose für morgen die PV, den Speicher zu füllen
-     (`bat_kwh_free <= morgen × 1,2 + 1,0`), wird **nicht** geladen.
+  1. Reicht laut frischer Prognose für morgen die PV, Speicher **und**
+     Hausverbrauch zu decken (`morgen > (frei + WW-PV + Verbrauch morgen +
+     Restverbrauch heute) × 1,2`), wird **nicht** geladen.
   2. Sonst wird nur im Dunkelfenster geladen
      (`grid_charge_dark_start_hour` 21 Uhr bis `grid_charge_dark_end_hour` 6 Uhr).
 - Solcast-Daten gelten als veraltet, wenn der letzte Abruf älter als 30 h ist

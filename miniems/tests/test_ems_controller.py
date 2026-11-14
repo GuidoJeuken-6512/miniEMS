@@ -472,6 +472,69 @@ class TestShouldGridCharge:
         night = datetime(2026, 8, 27, 23, 0, tzinfo=timezone.utc).astimezone()
         assert ctrl._should_grid_charge(0.05, 5.0, night) is True
 
+    # --- v3.7.1: the house load comes off the PV forecast ----------------
+
+    # FakeOptimizer: cheap below 0.10 €, so 0.05 € stands in for NIEDRIG 27.44 ct.
+    def _load_kwargs(self, **kw):
+        return dict(electricity_price_entity="sensor.price", cheap_rate_threshold_eur=0.30,
+                    grid_charge_min_free_kwh=1.0, pv_charge_margin_factor=1.2,
+                    pv_charge_hysteresis_frac=0.10,
+                    solcast_remaining_today_entity="sensor.remaining",
+                    solcast_tomorrow_entity="sensor.tomorrow",
+                    grid_charge_dark_start_hour=21, grid_charge_dark_end_hour=6, **kw)
+
+    def test_night_of_14_11_charges_despite_big_forecast(self, make_config, fake_ws):
+        """Production, 14.11.2026 03:00: Solcast 27.4 kWh for the day, 10 kWh
+        free, the house used 16.8 kWh – the old check (10 ≤ 1.2 × 27.4 + 1)
+        skipped the charge; PV after the house load cannot fill the battery."""
+        ctrl = make_controller(make_config, fake_ws, **self._load_kwargs())
+        fake_ws.values["sensor.price"] = 0.05
+        fake_ws.values["sensor.remaining"] = 27.4
+        ctrl._discharge_tariff = None
+        ctrl._remaining_load_kwh = 16.8
+        night = datetime(2026, 11, 14, 3, 0).astimezone()
+        assert ctrl._should_grid_charge(0.05, 10.0, night) is True
+
+    def test_big_forecast_with_small_load_still_skips(self, make_config, fake_ws):
+        ctrl = make_controller(make_config, fake_ws, **self._load_kwargs())
+        fake_ws.values["sensor.price"] = 0.05
+        fake_ws.values["sensor.remaining"] = 27.4
+        ctrl._discharge_tariff = None
+        ctrl._remaining_load_kwh = 5.0          # (10 + 5) × 1.2 = 18 < 27.4
+        night = datetime(2026, 11, 14, 3, 0).astimezone()
+        assert ctrl._should_grid_charge(0.05, 10.0, night) is False
+
+    def test_hysteresis_keeps_a_running_charge(self, make_config, fake_ws):
+        """Need × 1.2 = 27.6: just above the forecast. A new charge needs PV
+        clearly short (< 24.8), a running one stops only above 30.4."""
+        ctrl = make_controller(make_config, fake_ws, **self._load_kwargs())
+        fake_ws.values["sensor.price"] = 0.05
+        fake_ws.values["sensor.remaining"] = 27.0
+        ctrl._discharge_tariff = None
+        ctrl._remaining_load_kwh = 13.0         # (10 + 13) × 1.2 = 27.6
+        night = datetime(2026, 11, 14, 3, 0).astimezone()
+        assert ctrl._should_grid_charge(0.05, 10.0, night) is False
+        ctrl._mode = EMSMode.GRID_CHARGING
+        assert ctrl._should_grid_charge(0.05, 10.0, night) is True
+
+    def test_evening_tomorrow_branch_counts_tomorrows_load(self, make_config, fake_ws):
+        """23:00, today's PV spent: tomorrow 19.1 kWh would once have "refilled"
+        10 kWh free – with 16.7 kWh load tomorrow it cannot."""
+        from consumption_model import Prediction
+        ctrl = make_controller(make_config, fake_ws, **self._load_kwargs())
+        fake_ws.values["sensor.price"] = 0.05
+        fake_ws.values["sensor.remaining"] = 0.0
+        fake_ws.values["sensor.tomorrow"] = 19.1
+        fake_ws.stale_daily["sensor.tomorrow"] = False
+        ctrl._discharge_tariff = None
+        ctrl._remaining_load_kwh = 0.5
+        ctrl._prediction = Prediction(predicted_load_kwh=16.7, predicted_pv_kwh=0.0,
+                                      confidence="high", source="historical")
+        night = datetime(2026, 11, 9, 23, 0).astimezone()
+        assert ctrl._should_grid_charge(0.05, 10.0, night) is True
+        fake_ws.values["sensor.tomorrow"] = 40.0   # (10 + 16.7 + 0.5) × 1.2 = 32.6 < 40
+        assert ctrl._should_grid_charge(0.05, 10.0, night) is False
+
     def test_charges_above_threshold_when_no_calendar_to_defer_against(self, make_config, fake_ws, now):
         """Baseline for the V2 deferral check below: without a tariff
         calendar (no `timeslots` attribute), behaviour is exactly as before –

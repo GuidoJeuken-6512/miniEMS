@@ -1,5 +1,19 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 3.7.1
+
+### Fixed
+
+- **Nachts nicht aus dem Netz geladen, obwohl der Akku es brauchte.** Ohne
+  einsatzbereite Lastprognose entscheidet die alte Regel: nicht laden, wenn
+  `freier Speicher ≤ PV-Prognose × 1,2 + 1 kWh`. Der Hausverbrauch fehlte –
+  am 14.11. „deckten“ 27,4 kWh Solcast-Prognose 10 kWh freien Speicher,
+  tatsächlich erzeugt wurden 18,1 kWh bei 16,8 kWh Verbrauch; morgens lag der
+  SoC bei 20 %. Jetzt zählt wie bei der PV-Halteregel `(freier Speicher +
+  restlicher Hausverbrauch) × 1,2`, abends mit dem Verbrauch von morgen.
+  Ohne Verbrauchshistorie bleibt es beim Speicher allein.
+
+
 ## 3.7.0
 
 ### Fixed

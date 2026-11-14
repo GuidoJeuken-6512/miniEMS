@@ -94,8 +94,8 @@ class TestComputeEnergyPlanGuardClauses:
 
 class TestComputeEnergyPlanFill:
     def test_deficit_formula_matches_the_tomorrow_fallback(self):
-        # Same formula as _should_grid_charge()'s reactive branch:
-        # max(0, bat_kwh_free - predicted_pv_tomorrow_kwh * margin_factor)
+        # max(0, bat_kwh_free - predicted_pv_tomorrow_kwh * margin_factor);
+        # _should_grid_charge() also subtracts the house load since v3.7.1.
         plan = compute_energy_plan(
             _dt(20), _dt(13, day=16), bat_kwh_free=6.0,
             predicted_pv_tomorrow_kwh=4.0, margin_factor=1.2,

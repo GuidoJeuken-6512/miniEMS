@@ -796,8 +796,13 @@ class EMSController:
             if tomorrow is not None and tomorrow >= 0 and not tomorrow_stale:
                 ww_pv = (self._hot_water.planned_pv_kwh_before(self._plan_deadline(now))
                          if self._hot_water is not None else 0.0)
-                if (bat_kwh_free + ww_pv
-                        <= tomorrow * cfg.pv_charge_margin_factor + cfg.grid_charge_min_free_kwh):
+                # PV covers the house first: tonight's rest and tomorrow's load
+                # come off before anything reaches the battery (v3.7.1).
+                tomorrow_load = (self._prediction.predicted_load_kwh
+                                 if self._prediction is not None
+                                 and self._prediction.predicted_load_kwh > 0 else 0.0)
+                need = bat_kwh_free + ww_pv + tomorrow_load + (self._remaining_load_kwh or 0.0)
+                if tomorrow > need * cfg.pv_charge_margin_factor:
                     return False   # tomorrow's PV will refill it – skip grid charging
 
             # No usable forecast at all (today spent/stale AND tomorrow
@@ -815,14 +820,24 @@ class EMSController:
         # threshold, and `remaining` moves by up to 0.47 kWh per 5-minute Solcast
         # interval (measured) – a battery sitting near the trigger point would
         # oscillate, with only mode_dwell_sec damping it.
-        threshold = remaining * cfg.pv_charge_margin_factor + cfg.grid_charge_min_free_kwh
+        #
+        # v3.7.1: PV covers the house first, so today's remaining load comes off
+        # before anything reaches the battery – same balance as
+        # _should_hold_by_forecast(). The old check compared the forecast with
+        # the free capacity alone (free ≤ 1.2 × PV + 1 → skip): on 14.11.2026 a
+        # 27 kWh forecast "covered" 10 kWh of free capacity, while the house
+        # used 17 of the 18 kWh actually produced – four nights without a grid
+        # charge although the energy plan saw an 8–11 kWh deficit.
+        # remaining_load is None on a fresh install – the battery alone counts.
+        need = bat_kwh_free + (self._remaining_load_kwh or 0.0)
+        threshold = need * cfg.pv_charge_margin_factor      # PV needed to cover it
         hyst = max(0.0, min(0.5, cfg.pv_charge_hysteresis_frac))
         if self._mode is EMSMode.GRID_CHARGING:
-            threshold *= 1.0 - hyst
+            threshold *= 1.0 + hyst      # keep charging until PV clearly suffices
         else:
-            threshold *= 1.0 + hyst
-        if bat_kwh_free <= threshold:
-            return False
+            threshold *= 1.0 - hyst      # start only when PV clearly falls short
+        if remaining >= threshold:
+            return False                 # today's PV fills the battery after the house
 
         # V2 (docs/roadmap/energiefahrplan.md): this is the branch the 12-16
         # Uhr NIEDRIG window falls into on a mediocre-PV day – forecast not
