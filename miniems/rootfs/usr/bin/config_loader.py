@@ -72,6 +72,9 @@ class Config:
     inverter_grid_charge_current_entity: str = "number.deye8k_battery_grid_charging_current"
     battery_max_charge_current_a: int = 185
     battery_max_discharge_current_a: int = 185
+    # Value of the grid-charge current limit: ceiling while grid charging and
+    # the resting value in every other mode, on shutdown and in the failsafe.
+    battery_max_grid_charge_current_a: int = 185
     # Forecast / Prediction (Phase 5)
     weather_entity: str = "weather.openweathermap"
     # Solcast PV Forecast entities (Phase 6)
@@ -626,7 +629,8 @@ def _validate(cfg: "Config") -> None:
     is 0–BATTERY_MAX_CURRENT_A. A hand-edited config (or a value carried over
     from the old watt-based fields) must never reach the inverter unclamped.
     """
-    for field_name in ("battery_max_charge_current_a", "battery_max_discharge_current_a"):
+    for field_name in ("battery_max_charge_current_a", "battery_max_discharge_current_a",
+                       "battery_max_grid_charge_current_a"):
         value = getattr(cfg, field_name)
         clamped = max(0, min(BATTERY_MAX_CURRENT_A, int(value)))
         if clamped != value:

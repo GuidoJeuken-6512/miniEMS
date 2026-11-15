@@ -374,13 +374,31 @@ class TestGridChargeCurrent:
         assert ctrl.grid_charge_current_target_a == 50
 
     @pytest.mark.asyncio
-    async def test_other_modes_leave_the_grid_limit_alone(self, make_config, ws):
+    @pytest.mark.parametrize("mode", [EMSMode.IDLE, EMSMode.PV_CHARGING, EMSMode.EXPORT_SURPLUS,
+                                      EMSMode.HOLD_FOR_PEAK, EMSMode.PROTECT_BATTERY])
+    async def test_other_modes_set_the_resting_value(self, make_config, ws, mode):
         ctrl = make_ctrl(make_config, ws, simulation=True)
-        for mode in (EMSMode.IDLE, EMSMode.PV_CHARGING, EMSMode.HOLD_FOR_PEAK):
-            await ctrl.apply_mode(mode)
-        assert ctrl.grid_charge_current_target_a is None
-        await ctrl.restore_safe_defaults()
-        assert ctrl.grid_charge_current_target_a is None
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=1000)
+        await ctrl.apply_mode(mode)
+        assert ctrl.grid_charge_current_target_a == 185
+
+    @pytest.mark.asyncio
+    async def test_grid_charging_ceiling(self, make_config, ws):
+        ctrl = make_ctrl(make_config, ws, simulation=True, battery_max_grid_charge_current_a=100)
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING)
+        assert ctrl.charge_current_target_a == 185
+        assert ctrl.grid_charge_current_target_a == 100
+
+    @pytest.mark.asyncio
+    async def test_restore_and_failsafe_set_185(self, make_config, ws):
+        ctrl = make_ctrl(make_config, ws, simulation=False)
+        actions = ctrl.failsafe_actions()
+        assert {"service": "number.set_value",
+                "data": {"entity_id": "number.grid_charge_current", "value": 185}} in actions
+        sim = make_ctrl(make_config, ws, simulation=True)
+        await sim.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=1000)
+        await sim.restore_safe_defaults()
+        assert sim.grid_charge_current_target_a == 185
 
     @pytest.mark.asyncio
     async def test_empty_entity_writes_nothing(self, make_config, ws):
@@ -391,4 +409,5 @@ class TestGridChargeCurrent:
     def test_default_points_at_the_deye_entity(self, make_config):
         cfg = make_config()
         assert cfg.inverter_grid_charge_current_entity == "number.deye8k_battery_grid_charging_current"
+        assert cfg.battery_max_grid_charge_current_a == 185
         assert cfg.inverter_grid_charge_current_entity in cfg.monitored_entities

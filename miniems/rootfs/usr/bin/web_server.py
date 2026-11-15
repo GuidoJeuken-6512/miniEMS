@@ -98,6 +98,7 @@ _DICT_FIELDS = {"entity_overrides"}
 _INT_FIELDS = {
     "battery_min_soc", "battery_max_soc", "pv_surplus_threshold_w",
     "update_interval_sec", "battery_max_charge_current_a", "battery_max_discharge_current_a",
+    "battery_max_grid_charge_current_a",
     "event_log_retention_days",
     "pv_export_min_soc_pct", "pv_charge_backstop_hour", "export_hold_charge_current_a",
     "mode_dwell_sec", "battery_soc_hysteresis_pct",

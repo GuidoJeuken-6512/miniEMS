@@ -83,7 +83,10 @@ Schalter für Steuerung und Simulation (Standard: Simulation); der Schalter
   lud *Grid Charging* nichts. Neu `inverter_grid_charge_current_entity`: Im
   Modus *Grid Charging* schreibt miniEMS denselben Strom (auch den gestreckten
   aus V1 und die Kappung durch B1) in beide Grenzwerte und bestätigt ihn wie
-  die anderen Kanäle. Ein unbestätigter Wert erscheint im Schreibstatus. Rolle
+  die anderen Kanäle. Ein unbestätigter Wert erscheint im Schreibstatus. In
+  allen anderen Modi, beim Beenden und in der Notabschaltung setzt miniEMS ihn
+  auf `battery_max_grid_charge_current_a` (185 A), damit er nie auf 0 A stehen
+  bleibt; beim Netzladen ist das die Obergrenze. Rolle
   `battery_grid_charge_limit` im Deye-Profil.
 - Das Stundenmodell (A2) wurde je Tick zweimal neu geladen.
 

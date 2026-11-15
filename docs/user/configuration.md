@@ -126,7 +126,8 @@ Zum Erstellen: **HA → Profil → Langlebige Zugriffstoken → Token erstellen*
 | `battery_control_enabled` | `false` | Hauptschalter für die Wechselrichtersteuerung |
 | `battery_control_simulation` | `true` | Befehle protokollieren, aber nicht senden |
 | `inverter_charge_current_entity` | `number.deye8k_battery_max_charging_current` | Entität zum Setzen des Ladestrom-Limits (A) |
-| `inverter_grid_charge_current_entity` | `number.deye8k_battery_grid_charging_current` | Eigener Grenzwert des Deye für das Laden aus dem Netz (A). Beim Netzladen gilt der kleinere von diesem und dem Ladestrom, deshalb schreibt miniEMS im Modus *Grid Charging* denselben Wert in beide und bestätigt ihn. In anderen Modi bleibt er unverändert. Leer = nicht schreiben. |
+| `inverter_grid_charge_current_entity` | `number.deye8k_battery_grid_charging_current` | Eigener Grenzwert des Deye für das Laden aus dem Netz (A). Beim Netzladen gilt der kleinere von diesem und dem Ladestrom, deshalb schreibt miniEMS im Modus *Grid Charging* denselben Wert in beide (höchstens `battery_max_grid_charge_current_a`) und bestätigt ihn. Leer = nicht schreiben. |
+| `battery_max_grid_charge_current_a` | `185` | Wert des Netzlade-Grenzwerts in allen anderen Modi, beim Beenden und in der Notabschaltung, und Obergrenze beim Netzladen. So bleibt der Grenzwert nie auf 0 A stehen. |
 | `grid_charge_switch_entity` | `switch.deye8k_battery_grid_charging` | Schalter-Entität zum Aktivieren/Deaktivieren des Netzladens |
 | `battery_discharging_current_entity` | `number.deye8k_battery_max_discharging_current` | Entität zum Setzen des Entladestrom-Limits (A) |
 | `battery_max_charge_current_a` | `185` | Maximaler Ladestrom (A). Automatisch auf 0–350 A begrenzt. |

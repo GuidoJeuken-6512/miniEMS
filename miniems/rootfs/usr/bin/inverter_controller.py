@@ -172,7 +172,8 @@ class InverterController:
                     # hourly budget is used, keep the current value.
                     charge_a = previous
                 await self._set_charge_current(charge_a, sim)
-                await self._set_grid_charge_current(charge_a, sim)
+                await self._set_grid_charge_current(
+                    min(charge_a, cfg.battery_max_grid_charge_current_a), sim)
                 await self._set_discharge_current(self._resolve_discharge_current_a(0), sim)
 
             case EMSMode.PV_CHARGING:
@@ -181,6 +182,7 @@ class InverterController:
                     self._resolve_charge_current_a(cfg.battery_max_charge_current_a), sim)
                 await self._set_discharge_current(
                     self._resolve_discharge_current_a(cfg.battery_max_discharge_current_a), sim)
+                await self._set_grid_charge_current(cfg.battery_max_grid_charge_current_a, sim)
 
             case EMSMode.EXPORT_SURPLUS:
                 # Grid-friendly hold: block charging so the surplus goes to the
@@ -191,6 +193,7 @@ class InverterController:
                     self._resolve_charge_current_a(cfg.export_hold_charge_current_a), sim)
                 await self._set_discharge_current(
                     self._resolve_discharge_current_a(cfg.battery_max_discharge_current_a), sim)
+                await self._set_grid_charge_current(cfg.battery_max_grid_charge_current_a, sim)
 
             case EMSMode.PROTECT_BATTERY | EMSMode.HOLD_FOR_PEAK:
                 # SoC below minimum, or energy kept for a dearer hour (A4):
@@ -199,6 +202,7 @@ class InverterController:
                 await self._set_charge_current(
                     self._resolve_charge_current_a(cfg.battery_max_charge_current_a), sim)
                 await self._set_discharge_current(self._resolve_discharge_current_a(0), sim)
+                await self._set_grid_charge_current(cfg.battery_max_grid_charge_current_a, sim)
 
             case EMSMode.IDLE:
                 # Normal self-use operation
@@ -207,6 +211,7 @@ class InverterController:
                     self._resolve_charge_current_a(cfg.battery_max_charge_current_a), sim)
                 await self._set_discharge_current(
                     self._resolve_discharge_current_a(cfg.battery_max_discharge_current_a), sim)
+                await self._set_grid_charge_current(cfg.battery_max_grid_charge_current_a, sim)
 
     def _resolve_grid_charge_current_a(self, grid_charge_power_w: float | None) -> int:
         """V1: the Watt target from EMSController._grid_charge_power_w(),
@@ -325,6 +330,7 @@ class InverterController:
         await self._set_grid_charge(False, sim)
         await self._set_charge_current(cfg.battery_max_charge_current_a, sim)
         await self._set_discharge_current(cfg.battery_max_discharge_current_a, sim)
+        await self._set_grid_charge_current(cfg.battery_max_grid_charge_current_a, sim)
         await self.apply_export_limit(False)
 
     def failsafe_actions(self) -> list[dict[str, Any]]:
@@ -343,6 +349,8 @@ class InverterController:
             actions.append({"service": "switch.turn_off",
                             "data": {"entity_id": cfg.grid_charge_switch_entity}})
         for entity, value in ((cfg.inverter_charge_current_entity, cfg.battery_max_charge_current_a),
+                              (cfg.inverter_grid_charge_current_entity,
+                               cfg.battery_max_grid_charge_current_a),
                               (cfg.battery_discharging_current_entity,
                                cfg.battery_max_discharge_current_a)):
             if entity:
@@ -445,10 +453,12 @@ class InverterController:
         self.charge_current_limit_a = value_a if self._channels["charge"].confirmed else None
 
     async def _set_grid_charge_current(self, value_a: int, sim: bool) -> None:
-        """The grid-charge current limit – only written while grid charging.
+        """The grid-charge current limit.
 
-        Outside GRID_CHARGING the grid-charge switch is off and this limit has
-        no effect, so it is left alone (also on shutdown and in the failsafe).
+        While grid charging: the same current as the charge limit (at most
+        battery_max_grid_charge_current_a). In every other mode, on shutdown
+        and in the failsafe: battery_max_grid_charge_current_a (185 A), so
+        the limit is never left at 0 A.
         """
         entity = self._cfg.inverter_grid_charge_current_entity
         if not entity:

@@ -124,7 +124,8 @@ To create one: **HA → Profile → Long-Lived Access Tokens → Create Token**.
 | `battery_control_enabled` | `false` | Master switch for inverter control |
 | `battery_control_simulation` | `true` | Log commands but do not send them |
 | `inverter_charge_current_entity` | `number.deye8k_battery_max_charging_current` | Entity for setting the charge current limit (A) |
-| `inverter_grid_charge_current_entity` | `number.deye8k_battery_grid_charging_current` | The Deye's own limit for charging from the grid (A). While grid charging the smaller of it and the charge current applies, so in *Grid Charging* mode miniEMS writes the same value to both and confirms it. Other modes leave it unchanged. Empty = not written. |
+| `inverter_grid_charge_current_entity` | `number.deye8k_battery_grid_charging_current` | The Deye's own limit for charging from the grid (A). While grid charging the smaller of it and the charge current applies, so in *Grid Charging* mode miniEMS writes the same value to both (at most `battery_max_grid_charge_current_a`) and confirms it. Empty = not written. |
+| `battery_max_grid_charge_current_a` | `185` | Value of the grid-charge limit in every other mode, on shutdown and in the failsafe, and the ceiling while grid charging. The limit is never left at 0 A. |
 | `grid_charge_switch_entity` | `switch.deye8k_battery_grid_charging` | Switch entity that enables/disables grid charging |
 | `battery_discharging_current_entity` | `number.deye8k_battery_max_discharging_current` | Entity for setting the discharge current limit (A) |
 | `battery_max_charge_current_a` | `185` | Maximum charge current (A). Automatically clamped to 0–350 A. |

@@ -41,6 +41,7 @@
     const INT_FIELDS = new Set([
       'battery_min_soc', 'battery_max_soc', 'pv_surplus_threshold_w',
       'update_interval_sec', 'battery_max_charge_current_a', 'battery_max_discharge_current_a',
+      'battery_max_grid_charge_current_a',
       'event_log_retention_days',
       'pv_export_min_soc_pct', 'pv_charge_backstop_hour', 'export_hold_charge_current_a',
       'mode_dwell_sec', 'battery_soc_hysteresis_pct',
@@ -133,6 +134,7 @@
           { key: 'battery_control_enabled',          label: 'Enable Battery Control' },
           { key: 'battery_control_simulation',       label: 'Simulation Mode (log only)' },
           { key: 'inverter_grid_charge_current_entity', label: 'Grid charge current limit (number, A – Deye: Battery Grid Charging Current)' },
+          { key: 'battery_max_grid_charge_current_a', label: 'Grid charge current limit: ceiling while grid charging, value in all other modes (A)' },
           { key: 'inverter_charge_current_entity',     label: 'Max Charging Current Entity' },
           { key: 'grid_charge_switch_entity',          label: 'Grid Charge Switch Entity' },
           { key: 'battery_discharging_current_entity', label: 'Max Discharging Current Entity' },
