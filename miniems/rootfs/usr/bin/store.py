@@ -157,12 +157,32 @@ class EnergyStore:
             # battery discharges. Their quotient is what a stored kWh displaces.
             "discharge_kwh_ticks REAL DEFAULT 0",
             "discharge_value_eur REAL DEFAULT 0",
+            # A11: daily maxima – when was the battery last full, the boiler
+            # last at hygiene temperature? NULL = not recorded that day.
+            "max_soc_pct REAL",
+            "max_boil_temp_c REAL",
+            # A7a: battery energy per day from the power sensor (ticks), the
+            # SoC at the first and last tick, and the discharge efficiency
+            # numerator/denominator (house load ÷ battery output while the
+            # battery alone supplies the house).
+            "bat_in_kwh REAL",
+            "bat_out_kwh REAL",
+            "soc_first_pct REAL",
+            "soc_last_pct REAL",
+            "dis_eff_load_kwh REAL",
+            "dis_eff_bat_kwh REAL",
         ):
             try:
                 await self._db.execute(f"ALTER TABLE daily_stats ADD COLUMN {col_def}")
             except Exception:
                 pass   # column already exists – ignore
         await self._db.execute(_CREATE_HOURLY_TABLE)
+        # A7b/c: measured PV and what was forecast for the hour – plan vs. result.
+        for col_def in ("pv_kwh REAL", "pv_fc_kwh REAL", "load_pred_kwh REAL"):
+            try:
+                await self._db.execute(f"ALTER TABLE hourly_stats ADD COLUMN {col_def}")
+            except Exception:
+                pass   # column already exists – ignore
         await self._db.execute(_CREATE_HP_HOURLY_TABLE)
         await self._db.execute(_CREATE_HW_LOSS_TABLE)
         await self._db.execute(_CREATE_HW_DRAWS_TABLE)
@@ -341,6 +361,30 @@ class EnergyStore:
         ) as cur:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
+
+    async def last_day_at_least(self, column: str, value: float) -> date | None:
+        """A11: the most recent day whose `column` reached `value`, or None."""
+        if column not in ("max_soc_pct", "max_boil_temp_c"):
+            raise ValueError(column)
+        if self._db is None:
+            return None
+        async with self._db.execute(
+            f"SELECT MAX(date) FROM daily_stats WHERE {column} >= ?", (value,)
+        ) as cur:
+            row = await cur.fetchone()
+        return date.fromisoformat(row[0]) if row and row[0] else None
+
+    async def first_day_with(self, column: str) -> date | None:
+        """A11: the first day on which `column` was recorded at all."""
+        if column not in ("max_soc_pct", "max_boil_temp_c"):
+            raise ValueError(column)
+        if self._db is None:
+            return None
+        async with self._db.execute(
+            f"SELECT MIN(date) FROM daily_stats WHERE {column} IS NOT NULL"
+        ) as cur:
+            row = await cur.fetchone()
+        return date.fromisoformat(row[0]) if row and row[0] else None
 
     async def query_all_days(self) -> list[dict[str, Any]]:
         """Return every row in daily_stats, newest first."""

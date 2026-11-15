@@ -58,6 +58,9 @@ class CostOptimizer:
         self._kwh_high_rate:   dict[date, float] = defaultdict(float)
         self._kwh_medium_rate: dict[date, float] = defaultdict(float)
         self._kwh_low_rate:    dict[date, float] = defaultdict(float)
+        # A11: today's maximum SoC and boiler temperature.
+        self._max_soc: dict[date, float] = {}
+        self._max_boil: dict[date, float] = {}
         # A1: today's relative price classes, set by EMSController once per
         # tick. None = no tariff calendar or price_classes_enabled off → the
         # fixed thresholds decide, exactly as before.
@@ -448,6 +451,10 @@ class CostOptimizer:
                 fields[column] = round(known[1], 6)
         if avg_temp is not None:
             fields["avg_outdoor_temp_c"] = round(avg_temp, 2)
+        if today in self._max_soc:
+            fields["max_soc_pct"] = round(self._max_soc[today], 1)
+        if today in self._max_boil:
+            fields["max_boil_temp_c"] = round(self._max_boil[today], 1)
         await self._store.upsert_day(today, fields)
 
     # ------------------------------------------------------------------
@@ -585,6 +592,33 @@ class CostOptimizer:
         usable_kwh = bilanz * eta
         saving = usable_kwh * avg_discharge_tariff
         return round(saving - gc_cost, 6)
+
+    def note_maxima(self, soc_pct: float | None, boil_c: float | None) -> None:
+        """A11: keep today's highest SoC and boiler temperature."""
+        today = date.today()
+        if soc_pct is not None:
+            self._max_soc[today] = max(self._max_soc.get(today, soc_pct), soc_pct)
+        if boil_c is not None:
+            self._max_boil[today] = max(self._max_boil.get(today, boil_c), boil_c)
+
+    def today_max(self, which: str) -> float | None:
+        return (self._max_soc if which == "soc" else self._max_boil).get(date.today())
+
+    async def days_since(self, column: str, value: float) -> int | None:
+        """A11: whole days since `column` last reached `value`.
+
+        0 when it did today. None while the history does not reach back to a
+        first recorded value – a fresh install is never "overdue".
+        """
+        today = date.today()
+        current = self.today_max("soc" if column == "max_soc_pct" else "boil")
+        if current is not None and current >= value:
+            return 0
+        last = await self._store.last_day_at_least(column, value)
+        if last is not None:
+            return (today - last).days
+        first = await self._store.first_day_with(column)
+        return (today - first).days if first is not None else None
 
     def set_price_classes(self, classes: "PriceClasses | None") -> None:
         """A1: relative classes of today (None = fixed thresholds decide).

@@ -129,6 +129,9 @@ class EMSController:
         self._availability = SensorAvailabilityMonitor()
         self._bridge_plan: BridgePlan | None = None
         self._bridge_status: str = "disabled"
+        # A11: maintenance runs – refreshed at most hourly in update().
+        self._full_charge_due = False
+        self._maintenance_checked_at: datetime | None = None
         # A1: last (relative, fixed) cheap verdict, to log a disagreement once.
         self._price_class_diff: tuple[bool, bool] | None = None
         # A2–A4: planning slots with load (and PV, when known) from now on,
@@ -232,6 +235,7 @@ class EMSController:
             await self._weather.fetch_hourly_temps()
         # Hot-water plan first: with control live, its planned electricity
         # replaces the flat hot-water share in the bridge plan below.
+        await self._update_maintenance(now, bat_soc)
         # A5 (3): negative price with a full battery – store heat instead.
         unpaid_full = self._update_negative_price_actuators(price, bat_soc)
         if self._hot_water is not None and cfg.negative_price_enabled:
@@ -507,6 +511,7 @@ class EMSController:
             result["temp_tomorrow_c"] = self._prediction.temp_tomorrow_c
         result["remaining_load_kwh"] = self._remaining_load_kwh
         result["failsafe"] = self._failsafe_spec()
+        result["maintenance_full_charge_due"] = self._full_charge_due
         if self._inverter is not None:
             result["write_changes_today"] = self._inverter.target_changes_today
         result["bridge_plan"] = self._bridge_plan_dict()
@@ -598,6 +603,11 @@ class EMSController:
                 and not self._is_stale(cfg.load_power_entity, cfg.sensor_max_age_sec)):
             surplus_w = pv_w - load_w
 
+        # 3. (A11) Maintenance full charge: from the grid only in a cheap hour
+        #    and only when today's PV will not fill the battery anyway.
+        if self._full_charge_from_grid(price, bat_kwh_free, now):
+            return ModeDecision(EMSMode.GRID_CHARGING, "maintenance full charge")
+
         # 3. (A5) Negative price: buying is paid for – charge without the
         #    economic gate, but leave room for the PV still to come.
         if self._negative_price_charge(price, bat_kwh_free, now):
@@ -666,6 +676,9 @@ class EMSController:
         if not cfg.pv_export_priority_enabled:
             return False, "export priority off"
 
+        # A11: a maintenance full charge is due – store all PV.
+        if self._full_charge_due:
+            return False, "maintenance full charge"
         # A5 (1): exporting earns nothing (or costs) – store the PV instead.
         unpaid = self._export_unpaid(price)
         if unpaid:
@@ -1095,6 +1108,49 @@ class EMSController:
     def _rate_tolerance(self) -> float:
         """Band within which two rates count as equally cheap."""
         return RATE_TOLERANCE
+
+    async def _update_maintenance(self, now: datetime, bat_soc: float | None) -> None:
+        """A11: record today's maxima, refresh the due flags at most hourly."""
+        cfg = self._cfg
+        boil = self._ws.get_state_value(cfg.boil_temp_entity) if cfg.boil_temp_entity else None
+        note = getattr(self._optimizer, "note_maxima", None)
+        if note is None:
+            return
+        note(bat_soc, boil)
+        if (self._maintenance_checked_at is not None
+                and (now - self._maintenance_checked_at).total_seconds() < 3600
+                and not (self._full_charge_due and bat_soc is not None
+                         and bat_soc >= cfg.battery_max_soc - 1)):
+            return
+        self._maintenance_checked_at = now
+        due = False
+        if cfg.battery_full_charge_days > 0:
+            days = await self._optimizer.days_since("max_soc_pct", cfg.battery_max_soc - 1)
+            due = days is not None and days >= cfg.battery_full_charge_days
+            if due and not self._full_charge_due:
+                _LOGGER.info("Maintenance: battery not full for %d day(s) – full charge due", days)
+        self._full_charge_due = due
+        if self._hot_water is not None and cfg.hw_hygiene_enabled:
+            days = await self._optimizer.days_since("max_boil_temp_c", cfg.hw_hygiene_temp_c - 0.5)
+            self._hot_water.set_hygiene_due(days is not None and days >= cfg.hw_hygiene_interval_days)
+
+    def _full_charge_from_grid(
+        self, price: float | None, bat_kwh_free: float | None, now: datetime
+    ) -> bool:
+        """A11: grid-charge for the maintenance full charge right now?"""
+        cfg = self._cfg
+        if not self._full_charge_due or not cfg.battery_control_enabled:
+            return False
+        if price is None or bat_kwh_free is None or bat_kwh_free <= PLAN_STOP_BELOW_KWH:
+            return False
+        if self._is_stale(cfg.electricity_price_entity, cfg.price_max_age_sec):
+            return False
+        if not self._optimizer.is_cheap_rate(price):
+            return False
+        remaining = self._forecast_remaining_kwh()
+        if remaining is None:
+            return True
+        return remaining - (self._remaining_load_kwh or 0.0) < bat_kwh_free * cfg.pv_charge_margin_factor
 
     def _export_unpaid(self, price: float | None) -> str:
         """A5: why exporting earns nothing right now, or "" when it does."""

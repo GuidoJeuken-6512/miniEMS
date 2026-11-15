@@ -118,6 +118,9 @@ class HotWaterController:
         # A5 (3): the price is negative and the battery is full – store heat
         # up to hw_max_temp_c instead of exporting (set by EMSController).
         self._negative_price = False
+        # A11: a hygiene charge is due (set by EMSController from the history).
+        self._hygiene_due = False
+        self._hw_slots_cache: list = []
         self._last_rate: float | None = None
         self._pending_logs: list[LogEntry] = []
         # Summary of the charge just stopped, logged by the next _step().
@@ -254,6 +257,7 @@ class HotWaterController:
             or bool(compressor) != bool(self._plan.compressor_running)
         ):
             hw_slots = self._hw_slots(now, slots, pv_known, load_known, price, battery)
+            self._hw_slots_cache = hw_slots
             self._plan = plan_hot_water(
                 now, hw_slots, self._boil_c, model,
                 floor_c=self._floor_c(),
@@ -387,6 +391,31 @@ class HotWaterController:
         """Forget the last sent/confirmed setpoint (see InverterController.reset_write_state)."""
         self._channel = WriteChannel()
 
+    def set_hygiene_due(self, due: bool) -> None:
+        """A11: the boiler has not reached hw_hygiene_temp_c for too long."""
+        self._hygiene_due = due
+
+    def _hygiene_slot_now(self) -> bool:
+        """Is now the cheapest moment of the next 24 h for the hygiene charge?
+
+        PV surplus counts at the feed-in tariff. Without a plan horizon the
+        charge simply starts – a due hygiene charge must not wait forever.
+        """
+        slots = self._hw_slots_cache
+        if not slots:
+            return True
+        feed_in = self._cfg.feed_in_tariff_eur_kwh
+
+        def cost(s) -> float | None:
+            if s.pv_surplus_kwh is not None and s.pv_surplus_kwh >= s.hours:   # ≥ 1 kW surplus
+                return feed_in
+            return s.rate_eur_kwh
+
+        horizon = slots[0].start + timedelta(hours=24)
+        costs = [c for s in slots if s.start < horizon and (c := cost(s)) is not None]
+        now_cost = cost(slots[0])
+        return now_cost is None or not costs or now_cost <= min(costs) + 1e-4
+
     def set_negative_price(self, active: bool) -> None:
         """A5 (3): heat up to hw_max_temp_c while the price is negative."""
         self._negative_price = active
@@ -491,6 +520,13 @@ class HotWaterController:
             reason = "negative price, battery full"
             self._start(now, HWMode.PV, cfg.hw_max_temp_c, t, reason)
             self._set(HWMode.PV, reason)
+            return
+
+        if (cfg.hw_hygiene_enabled and self._hygiene_due
+                and t < cfg.hw_hygiene_temp_c - 0.5 and self._hygiene_slot_now()):
+            reason = f"hygiene charge to {cfg.hw_hygiene_temp_c:.0f} °C"
+            self._start(now, HWMode.CHARGING, cfg.hw_hygiene_temp_c, t, reason)
+            self._set(HWMode.CHARGING, reason)
             return
 
         if plan is not None and plan.decision and not plan.charge_now:
