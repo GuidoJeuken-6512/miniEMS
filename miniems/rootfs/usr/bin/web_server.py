@@ -87,7 +87,7 @@ _BOOL_FIELDS = {
 # runs every posted key through _coerce() regardless of source, and without
 # this set a dict value would fall through to the str(value) branch and get
 # silently stringified/corrupted on save. See
-# docs/roadmap/v3.0-geraeteprofile.md, "Migration" – "Mine im selben Schritt
+# docs/technical/geraeteprofile.md, "Migration" – "Mine im selben Schritt
 # entschärfen".
 _DICT_FIELDS = {"entity_overrides"}
 _INT_FIELDS = {
@@ -264,7 +264,7 @@ def create_app(
         rows = await store.query_all_days()
         return JSONResponse({"rows": rows})
 
-    # ── Devices (read-only preview, see docs/roadmap/v3.0-geraeteprofile.md) ──
+    # ── Devices (read-only preview, see docs/technical/geraeteprofile.md) ──
 
     @app.get("/heatpump", response_class=HTMLResponse)
     async def heatpump_page(request: Request) -> HTMLResponse:
@@ -343,7 +343,7 @@ def create_app(
         # the same data, so the page shows what miniEMS would actually bind
         # – not just what HA reports. Purely a preview: resolve_class() is
         # not called anywhere in the control path yet, see
-        # docs/roadmap/v3.0-geraeteprofile.md. "battery" is left out here –
+        # docs/technical/geraeteprofile.md. "battery" is left out here –
         # its only profile (pylontech_force) is unverified and the legacy
         # config has never had a separate battery slot to compare against.
         live_config = config if config is not None else Config()

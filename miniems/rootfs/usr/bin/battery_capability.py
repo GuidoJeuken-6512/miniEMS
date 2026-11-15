@@ -1,6 +1,6 @@
 """SoC-bucketed history of the battery's actual GRID_CHARGING throughput.
 
-See docs/roadmap/energiefahrplan.md, "Gelernte Ladeleistung statt
+See docs/technical/energiefahrplan.md, "Gelernte Ladeleistung statt
 Konfigurationswert", for the full rationale. Short version:
 battery_max_charge_current_a is what miniEMS *asks* the inverter for, not
 what the battery actually *accepts* – a BMS can silently cap far below it.

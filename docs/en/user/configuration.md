@@ -281,7 +281,7 @@ about (device registry and energy dashboard) and how miniEMS *would* bind each r
 power, battery SoC, grid-charge switch, …) from that data. This resolution does not yet
 feed the actual control path — the 30 entity fields above remain the only source that is
 really used. Details on the planned full resolution:
-[Roadmap "Device Profiles"](../../roadmap/v3.0-geraeteprofile.md).
+[Roadmap "Device Profiles"](../../technical/geraeteprofile.md).
 
 Two fields prepare for that, also only editable via **config.json**:
 

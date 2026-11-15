@@ -151,7 +151,7 @@ async def test_update_applies_inverter_mode(make_config, fake_ws):
 
 @pytest.mark.asyncio
 async def test_update_wires_stretched_grid_charge_power_to_inverter(make_config, fake_ws):
-    """V1 (docs/roadmap/energiefahrplan.md): end-to-end, update() must pass a
+    """V1 (docs/technical/energiefahrplan.md): end-to-end, update() must pass a
     stretched (not full-blast) Watts target to the inverter when a tariff
     calendar is available. Since v2.4.0 this is Watts, computed without
     reading battery_voltage at all (that conversion now happens inside

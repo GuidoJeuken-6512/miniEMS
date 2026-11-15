@@ -2,7 +2,7 @@
 # shelly integration.
 #
 # Live-verified against a real installation (2026-08-28, see
-# docs/roadmap/v3.0-geraeteprofile.md, I7): registry structure (devices,
+# docs/technical/geraeteprofile.md, I7): registry structure (devices,
 # config_entry_id grouping, unique_id values) AND live state values (signed
 # power, units, device_class) were both read from the running instance, not
 # guessed.

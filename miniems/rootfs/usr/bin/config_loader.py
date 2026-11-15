@@ -44,7 +44,7 @@ class Config:
     load_power_entity: str = "sensor.deye_load_power"
     # Needed to convert a charge/discharge power target (W) into the current
     # (A) the Deye's number entities actually accept – see roadmap
-    # docs/roadmap/energiefahrplan.md, V1 ("Ladeleistung strecken") and V3a
+    # docs/technical/energiefahrplan.md, V1 ("Ladeleistung strecken") and V3a
     # ("Gelernte Ladeleistung"), which both share this field.
     battery_voltage_entity: str = "sensor.deye8k_battery_voltage"
     battery_capacity_kwh: float = 10.0
@@ -170,7 +170,7 @@ class Config:
     # unconfirmed before sensor.miniems_inverter_write_status reports "error"
     # instead of "warning". Provisional default – see const.py.
     inverter_write_stuck_threshold_sec: int = INVERTER_WRITE_STUCK_THRESHOLD_SEC
-    # --- Device detection (docs/roadmap/v3.0-geraeteprofile.md) ---------
+    # --- Device detection (docs/technical/geraeteprofile.md) ---------
     # Highest-priority resolver override, keyed "<class>.<role>" -> entity_id
     # (e.g. "inverter.battery_power": "sensor.foo") – see
     # device_resolver.resolve_class()'s `overrides` parameter. Empty by

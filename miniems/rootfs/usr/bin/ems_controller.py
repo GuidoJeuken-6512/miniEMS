@@ -614,7 +614,7 @@ class EMSController:
         if bat_kwh_free is None or bat_kwh_free <= 0.05:
             return False, "no free capacity"
 
-        # V3a (docs/roadmap/energiefahrplan.md): hold exactly until the real
+        # V3a (docs/technical/energiefahrplan.md): hold exactly until the real
         # PV peak, sized by how long the battery actually needs to charge –
         # takes over whenever a confident answer is possible, ahead of the
         # coarser remaining-forecast comparison below. But V3a's time budget
@@ -678,7 +678,7 @@ class EMSController:
         t_needed_h = bat_kwh_free / charge_kw
         # deadline = pv_charge_backstop_hour, reinterpreted here as "battery
         # must be full again by this local hour" rather than "always charge
-        # from here on" – see docs/roadmap/energiefahrplan.md, V3a.
+        # from here on" – see docs/technical/energiefahrplan.md, V3a.
         deadline = now.replace(hour=cfg.pv_charge_backstop_hour, minute=0, second=0, microsecond=0)
         if deadline <= now:
             deadline += timedelta(days=1)
@@ -841,7 +841,7 @@ class EMSController:
         if remaining >= threshold:
             return False                 # today's PV fills the battery after the house
 
-        # V2 (docs/roadmap/energiefahrplan.md): this is the branch the 12-16
+        # V2 (docs/technical/energiefahrplan.md): this is the branch the 12-16
         # Uhr NIEDRIG window falls into on a mediocre-PV day – forecast not
         # yet exhausted, price cheap, but PV is objectively running right
         # now. Defer if a later, equally-cheap window still leaves enough
@@ -852,7 +852,7 @@ class EMSController:
         """V1: stretch the grid-charge power across the remaining price
         window instead of always requesting full current.
 
-        docs/roadmap/energiefahrplan.md, V1 ("Ladeleistung strecken"): within
+        docs/technical/energiefahrplan.md, V1 ("Ladeleistung strecken"): within
         a window of constant price, spreading the same energy over more time
         is cost-neutral – a pure tie-break that also avoids the load spike a
         full-current charge creates. Recomputed fresh every tick rather than
@@ -861,7 +861,7 @@ class EMSController:
         could go stale.
 
         Returns Watts, not amps – as of v2.4.0 this function no longer reads
-        battery_voltage at all (docs/roadmap/v3.0-geraeteprofile.md, "Die
+        battery_voltage at all (docs/technical/geraeteprofile.md, "Die
         Watt-Abstraktion": battery_voltage is now consumed at exactly one
         place, InverterController's actuator conversion). Returns `None`
         whenever a precise stretched target can't be computed – the caller

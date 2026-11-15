@@ -2,7 +2,7 @@
 
 Input is the raw result of `energy/get_prefs` (see `ha_ws_api.get_energy_prefs()`).
 Pure `dict -> dataclass`, no I/O – part of the device-detection groundwork,
-see docs/roadmap/v3.0-geraeteprofile.md, "Auflösungskette", source 2.
+see docs/technical/geraeteprofile.md, "Auflösungskette", source 2.
 
 This is deliberately the *seed*, not the full picture: `stat_energy_from` is
 a kWh sensor, and the power link (`stat_rate`/`power_config`) is optional and

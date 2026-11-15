@@ -1,7 +1,7 @@
 """Maps the pre-v2.1.0 flat `Config.*_entity` fields to (class, role) pairs.
 
 The bridge between the legacy flat-entity-field config and the new
-class/role model (docs/roadmap/v3.0-geraeteprofile.md). A user's
+class/role model (docs/technical/geraeteprofile.md). A user's
 already-configured entity, when it differs from its shipped default, becomes
 a resolver "config" override (resolution source 1) – see
 device_resolver.resolve_class()'s `overrides` parameter – instead of being

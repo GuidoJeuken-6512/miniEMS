@@ -8,7 +8,7 @@ Units: the Deye exposes battery limits as CURRENT in amperes
 charge/discharge *power* entity. Since v2.4.0 the GRID_CHARGING charge
 target arrives as Watts from EMSController (V1 "Ladeleistung strecken") and
 is converted to amps here, at the actuator boundary – see
-device_control.py and docs/roadmap/v3.0-geraeteprofile.md, "Die
+device_control.py and docs/technical/geraeteprofile.md, "Die
 Watt-Abstraktion". Discharge, and every other mode's charge current, are
 still set directly in amps (always either the configured max or 0/blocked
 – never a computed intermediate value, so there is nothing to convert).
@@ -61,7 +61,7 @@ class InverterController:
         self._writer = ConfirmedWriter(HAServiceCaller(supervisor_token, long_lived_token))
         self._ws = ws_client
         self._channels = WriteChannelSet(["charge", "discharge", "grid"])
-        # docs/roadmap/v3.0-geraeteprofile.md, "Die Watt-Abstraktion": tracks
+        # docs/technical/geraeteprofile.md, "Die Watt-Abstraktion": tracks
         # each actuator's live max across ticks, so a momentarily unavailable
         # attribute read never silently drops the ceiling – see
         # device_control.LiveLimitsCache. Charge and discharge are tracked
@@ -135,7 +135,7 @@ class InverterController:
 
         `grid_charge_power_w` overrides the GRID_CHARGING charge power, in
         WATTS (EMSController._grid_charge_power_w() – V1 "Ladeleistung
-        strecken"; docs/roadmap/v3.0-geraeteprofile.md, "Die Watt-Abstraktion").
+        strecken"; docs/technical/geraeteprofile.md, "Die Watt-Abstraktion").
         `None` (all other modes, and any caller that doesn't pass it) keeps
         the original full-current behaviour – see
         `_resolve_grid_charge_current_a()` for exactly how "no target" and a
@@ -196,7 +196,7 @@ class InverterController:
         charge target.
 
         `battery_voltage_entity` is read here – nowhere else in the control
-        path – per docs/roadmap/v3.0-geraeteprofile.md, "Die
+        path – per docs/technical/geraeteprofile.md, "Die
         Watt-Abstraktion": if it's unavailable, `to_actuator_value()` falls
         back to a fixed assumed voltage (48 V, a mid-range LFP pack voltage)
         rather than blocking the write.

@@ -2,7 +2,7 @@
 
 `ha_state_client.py`'s per-tick state poll is REST (`GET /states`) on purpose –
 cheap, stateless, easy to retry. But three things miniEMS needs for device
-detection (docs/roadmap/v3.0-geraeteprofile.md) have **no REST endpoint at
+detection (docs/technical/geraeteprofile.md) have **no REST endpoint at
 all**: the device registry, the entity registry, and the energy-dashboard
 preferences. All three are WebSocket-only in Home Assistant.
 
@@ -10,7 +10,7 @@ This module is deliberately NOT a long-lived client: no subscription, no
 reconnect loop, no heartbeat. Each call opens a connection, authenticates,
 sends its command(s), collects the matching response(s), and closes. That
 matches how these three things are actually used – occasionally, when the
-device-profile resolver runs (docs/roadmap/v3.0-geraeteprofile.md, "Auflösungskette")
+device-profile resolver runs (docs/technical/geraeteprofile.md, "Auflösungskette")
 – not on the 30s EMS tick.
 
 Auth mirrors HAStateClient: SUPERVISOR_TOKEN first, long_lived_token as a

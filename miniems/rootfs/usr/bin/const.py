@@ -77,7 +77,7 @@ PRICE_MAX_AGE_SEC    = 21720   # 6 h + 2 min. A time-of-use tariff is written on
 # from yesterday is legitimate. 15 min gives that margin without letting a truly
 # stopped integration hide. Used by HAStateClient.is_stale_daily(), which
 # asks "was it written today?" instead of "how old is it?" – see
-# docs/roadmap/sensor-staleness.md for why no age threshold can be right here.
+# docs/technical/sensor-staleness.md for why no age threshold can be right here.
 DAILY_VALUE_GRACE_SEC = 900
 
 # How old the Solcast *data* may be – measured on the value of the last-fetch
@@ -134,7 +134,7 @@ INVERTER_WRITE_STUCK_THRESHOLD_SEC = 1800   # 30 min – provisional, see above
 # ── Gelernte Ladeleistung (battery_capability.py) ─────────────────────────────
 # SoC-bucketed history of GRID_CHARGING throughput, replacing
 # battery_max_charge_current_a x voltage with an observed value once enough
-# history exists – see docs/roadmap/energiefahrplan.md, "Gelernte
+# history exists – see docs/technical/energiefahrplan.md, "Gelernte
 # Ladeleistung statt Konfigurationswert".
 #
 # Provisional, like INVERTER_WRITE_STUCK_THRESHOLD_SEC above: not yet derived
@@ -188,7 +188,7 @@ HW_WH_PER_L_K = 1.163
 # ── Energiefahrplan (energy_plan.py) ──────────────────────────────────────────
 # Recompute interval for the proactive tomorrow-deficit plan. Hourly, not
 # every 30s tick: display-only, and price/PV forecasts don't change on a
-# tick's timescale – see docs/roadmap/energiefahrplan.md, "Trigger".
+# tick's timescale – see docs/technical/energiefahrplan.md, "Trigger".
 ENERGY_PLAN_RECOMPUTE_SEC = 3600
 
 # ── Stündliche Bedarfsprognose / Überbrückungsplanung (v3.3.0) ────────────────

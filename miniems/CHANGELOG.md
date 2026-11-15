@@ -609,7 +609,7 @@ Integration geladen wird.
   Ampelpunkt neben jeder Klassenüberschrift sichtbar.
 
   **Bewusst NICHT Teil dieses Schritts** (siehe
-  docs/roadmap/v3.0-geraeteprofile.md, I6): ein echter
+  docs/technical/geraeteprofile.md, I6): ein echter
   `sensor.miniems_device_profile_status` in der HA-Integration, und
   Fail-closed-Schreiben bei unaufgelöster Steuerrolle. Beides würde den
   Resolver in die EMS-Tick-Schleife verdrahten — heute läuft er nur einmal
@@ -691,7 +691,7 @@ Integration geladen wird.
   `web_server._coerce()` bekommt eine `_DICT_FIELDS`-Ausnahme, damit ein
   künftiger POST auf `entity_overrides` nicht in den `str(value)`-Fallback
   läuft und das Feld korrumpiert (der genaue Fehlerfall, den
-  docs/roadmap/v3.0-geraeteprofile.md unter "Migration" vorab benannt hatte).
+  docs/technical/geraeteprofile.md unter "Migration" vorab benannt hatte).
 
   10 neue Tests (`test_migration.py`, `test_config_loader.py`,
   `test_web_server.py`). 665 Tests grün, Coverage 94%. Live gegen die
@@ -752,7 +752,7 @@ Integration geladen wird.
   (int, Ampere) → `grid_charge_power_w` (float, Watt).
 
   **Bewusst kleiner geschnitten als ursprünglich in
-  `docs/roadmap/v3.0-geraeteprofile.md` als „I5" geplant** — dort war eine
+  `docs/technical/geraeteprofile.md` als „I5" geplant** — dort war eine
   komplett Watt-native `apply_mode()`-Dispatch über das Profil-`modes:`-
   Vokabular, Migration auf Schema v20 und eine live vom Resolver
   gespeiste Laufzeitkonfiguration in einem Schritt vorgesehen. Das hätte
@@ -833,7 +833,7 @@ Integration geladen wird.
   Resolver muss, gegen eine redigierte echte Registry-Erfassung und die
   echte Produktiv-`config.json`, für 19 Rollen exakt dieselben Entity-IDs
   liefern wie die heutige Konfiguration — automatisiert die stärkste
-  Verifikation aus `docs/roadmap/v3.0-geraeteprofile.md`.
+  Verifikation aus `docs/technical/geraeteprofile.md`.
 
   Live gegen die lokale Testinstanz verifiziert, aus dem gebauten
   Container heraus: alle 19 Pflicht-/Optionalrollen der Klasse `inverter`
@@ -873,7 +873,7 @@ Integration geladen wird.
   Neue read-only Seite **Devices** im Ingress-Dashboard (`/devices`,
   `/api/devices`): zeigt, was HA über Energie-Dashboard und Geräte-Registry
   weiß. Rein informativ — nichts davon fließt in die Steuerung ein, siehe
-  `docs/roadmap/v3.0-geraeteprofile.md`.
+  `docs/technical/geraeteprofile.md`.
 
   Live gegen die lokale Testinstanz verifiziert (aus dem gebauten
   Container heraus, über die eigene Ingress-Route): `/api/devices` liefert
@@ -893,7 +893,7 @@ Integration geladen wird.
   echter WebSocket-Client; der alte Name war irreführend. Macht den Namen
   frei für einen kommenden echten WebSocket-Client
   (`ws://hassio/homeassistant/websocket`) für Geräte-Registry und
-  Energie-Dashboard (siehe `docs/roadmap/v3.0-geraeteprofile.md`).
+  Energie-Dashboard (siehe `docs/technical/geraeteprofile.md`).
 
 ## 2.0.15
 
@@ -1009,7 +1009,7 @@ Integration geladen wird.
 - **`battery_voltage_entity` config field** (`sensor.deye8k_battery_voltage`
   by default) – converts a charge/discharge power target (W) into the
   current (A) the Deye's `number` entities accept. Groundwork for the
-  [Energiefahrplan](../docs/roadmap/energiefahrplan.md) roadmap (V1 "Ladeleistung
+  [Energiefahrplan](../docs/technical/energiefahrplan.md) roadmap (V1 "Ladeleistung
   strecken", V3a "Gelernte Ladeleistung") – not read by any decision yet.
 
 ## 2.0.8

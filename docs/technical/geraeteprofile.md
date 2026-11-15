@@ -4,6 +4,11 @@ revision_date: 2026-08-28
 
 # miniEMS v3.0 – Geräteprofile auf Basis der Solarman-Definitionen
 
+!!! note "Herleitung umgesetzter Funktionen"
+    Dieses Dokument war früher eine Roadmap und bleibt als Begründung der umgesetzten Teile
+    stehen, weil der Code an vielen Stellen auf seine Abschnitte verweist. Offene Punkte und
+    die Reihenfolge stehen nur noch im [Gesamtplan](../roadmap/gesamtplan.md).
+
 !!! danger "Zentrale Entscheidung dieses Dokuments inzwischen revidiert"
     Live-Verifikation (28.08.2026) hat gezeigt, dass die HA-Geräte-Registry und das
     Energie-Dashboard über WebSocket direkt aus dem Add-on-Container erreichbar sind

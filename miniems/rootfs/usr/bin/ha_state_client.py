@@ -22,7 +22,7 @@ class HAStateClient:
     plain REST polling of GET /states, no websocket involved. The name
     freed up on purpose ahead of a real WebSocket client
     (ws://hassio/homeassistant/websocket) for the device-registry/
-    energy-dashboard work – see docs/roadmap/v3.0-geraeteprofile.md.
+    energy-dashboard work – see docs/technical/geraeteprofile.md.
 
     Authentication order:
     1. SUPERVISOR_TOKEN environment variable (automatic, no config needed)

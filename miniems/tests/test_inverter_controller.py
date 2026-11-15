@@ -55,7 +55,7 @@ class TestSimulationMode:
 
     @pytest.mark.asyncio
     async def test_grid_charging_power_override_is_used(self, make_config, ws):
-        """V1 (docs/roadmap/energiefahrplan.md): EMSController can request a
+        """V1 (docs/technical/energiefahrplan.md): EMSController can request a
         stretched power target (Watts) instead of full blast. No live
         battery_voltage configured here -> device_control.py falls back to
         its assumed 48V, so 2016 W -> 2016/48 = 42 A."""

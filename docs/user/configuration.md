@@ -305,7 +305,7 @@ Der Tab **Devices** im Dashboard zeigt, welche Geräte und Entitäten Home Assis
 Batterie-SoC, Netzladeschalter, …) daraus binden *würde*. Diese Auflösung speist heute noch
 nicht die tatsächliche Steuerung — die 30 Entitäts-Felder oben bleiben die einzige Quelle,
 die wirklich verwendet wird. Details zur geplanten vollen Auflösung:
-[Roadmap „Geräteprofile"](../roadmap/v3.0-geraeteprofile.md).
+[Roadmap „Geräteprofile"](../technical/geraeteprofile.md).
 
 Zwei Felder bereiten das vor, ebenfalls nur über **config.json** editierbar:
 

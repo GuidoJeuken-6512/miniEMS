@@ -1,7 +1,7 @@
 # Deye SG0*LP3 / SG0*HP3 hybrid inverter, via the ha-solarman integration.
 #
 # Live-verified against a production installation (see
-# docs/roadmap/v3.0-geraeteprofile.md, "Machbarkeit verifiziert" /
+# docs/technical/geraeteprofile.md, "Machbarkeit verifiziert" /
 # CHANGELOG v2.0.9-2.0.16). translation_key values below are the exact
 # Solarman entity registry values observed live, not guessed.
 schema: 1

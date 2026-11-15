@@ -1,6 +1,6 @@
 # Generic role catalog for miniEMS device profiles.
 #
-# See docs/roadmap/v3.0-geraeteprofile.md ("Auflösungskette", "Rollenkatalog").
+# See docs/technical/geraeteprofile.md ("Auflösungskette", "Rollenkatalog").
 # Declares WHAT a role means (kind/quantity/canonical sign) and HOW to
 # recognise a matching HA entity (domain/device_class/unit filter, plus
 # free-text `hints` used as a last-resort heuristic – source 4 in the
@@ -12,7 +12,7 @@
 # into a resolver so far (device_resolver.py). `ev`/`energy_meter`/
 # `load_actor` exist as a role vocabulary now so the abstraction doesn't have
 # to be broken open again at the first real device in those classes – see
-# docs/roadmap/v3.x-ev-lasten-zaehler.md for what's still open there.
+# docs/roadmap/gesamtplan.md (B3) for what's still open there.
 version: 1
 
 classes:
@@ -301,7 +301,7 @@ classes:
         domain: [sensor]
         hints: [cycle_times, cycle_count, battery_life_cycles]
 
-  # --- roadmap only, not implemented – see docs/roadmap/v3.x-ev-lasten-zaehler.md ---
+  # --- roadmap only, not implemented – see docs/roadmap/gesamtplan.md (B3) ---
   ev:
     roles:
       soc:

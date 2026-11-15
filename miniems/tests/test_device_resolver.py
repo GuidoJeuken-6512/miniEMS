@@ -243,7 +243,7 @@ class TestPickBestDeviceMatch:
 
 
 class TestProfileStatus:
-    """docs/roadmap/v3.0-geraeteprofile.md, I6: the ok/degraded/unresolved
+    """docs/technical/geraeteprofile.md, I6: the ok/degraded/unresolved
     signal a future sensor.miniems_device_profile_status would expose –
     today only surfaced in the /api/devices preview."""
 
@@ -272,7 +272,7 @@ class TestGoldenResolutionAgainstProduction:
     profiles/, must reproduce the entity ids the real production config.json
     already has for every role the current inverter profile covers. This is
     the roadmap doc's strongest verification point, automated - see
-    docs/roadmap/v3.0-geraeteprofile.md, "Verifikation"."""
+    docs/technical/geraeteprofile.md, "Verifikation"."""
 
     @pytest.fixture
     def resolution(self):
@@ -333,8 +333,8 @@ class TestGoldenResolutionAgainstProduction:
 
 class TestGoldenResolutionEnergyMeter:
     """Same idea as TestGoldenResolutionAgainstProduction, for the Shelly
-    Gen1 3EM (energy_meter class) in the same fixture – docs/roadmap/
-    v3.0-geraeteprofile.md, I7. No production config.json field to compare
+    Gen1 3EM (energy_meter class) in the same fixture – docs/technical/
+    geraeteprofile.md, I7. No production config.json field to compare
     against (energy_meter isn't wired into any config field at all yet),
     so this only asserts the resolution itself, not a config round-trip."""
 

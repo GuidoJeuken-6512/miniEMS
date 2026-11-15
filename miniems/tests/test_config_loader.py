@@ -130,7 +130,7 @@ class TestLoadConfig:
         """No config.json at all yet -> migration.py's v19->v20 step sees
         is_fresh=True -> device_detection_enabled defaults on, so a new
         install never inherits the five historically-wrong Deye defaults
-        (docs/roadmap/v3.0-geraeteprofile.md, 'Migration')."""
+        (docs/technical/geraeteprofile.md, 'Migration')."""
         cfg = load_config()
         assert cfg.device_detection_enabled is True
         assert cfg.entity_overrides == {}

@@ -24,7 +24,7 @@ def migrate(data: dict, *, is_fresh: bool = False) -> dict:
     at all (a brand new installation) – see config_loader.load_config(). It
     is threaded through to _v19_to_v20() so device-detection can default to
     on for new installs but stay off for every upgrade, byte-identical to
-    the pre-v20 behaviour (docs/roadmap/v3.0-geraeteprofile.md, "Migration").
+    the pre-v20 behaviour (docs/technical/geraeteprofile.md, "Migration").
     """
     if not isinstance(data, dict):
         _LOGGER.error("Config is %s, not an object – ignoring it and using defaults",
@@ -327,7 +327,7 @@ def _v17_to_v18(data: dict) -> dict:
 
 
 def _v19_to_v20(data: dict, is_fresh: bool) -> dict:
-    """v19 → v20: device-detection substrate (docs/roadmap/v3.0-geraeteprofile.md).
+    """v19 → v20: device-detection substrate (docs/technical/geraeteprofile.md).
 
     `entity_overrides["<class>.<role>"]` is the new, explicit way to pin a
     role to an entity – device_resolver.resolve_class() already accepts it
@@ -469,7 +469,7 @@ def _v18_to_v19(data: dict) -> dict:
 
     Needed to convert a charge/discharge power target (W) into the current
     (A) the Deye's number entities accept – see
-    docs/roadmap/energiefahrplan.md, V1/V3a.
+    docs/technical/energiefahrplan.md, V1/V3a.
     """
     if "battery_voltage_entity" not in data:
         data["battery_voltage_entity"] = "sensor.deye8k_battery_voltage"

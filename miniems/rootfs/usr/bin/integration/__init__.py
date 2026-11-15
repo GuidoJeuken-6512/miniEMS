@@ -141,7 +141,7 @@ async def async_generate_dashboard(hass: HomeAssistant, entry: ConfigEntry) -> N
 
     The Home tab follows the SEM Community integration's "Home" tab (tab
     header, animated diagram, status, solar summary) – see
-    docs/roadmap/vergleich-sem-community.md.
+    docs/roadmap/gesamtplan.md ("Bereits ausgewertete Lösungen").
     """
     base_url = entry.data.get(CONF_BASE_URL, DEFAULT_BASE_URL)
     addon_cfg = await _fetch_addon_config(hass, base_url)

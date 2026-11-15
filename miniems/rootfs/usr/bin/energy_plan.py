@@ -1,6 +1,6 @@
 """Der Energiefahrplan – proaktive Tagesbilanz für die kommende Nacht.
 
-See docs/roadmap/energiefahrplan.md, "Der Energiefahrplan — Bausteine zu
+See docs/technical/energiefahrplan.md, "Der Energiefahrplan — Bausteine zu
 einer Tagesbilanz zusammenführen". This answers, explicitly and ahead of
 time, the question EMSController._should_grid_charge()'s reactive
 tomorrow-fallback branch only answers implicitly, late (only once today's
