@@ -1943,31 +1943,31 @@ class EMSController:
         charge_kw = self._charge_power_kw()
         if charge_kw is None or charge_kw <= 0:
             return False
+        cfg = self._cfg
         t_needed_h = bat_kwh_free / charge_kw
-        if not self._cfg.load_profile_enabled and not self._cfg.day_ahead_enabled:
-            return curve.later_window_as_cheap(now, deadline, timedelta(hours=t_needed_h))
-        if not self._cfg.load_profile_enabled:
-            later = curve.later_window_as_cheap_start(now, deadline, timedelta(hours=t_needed_h))
-            current = curve.rate_at(now)
-            return (later is not None and current is not None
-                    and curve.cheap_hours_between(later, deadline, current + self._rate_tolerance())
-                    >= t_needed_h)
-        later = curve.later_window_as_cheap_start(now, deadline, timedelta(hours=t_needed_h))
-        if later is None or self._value_slots is None:
+        duration = timedelta(hours=t_needed_h)
+        if not (cfg.load_profile_enabled or cfg.day_ahead_enabled):
+            return curve.later_window_as_cheap(now, deadline, duration)
+        later = curve.later_window_as_cheap_start(now, deadline, duration)
+        if later is None:
             return False
-        if self._cfg.day_ahead_enabled:
+        if cfg.day_ahead_enabled:
             # A9: the later cheap hours must be long enough for the whole charge.
             current = curve.rate_at(now)
             if current is None or curve.cheap_hours_between(
                     later, deadline, current + self._rate_tolerance()) < t_needed_h:
                 return False
-        # A2: deferring is only free when the battery is not drawn on until
-        # then – a charge pushed past the evening is bought in the evening.
-        draw = sum(max(0.0, s.load_kwh - s.pv_kwh) for s in self._value_slots if s.start < later)
-        if draw > self._cfg.grid_charge_min_free_kwh:
-            _LOGGER.debug("V2: not deferring – %.1f kWh expected from the battery before %s",
-                          draw, later.strftime("%H:%M"))
-            return False
+        if cfg.load_profile_enabled:
+            # A2: deferring is only free when the battery is not drawn on until
+            # then – a charge pushed past the evening is bought in the evening.
+            if self._value_slots is None:
+                return False
+            draw = sum(max(0.0, s.load_kwh - s.pv_kwh) for s in self._value_slots
+                       if s.start < later)
+            if draw > cfg.grid_charge_min_free_kwh:
+                _LOGGER.debug("V2: not deferring – %.1f kWh expected from the battery before %s",
+                              draw, later.strftime("%H:%M"))
+                return False
         return True
 
     def _next_peak_time(self, now: datetime) -> datetime | None:
