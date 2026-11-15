@@ -31,6 +31,7 @@ from forecast_learning import ForecastCorrections, learn_corrections
 from energy_value import RATE_TOLERANCE, EnergyValue, assess_energy, should_hold
 from event_log import EventLog, LogEntry
 from price_classes import classes_for
+from phase_b import PhaseBMixin
 from price_curve import PriceCurve
 from sensor_availability import SensorAvailabilityMonitor
 
@@ -38,6 +39,10 @@ if TYPE_CHECKING:
     from config_loader import Config
     from consumption_model import ConsumptionModel, Prediction
     from cost_optimizer import CostOptimizer
+    from ev_controller import EVController
+    from heating_controller import HeatingController
+    from resources import ResourceCoordinator
+    from store import EnergyStore
     from event_log import EventLog
     from ha_state_client import HAStateClient
     from inverter_controller import InverterController
@@ -69,7 +74,7 @@ class ModeDecision:
     urgent: bool = False   # safety / data-loss transitions bypass the debounce
 
 
-class EMSController:
+class EMSController(PhaseBMixin):
     """Evaluates sensor readings and determines the current EMS operating mode."""
 
     def __init__(
@@ -87,6 +92,10 @@ class EMSController:
         weather: "WeatherClient | None" = None,
         heat_pump_recorder: "HeatPumpRecorder | None" = None,
         hot_water: "HotWaterController | None" = None,
+        ev: "EVController | None" = None,
+        heating: "HeatingController | None" = None,
+        resources: "ResourceCoordinator | None" = None,
+        store: "EnergyStore | None" = None,
     ) -> None:
         self._cfg = config
         self._ws = ws_client
@@ -155,6 +164,8 @@ class EMSController:
         self._hold: tuple[bool, str] = (False, "")       # A4 verdict
         self._hold_value: EnergyValue | None = None
         self._gate_diff: tuple[bool, bool] | None = None
+        # Phase B (v4.1.0): fuse guard, EV, heating, start advice – phase_b.py.
+        self._init_phase_b(ev, heating, resources, store)
 
     # ------------------------------------------------------------------
     # Public API
@@ -216,15 +227,6 @@ class EMSController:
             rest = self._load_between(now_l, self._next_midnight(now_l))
             if rest is not None:
                 self._remaining_load_kwh = rest
-        if self._cfg.load_profile_enabled:
-            # A2: the hourly model (temperature, hour of day) instead of the
-            # day median minus what was measured so far.
-            now_l = datetime.now().astimezone()
-            if self._forecaster is not None:
-                await self._forecaster.refresh(now_l)
-            rest = self._load_between(now_l, self._next_midnight(now_l))
-            if rest is not None:
-                self._remaining_load_kwh = rest
 
         # Refresh before deciding: _grid_charge_pays() needs it, and _decide()
         # is synchronous. Memoised per day inside the optimizer, so this is a DB
@@ -258,9 +260,12 @@ class EMSController:
         await self._update_bridge_plan(pv_w, price, bat_kwh_free, bat_kwh_use, now)
         await self._update_energy_value(now, price, pv_w, bat_kwh_use, bat_kwh_free)
         await self._update_battery_plan(now, price, pv_w, bat_kwh_use, bat_kwh_free)
+        # Phase B: fuse guard and EV before the battery decision (B1–B5).
+        await self._update_phase_b_pre(now, price, pv_w, load_w, grid_w, bat_w, bat_soc)
         prev_mode = self._mode
         self._mode = self._determine_mode(pv_w, load_w, bat_soc, price, bat_kwh_free, now)
         self._log_plan_shadow(now)
+        await self._update_phase_b_post(now, price, grid_w)
         await self._record_hourly(now, load_w)
         await self._record_heat_pump(now)
 
@@ -327,7 +332,10 @@ class EMSController:
                 self._grid_charge_power_w(bat_kwh_free, now)
                 if self._mode is EMSMode.GRID_CHARGING else None
             )
-            await self._inverter.apply_mode(self._mode, grid_charge_power_w)
+            # B1: within the fuse and §14a limits (None = no guard).
+            grid_charge_power_w = self._phase_b_grid_charge_cap(grid_charge_power_w)
+            async with self._actuator_lock:
+                await self._inverter.apply_mode(self._mode, grid_charge_power_w)
             # Persist write-confirm lifecycle events durably (SQLite survives
             # restarts and days; the add-on's own log buffer does not) – see
             # InverterController.pop_write_events().
@@ -336,6 +344,8 @@ class EMSController:
         if self._hot_water is not None:
             for wevent in self._hot_water.pop_write_events():
                 await self._log_write_event(wevent)
+        for wevent in self._phase_b_write_events():
+            await self._log_write_event(wevent)
 
         feed_in_kwh_ha = (
             ws.get_state_value(cfg.feed_in_energy_entity)
@@ -542,6 +552,7 @@ class EMSController:
             result["heat_pump"] = self._hp_recorder.status()
         if self._hot_water is not None and self._hot_water.enabled:
             result["hot_water"] = self._hot_water.status(now)
+        result.update(self._phase_b_status(now))
 
         if self._energy_plan is not None:
             plan = self._energy_plan
@@ -579,6 +590,8 @@ class EMSController:
         """Pick the operating mode, then apply the dwell time before committing."""
         now = now or datetime.now().astimezone()
         decision = self._decide(pv_w, load_w, bat_soc, price, bat_kwh_free, now)
+        # B2 coupling rule: the battery does not discharge into the EV.
+        decision = self._couple_ev(decision)
         return self._commit(decision, now)
 
     def _decide(
@@ -1282,13 +1295,8 @@ class EMSController:
         if slots is None:
             self._battery_plan_status = status
             return
-        hw = self._hot_water
-        if hw is not None and hw.couples:
-            slots = [
-                PlanSlot(s.start, s.end, s.rate_eur_kwh,
-                         max(0.0, s.load_kwh + hw.load_delta_kwh(s.end, s.hours)), s.pv_kwh)
-                for s in slots
-            ]
+        # Hot-water plan (live) and EV plan (B2) as load per slot.
+        slots = self._with_planned_loads(slots)
         charge_kw = self._charge_power_kw()
         if charge_kw is None or charge_kw <= 0:
             self._battery_plan_status = "no charge power estimate"
@@ -1440,13 +1448,8 @@ class EMSController:
         slots, _, _, load_known = self._plan_slots(now, price, pv_w, need_pv=False, need_load=True)
         if slots is None or not load_known:
             return
-        hw = self._hot_water
-        if hw is not None and hw.couples:
-            slots = [
-                PlanSlot(s.start, s.end, s.rate_eur_kwh,
-                         max(0.0, s.load_kwh + hw.load_delta_kwh(s.end, s.hours)), s.pv_kwh)
-                for s in slots
-            ]
+        # Hot-water plan (live) and EV plan (B2) as load per slot.
+        slots = self._with_planned_loads(slots)
         self._value_slots = slots
         if bat_kwh_use is None or bat_kwh_free is None:
             return
@@ -1487,6 +1490,7 @@ class EMSController:
             actions += self._inverter.failsafe_actions()
         if self._hot_water is not None:
             actions += self._hot_water.failsafe_actions()
+        actions += self._phase_b_failsafe()
         if not actions:
             return None
         return {"timeout_min": timeout, "actions": actions}
@@ -1579,13 +1583,8 @@ class EMSController:
         if slots is None:
             self._bridge_status = status
             return None
-        hw = self._hot_water
-        if hw is not None and hw.couples:
-            slots = [
-                PlanSlot(s.start, s.end, s.rate_eur_kwh,
-                         max(0.0, s.load_kwh + hw.load_delta_kwh(s.end, s.hours)), s.pv_kwh)
-                for s in slots
-            ]
+        # Hot-water plan (live) and EV plan (B2) as load per slot.
+        slots = self._with_planned_loads(slots)
         return slots
 
     def _plan_slots(
@@ -2312,6 +2311,7 @@ class EMSController:
             )
         if cfg.battery_plan_enabled and self._battery_plan is None:
             warnings.append(f"Battery plan enabled but not computed: {self._battery_plan_status}")
+        warnings.extend(self._phase_b_warnings())
 
         # Forecast *data* age – independent of how often HA rewrites the sensors.
         if self._solcast_data_stale():

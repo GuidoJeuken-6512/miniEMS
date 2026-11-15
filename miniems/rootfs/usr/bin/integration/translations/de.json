@@ -94,7 +94,12 @@
       },
       "energy_plan_deficit": { "name": "Energiefahrplan-Defizit" },
       "hot_water_mode": { "name": "Warmwasser-Modus" },
-      "hot_water_plan": { "name": "Warmwasser-Plan" }
+      "hot_water_plan": { "name": "Warmwasser-Plan" },
+      "ev_mode": { "name": "E-Auto Laden" },
+      "ev_plan": { "name": "E-Auto Plan" },
+      "heating_offset": { "name": "Heizungs-Offset" },
+      "fuse_headroom": { "name": "Sicherungsreserve" },
+      "best_start": { "name": "Bester Start {device}" }
     }
   }
 }

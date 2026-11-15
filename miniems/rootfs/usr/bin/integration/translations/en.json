@@ -94,7 +94,12 @@
       },
       "energy_plan_deficit": { "name": "Energy Plan Deficit" },
       "hot_water_mode": { "name": "Hot Water Mode" },
-      "hot_water_plan": { "name": "Hot Water Plan" }
+      "hot_water_plan": { "name": "Hot Water Plan" },
+      "ev_mode": { "name": "EV Charging" },
+      "ev_plan": { "name": "EV Plan" },
+      "heating_offset": { "name": "Heating Offset" },
+      "fuse_headroom": { "name": "Fuse Headroom" },
+      "best_start": { "name": "Best Start {device}" }
     }
   }
 }
