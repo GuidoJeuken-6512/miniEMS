@@ -56,7 +56,7 @@ def test_missing_version_defaults_to_zero_and_runs_full_chain():
 
 
 class TestV19ToV20:
-    """docs/roadmap/v3.0-geraeteprofile.md, 'Migration': entity_overrides is
+    """docs/technical/geraeteprofile.md, 'Migration': entity_overrides is
     always empty (nothing is ever inferred here), device_detection_enabled
     depends solely on the caller-supplied is_fresh flag – see
     config_loader.load_config()."""

@@ -1,7 +1,7 @@
 {
   "domain": "miniems",
   "name": "miniEMS",
-  "version": "3.6.6",
+  "version": "4.0.0",
   "documentation": "",
   "dependencies": [],
   "codeowners": [],

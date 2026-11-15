@@ -8,6 +8,7 @@ from sensor_validator import SensorValidator
 
 if TYPE_CHECKING:
     from config_loader import Config
+    from price_classes import PriceClasses
     from store import EnergyStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,6 +58,20 @@ class CostOptimizer:
         self._kwh_high_rate:   dict[date, float] = defaultdict(float)
         self._kwh_medium_rate: dict[date, float] = defaultdict(float)
         self._kwh_low_rate:    dict[date, float] = defaultdict(float)
+        # A11: today's maximum SoC and boiler temperature.
+        self._max_soc: dict[date, float] = {}
+        self._max_boil: dict[date, float] = {}
+        # A7a: battery energy in/out, first/last SoC, discharge efficiency.
+        self._bat_in: dict[date, float] = defaultdict(float)
+        self._bat_out: dict[date, float] = defaultdict(float)
+        self._soc_first: dict[date, float] = {}
+        self._soc_last: dict[date, float] = {}
+        self._dis_load: dict[date, float] = defaultdict(float)
+        self._dis_bat: dict[date, float] = defaultdict(float)
+        # A1: today's relative price classes, set by EMSController once per
+        # tick. None = no tariff calendar or price_classes_enabled off → the
+        # fixed thresholds decide, exactly as before.
+        self._price_classes: "PriceClasses | None" = None
         # Peak PV power per day (for yield prediction)
         self._peak_pv_w: dict[date, float] = defaultdict(float)
         # Running averages for price and outdoor temperature
@@ -347,6 +362,16 @@ class CostOptimizer:
             self._grid_charge_kwh[now]      += kwh_gc
             self._grid_charge_cost_eur[now] += kwh_gc * price_eur_kwh
 
+        # A7a: battery energy from the power sensor (sign: + = discharge), and
+        # the discharge efficiency where the battery alone supplies the house.
+        if bat_w > 0:
+            self._bat_out[now] += bat_w / 1000 * hours
+            if pv_w < 50 and abs(grid_w) < 100 and bat_w > 300:
+                self._dis_load[now] += load_w / 1000 * hours
+                self._dis_bat[now] += bat_w / 1000 * hours
+        elif bat_w < 0:
+            self._bat_in[now] += -bat_w / 1000 * hours
+
         # Discharge-weighted price: what a stored kWh actually displaces.
         # Accumulated only while the battery discharges, so the average is
         # weighted by when the energy is really used – disproportionately the
@@ -443,6 +468,19 @@ class CostOptimizer:
                 fields[column] = round(known[1], 6)
         if avg_temp is not None:
             fields["avg_outdoor_temp_c"] = round(avg_temp, 2)
+        if today in self._max_soc:
+            fields["max_soc_pct"] = round(self._max_soc[today], 1)
+        if today in self._max_boil:
+            fields["max_boil_temp_c"] = round(self._max_boil[today], 1)
+        if today in self._soc_first:
+            fields.update({
+                "bat_in_kwh": round(self._bat_in[today], 4),
+                "bat_out_kwh": round(self._bat_out[today], 4),
+                "soc_first_pct": round(self._soc_first[today], 1),
+                "soc_last_pct": round(self._soc_last[today], 1),
+                "dis_eff_load_kwh": round(self._dis_load[today], 4),
+                "dis_eff_bat_kwh": round(self._dis_bat[today], 4),
+            })
         await self._store.upsert_day(today, fields)
 
     # ------------------------------------------------------------------
@@ -581,14 +619,67 @@ class CostOptimizer:
         saving = usable_kwh * avg_discharge_tariff
         return round(saving - gc_cost, 6)
 
+    def note_maxima(self, soc_pct: float | None, boil_c: float | None) -> None:
+        """A11: keep today's highest SoC and boiler temperature."""
+        today = date.today()
+        if soc_pct is not None:
+            self._max_soc[today] = max(self._max_soc.get(today, soc_pct), soc_pct)
+            self._soc_first.setdefault(today, soc_pct)
+            self._soc_last[today] = soc_pct
+        if boil_c is not None:
+            self._max_boil[today] = max(self._max_boil.get(today, boil_c), boil_c)
+
+    def today_max(self, which: str) -> float | None:
+        return (self._max_soc if which == "soc" else self._max_boil).get(date.today())
+
+    async def recent_complete_days(self, days: int) -> list[dict[str, Any]]:
+        """A7a: daily rows of the last `days` days, today excluded."""
+        today = date.today().isoformat()
+        rows = await self._store.query_recent_days(days + 1)
+        return [r for r in rows if r.get("date") != today]
+
+    async def days_since(self, column: str, value: float) -> int | None:
+        """A11: whole days since `column` last reached `value`.
+
+        0 when it did today. None while the history does not reach back to a
+        first recorded value – a fresh install is never "overdue".
+        """
+        today = date.today()
+        current = self.today_max("soc" if column == "max_soc_pct" else "boil")
+        if current is not None and current >= value:
+            return 0
+        last = await self._store.last_day_at_least(column, value)
+        if last is not None:
+            return (today - last).days
+        first = await self._store.first_day_with(column)
+        return (today - first).days if first is not None else None
+
+    def set_price_classes(self, classes: "PriceClasses | None") -> None:
+        """A1: relative classes of today (None = fixed thresholds decide).
+
+        Only is_cheap_rate() and price_tier() follow them. The kWh split by
+        price tier in record_tick() and the plausibility floor of the
+        discharge tariff keep the fixed thresholds on purpose: the statistics
+        must stay comparable over months.
+        """
+        self._price_classes = classes
+
+    @property
+    def price_classes(self) -> "PriceClasses | None":
+        return self._price_classes
+
     def is_cheap_rate(self, price_eur_kwh: float | None) -> bool:
         if price_eur_kwh is None:
             return False
+        if self._price_classes is not None:
+            return self._price_classes.is_low(price_eur_kwh)
         return price_eur_kwh < self._cfg.cheap_rate_threshold_eur
 
     def price_tier(self, price_eur_kwh: float | None) -> str | None:
         if price_eur_kwh is None:
             return None
+        if self._price_classes is not None:
+            return self._price_classes.tier(price_eur_kwh)
         if price_eur_kwh < self._cfg.cheap_rate_threshold_eur:
             return "low"
         if price_eur_kwh < self._cfg.medium_rate_threshold_eur:

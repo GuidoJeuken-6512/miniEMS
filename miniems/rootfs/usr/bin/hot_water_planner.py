@@ -235,6 +235,8 @@ def plan_hot_water(
     min_charge_running_k: float | None = None,
     compressor_running: bool | None = None,
     cheap_rate_eur: float | None = None,
+    start_loss_kwh_th: float = 0.0,
+    start_loss_running_kwh_th: float | None = None,
 ) -> HotWaterPlan:
     plan = HotWaterPlan(computed_at=now, boil_c=boil_c, floor_c=floor_c, shutoff_c=shutoff_c,
                         requirements=list(requirements), compressor_running=compressor_running)
@@ -369,6 +371,13 @@ def plan_hot_water(
             if cc is None:
                 continue
             heat_kwh, cost, last = cc
+            # A8: the heat lost by the start itself, at the start slot's price –
+            # it makes small top-ups dear on their own.
+            loss = (start_loss_running_kwh_th
+                    if j == 0 and running and start_loss_running_kwh_th is not None
+                    else start_loss_kwh_th)
+            if loss > 0 and cost_th[j] is not None:
+                cost += loss * cost_th[j]   # type: ignore[operator]
             retention = 1.0
             for m in range(last, v + 1):
                 retention *= max(0.0, 1.0 - model.loss_coeff * slots[m].hours)

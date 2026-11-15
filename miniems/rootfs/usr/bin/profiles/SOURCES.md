@@ -1,7 +1,7 @@
 # Herkunft der Profile
 
 Diese Profile sind **eigene** miniEMS-Dateien, nicht zur Laufzeit aus einer fremden
-Integration gelesen (siehe `docs/roadmap/v3.0-geraeteprofile.md`, Warnkasten). Wo ein
+Integration gelesen (siehe `docs/technical/geraeteprofile.md`, Warnkasten). Wo ein
 Profil offline von einer Solarman-Gerätedefinition abgeleitet wurde, steht das im Profil
 selbst (`derived_from:`) und hier.
 
@@ -36,4 +36,4 @@ eine einzige aus SEM kopierte Zeichenkette.
 Nicht verwendet für `inverter`/`battery` — evccs Templates liegen auf Protokoll-/Go-
 Template-Ebene (Modbus-Register-Zugriff), die bei uns bereits Solarman übernimmt. Bleibt
 als mögliche Quelle für die `ev`-Klasse vorgemerkt, da Solarman keine Wallbox-Definition
-hat — siehe `docs/roadmap/v3.x-ev-lasten-zaehler.md`.
+hat — siehe `docs/roadmap/gesamtplan.md (B3)`.

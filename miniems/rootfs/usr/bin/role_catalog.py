@@ -2,7 +2,7 @@
 
 Single source of truth for both the device resolver (device_resolver.py) and
 the settings entity-picker filter (planned) – see
-docs/roadmap/v3.0-geraeteprofile.md, "Rollenkatalog". Contains no
+docs/technical/geraeteprofile.md, "Rollenkatalog". Contains no
 Solarman-specific strings: `hints` are plain words matched against an
 entity's translation_key as a last-resort heuristic (resolution source 4),
 not an import of a device-definition file.

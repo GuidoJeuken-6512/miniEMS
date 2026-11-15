@@ -154,7 +154,7 @@ class TestDevicesMatching:
 
 
 class TestConfigEntryGrouping:
-    """docs/roadmap/v3.0-geraeteprofile.md, I7 – groups several registry
+    """docs/technical/geraeteprofile.md, I7 – groups several registry
     devices sharing one config_entry_id, for integrations (Shelly) that
     register one physical device as multiple, unlinked registry devices."""
 
@@ -232,7 +232,7 @@ class TestRealFixture:
     def test_solarman_entities_carry_a_translation_key(self):
         """translation_key is the deterministic bridge to a Solarman YAML
         item's name: - the one fact worth mining offline (see
-        docs/roadmap/v3.0-geraeteprofile.md)."""
+        docs/technical/geraeteprofile.md)."""
         snap = RegistrySnapshot.from_lists(_FIXTURE["devices"], _FIXTURE["entities"])
         solarman_entities = [e for e in snap.entities.values() if e.platform == "solarman"]
         assert len(solarman_entities) > 0

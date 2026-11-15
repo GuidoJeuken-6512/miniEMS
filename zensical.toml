@@ -66,15 +66,12 @@ nav = [
     { "Sensor-Staleness" = "technical/sensor-staleness.md" },
     { "Netzladen-Entscheidung" = "technical/netzladen-entscheidung.md" },
     { "Warmwasser-Steuerung" = "technical/warmwasser-steuerung.md" },
+    { "Energiefahrplan (Herleitung)" = "technical/energiefahrplan.md" },
+    { "Geräteprofile" = "technical/geraeteprofile.md" },
     { "Devcontainer-Supervisor-Patches" = "technical/devcontainer-supervisor-patches.md" },
   ]},
   { "Roadmap" = [
-    { "v3.0 – Geräteprofile" = "roadmap/v3.0-geraeteprofile.md" },
-    { "Energiefahrplan" = "roadmap/energiefahrplan.md" },
-    { "Lehren aus Akkudoktor-EOS" = "roadmap/eos-learnings.md" },
-    { "Lehren aus EnergyWizard" = "roadmap/energywizard-learnings.md" },
-    { "v3.3 – Bedarfsprognose" = "roadmap/v3.3-bedarfsprognose.md" },
-    { "Warmwasser: Startverluste lernen" = "roadmap/warmwasser-startverluste.md" },
+    { "Gesamtplan ab v3.8" = "roadmap/gesamtplan.md" },
   ]},
   { "User Guide (EN)" = [
     { "Getting Started" = "en/user/index.md" },

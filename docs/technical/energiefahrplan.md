@@ -4,6 +4,11 @@ revision_date: 2026-09-14
 
 # Energiefahrplan — netzdienliches Laden für Batterie und E-Auto
 
+!!! note "Herleitung umgesetzter Funktionen"
+    Dieses Dokument war früher eine Roadmap und bleibt als Begründung der umgesetzten Teile
+    stehen, weil der Code an vielen Stellen auf seine Abschnitte verweist. Offene Punkte und
+    die Reihenfolge stehen nur noch im [Gesamtplan](../roadmap/gesamtplan.md).
+
 !!! info "Status: Planung, nichts umgesetzt außer den vorbestehenden Bausteinen"
     Dieses Dokument führt die bisherige Roadmap „Netzdienliches Laden verbessern"
     (Inhalt vollständig hier aufgegangen, Datei gelöscht) mit einer neuen Idee zusammen:
@@ -40,7 +45,7 @@ miniEMS trifft heute jede Entscheidung **pro Tick, isoliert**: `_should_grid_cha
 Restprognose". Beide kennen nicht den jeweils anderen Blick auf den Tag, und keine kennt ein
 zweites ladbares Gerät. Das ist für **eine** Batterie an **einem** Wechselrichter lange gut
 gegangen — aber miniEMS bewegt sich zunehmend Richtung generisches EMS-Add-on (vgl.
-[v3.0 – Geräteprofile](v3.0-geraeteprofile.md), die genau das für die Hardware-Seite tut). Die
+[v3.0 – Geräteprofile](geraeteprofile.md), die genau das für die Hardware-Seite tut). Die
 Planungs-Seite braucht dieselbe Verallgemeinerung: nicht „die eine Batterie", sondern
 „irgendwie viele ladbare Geräte, die sich denselben Tag, dieselbe PV-Prognose und denselben
 Tarif teilen".
@@ -164,7 +169,7 @@ Das ist selbstkorrigierend: Wird das Fenster unterbrochen oder die Last höher, 
     **Eine Vereinfachung gegenüber dem Vorschlag:** `max aus Entity-Attribut`
     (das reale `max` des `number`-Entities, statt des hartkodierten
     Konfigurationswerts) ist **nicht** umgesetzt — das ist derselbe
-    Attribut-Zugriff, den [v3.0 – Geräteprofile](v3.0-geraeteprofile.md)
+    Attribut-Zugriff, den [v3.0 – Geräteprofile](geraeteprofile.md)
     ohnehin vorhat (Berührungspunkt-Hinweis weiter unten). Geklemmt wird
     stattdessen weiterhin gegen `battery_max_charge_current_a`, den
     heutigen, bekannt sicheren Deckel.
@@ -249,7 +254,7 @@ Aufwand und unterschiedlicher Reichweite.
     ursprüngliche Fail-Safe-Idee unten: die *frühere* der beiden Antworten
     gewinnt, nicht mehr ausschließlich V3as.
 
-Seit [Sensor-Staleness](../technical/sensor-staleness.md) sind zwei zusätzliche
+Seit [Sensor-Staleness](sensor-staleness.md) sind zwei zusätzliche
 Solcast-Entities angebunden (`solcast_peak_time_today_entity`,
 `solcast_peak_time_tomorrow_entity`, Klasse (d) — einmal täglich geschrieben, per
 `is_stale_daily()` geprüft), deren Zustand direkt der gesuchte Zeitpunkt ist: keine
@@ -570,7 +575,7 @@ veröffentlicht werden, üblicherweise gegen 13 Uhr), **stündlich neu rechnen**
   (jeden Tick neu rechnen statt Fahrplan speichern).
 - Stündlich ist grob genug, um keine Rechenlast zu erzeugen — Preis- und PV-Prognosen ändern
   sich nicht im 30-s-Tick-Rhythmus des EMS-Loops (dasselbe Argument wie in
-  [Netzampel-APIs](netzampel-apis.md): 15–60 Minuten Poll-Intervall reicht für
+  Netzampel-APIs: 15–60 Minuten Poll-Intervall reicht für
   Erzeugungs-/Lastprognosen) — und fein genug, um eine untertägig aktualisierte
   Solcast-Prognose oder eine neu veröffentlichte Day-Ahead-Preisreihe binnen einer Stunde
   aufzunehmen, statt bis zum nächsten Kalendertag zu warten.
@@ -648,7 +653,7 @@ EV-Profil aufnehmen kann, ohne den Kern nochmal umzubauen:
   leer/ausgegraut bleibt statt zu verschwinden — sichtbare Vorbereitung statt verstecktem
   Totzweig.
 
-**Bewusste Abgrenzung zu [v3.0 – Geräteprofile](v3.0-geraeteprofile.md):** Dessen
+**Bewusste Abgrenzung zu [v3.0 – Geräteprofile](geraeteprofile.md):** Dessen
 `devices`-Slots (`inverter`, `battery`) lösen auf, welche Entity welche Rolle **am selben
 Wechselrichter-Ökosystem** erfüllt. Ein E-Auto-Lader ist kategorial etwas anderes — ein
 eigenständiges steuerbares Gerät mit eigener Integration (Wallbox, z. B. go-eCharger, OCPP,
@@ -766,7 +771,7 @@ damit ein Rückfall auf das heutige Verhalten jederzeit möglich bleibt.
 - Doku DE/EN + CHANGELOG.
 
 !!! note "Berührungspunkt zur Geräteprofil-Roadmap"
-    Der Punkt „Grenzen aus Entity-Attributen statt `BATTERY_MAX_CURRENT_A`" steht bereits in [v3.0 – Geräteprofile](v3.0-geraeteprofile.md). Beide Vorhaben brauchen denselben Attribut-Zugriff (Schritt 1) — der sollte einmal gebaut und von beiden genutzt werden. Ein künftiges EV-Profilsystem (s. o.) wäre ein drittes Vorhaben auf derselben Grundlage.
+    Der Punkt „Grenzen aus Entity-Attributen statt `BATTERY_MAX_CURRENT_A`" steht bereits in [v3.0 – Geräteprofile](geraeteprofile.md). Beide Vorhaben brauchen denselben Attribut-Zugriff (Schritt 1) — der sollte einmal gebaut und von beiden genutzt werden. Ein künftiges EV-Profilsystem (s. o.) wäre ein drittes Vorhaben auf derselben Grundlage.
 
 ## Verifikation
 
@@ -814,4 +819,4 @@ Smoke-Tests via `docker exec` im Add-on-Container für alles mit echtem HA-/Wech
 5. **Retention von `battery_charge_capability_history`:** Feste Anzahl Tage wie bei `event_log_retention_days` (Standard 30), oder unbegrenzt wachsen lassen (drei Zeilen pro Tag sind vernachlässigbar klein)? Eine physikalische Grenze ändert sich kaum, ältere Daten schaden also nicht — spricht eher für „unbegrenzt", aber das widerspräche dem bestehenden Retention-Muster im Projekt.
 6. **`MIN_SAMPLES_PER_DAY`/`MIN_DAYS`-Werte:** Noch nicht empirisch hergeleitet (anders als z. B. `SOLCAST_DATA_MAX_AGE_SEC`, das aus gemessenen Abrufraten stammt) — sollten vor der Umsetzung anhand realer `GRID_CHARGING`-Häufigkeit auf der Produktivanlage bemessen werden, nicht geraten.
 7. **V1-Klemm-Warnung fehlt:** `_grid_charge_current_a()` klemmt still auf `battery_max_charge_current_a`, wenn das Fenster zu kurz für die benötigte Energie ist (stille Unterdeckung) — Verifikationspunkt 4 verlangt stattdessen eine sichtbare Warnung. Kandidat: eine neue Zeile in `_build_sensor_warnings()`, ausgelöst wenn der geklemmte Wert unter dem rechnerisch nötigen `I_soll` liegt.
-8. **`max aus Entity-Attribut` in V1 nicht genutzt:** Geklemmt wird gegen `battery_max_charge_current_a` (Konfigurationswert), nicht gegen das reale `max`-Attribut des `number`-Entities — das ist derselbe Attribut-Zugriff, den [v3.0 – Geräteprofile](v3.0-geraeteprofile.md) für die Geräteseite ohnehin vorsieht; beide sollten ihn gemeinsam nutzen, sobald einer der beiden ihn baut.
+8. **`max aus Entity-Attribut` in V1 nicht genutzt:** Geklemmt wird gegen `battery_max_charge_current_a` (Konfigurationswert), nicht gegen das reale `max`-Attribut des `number`-Entities — das ist derselbe Attribut-Zugriff, den [v3.0 – Geräteprofile](geraeteprofile.md) für die Geräteseite ohnehin vorsieht; beide sollten ihn gemeinsam nutzen, sobald einer der beiden ihn baut.

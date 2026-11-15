@@ -1,5 +1,89 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 4.0.0
+
+Phase A des [Gesamtplans](../docs/roadmap/gesamtplan.md): die Logik für Akku
+und Netzladen. **Alle neuen Schalter sind aus** – nach dem Update entscheidet
+miniEMS genau wie 3.7.2. Einzige Ausnahme ist die Notabschaltung (A10, unten),
+die nur greift, wenn das Add-on ausfällt. Jeder Baustein lässt sich einzeln auf
+der Einstellungsseite einschalten (Abschnitt „Decision Logic v4“). Empfehlung:
+erst mit `battery_control_simulation` laufen lassen und das Protokoll lesen.
+
+### Added
+
+- **A1 – Relative Preisklassen** (`price_classes_enabled`): „günstig“ sind die
+  `price_cheap_hours` (6) günstigsten Stunden des Kalendertags, „hoch“ ist die
+  Spitze deutlich über dem Median, ein flacher Tag (`price_flat_spread_eur`)
+  hat nichts Günstiges. Ersetzt `cheap_rate_threshold_eur` für das Netzladen,
+  `price_tier` und das Niedrigpreisfenster des Warmwasser-Planers. Für Octopus
+  ergibt das genau NIEDRIG/STANDARD/HOCH. Weicht die Klasse von der festen
+  Schwelle ab, steht es einmal im Log.
+- **A2 – Lastprofil** (`load_profile_enabled`): Restverbrauch heute und morgen
+  aus dem Stundenmodell statt aus dem Tagesmedian. V2 verschiebt eine Ladung
+  nur noch, wenn der Akku bis zum späteren Fenster nicht gebraucht wird.
+- **A3 – SoC-bewusstes Wirtschaftlichkeits-Gate** (`soc_aware_gate_enabled`):
+  Eine gekaufte kWh ist so viel wert wie die teuerste Stunde, die der Akku
+  sonst nicht mehr decken kann. Geladen wird nur die Menge, die sich lohnt
+  (auch die gestreckte Ladeleistung V1). Neues Feld
+  `battery_wear_cost_eur_kwh` (Standard 0). Abweichungen vom alten Gate stehen
+  im Log.
+- **A4 – Entladesperre** (`discharge_hold_enabled`): neuer Modus
+  **Hold for Peak (No Discharge)**. Reicht der Akku nicht für die späteren,
+  mindestens `discharge_hold_min_spread_eur` teureren Stunden, entlädt er jetzt
+  nicht. Elektrisch wie der Batterieschutz (Entladestrom 0, PV lädt weiter).
+  Die Sperre steht hinter der Netzlade-Prüfung und verdrängt nie eine Ladung.
+- **A5 – Negative Preise und Einspeisung** (`negative_price_enabled`): PV-Halt
+  aufgehoben bei Preis ≤ 0 oder Einspeisepreis-Sensor ≤ 0
+  (`feed_in_price_entity`); Netzladen bei Preis ≤ 0 ohne Gate, aber mit Platz
+  für die restliche PV; Warmwasser bis `hw_max_temp_c`, wenn der Akku voll ist;
+  optional Einspeisebegrenzung auf 0 W (`grid_export_limit_entity`,
+  `grid_export_limit_normal_w`). Neu `feed_in_limit_w` (z. B. 60 %-Grenze):
+  kein PV-Halt, solange der Überschuss darüber liegt. Preisbestandteile für
+  Börsenpreise: `price_is_spot`, `price_fee_eur_kwh`, `price_vat_pct`.
+- **A6 – Akku-Tagesplan** (dynamische Programmierung): Aktion je 30-min-Slot
+  (auto/hold/charge/export) über den bekannten Preishorizont, mit
+  Wechselkosten, Verschleiß, Einspeisegrenze und Restwert. Läuft immer im
+  **Schattenbetrieb** und schreibt ins Log, wo er anders entschieden hätte;
+  mit `battery_plan_enabled` entscheidet Slot 0. Planungsstil
+  `battery_plan_style` (careful/balanced/bold).
+- **A7 – Lernen**: Akku-Wirkungsgrade und Kapazität (A7a), PV-Korrektur je
+  Tagesstunde (A7b), Plan gegen Ergebnis für Last und PV (A7c). Gelernt wird
+  immer, verwendet nur mit `battery_learned_values_enabled`,
+  `pv_correction_enabled` bzw. `plan_feedback_enabled`.
+- **A8 – Warmwasser: Kosten pro Start** (`hw_start_cost_enabled`,
+  `hw_thermal_energy_entity`): Jede Ladung wird gegen den Wärmezähler der
+  Wärmepumpe gebucht, daraus der fixe Verlust je Start gelernt (getrennt nach
+  Start aus Standby und Umschalten aus dem Heizbetrieb). Der Planer schlägt ihn
+  jedem Start auf, kleine Nachladungen lohnen sich dann von selbst nicht mehr.
+- **A9 – Day-Ahead-Preise** (`day_ahead_enabled`): „gleich günstig“ als Band,
+  ein kurzer günstiger Ausreißer beendet die Überbrückung nicht mehr, V1
+  streckt über den ganzen günstigen Lauf, Plan-Slots mit Mittelpreis,
+  Energiefahrplan mit dem Mittel der teuren Slots als Vergleich.
+- **A10 – Notabschaltung**: Das Add-on meldet der HA-Integration, wie sie
+  Wechselrichter und Warmwasser zurücksetzt. Meldet sich das Add-on
+  `failsafe_timeout_min` (15) Minuten nicht, setzt die Integration Netzladen
+  aus, Lade-/Entladestrom auf Maximum und den Boiler-Sollwert auf den
+  Ruhewert, feuert das Ereignis `miniems_alert` und legt einen
+  Reparaturhinweis an. Nur aktiv, solange eine Steuerung live ist.
+  `write_budget_per_hour` begrenzt das Nachführen des gestreckten Ladestroms.
+- **A11 – Pflegeläufe**: `battery_full_charge_days` lädt den Akku mindestens
+  alle n Tage voll (PV zuerst, sonst im günstigen Fenster);
+  `hw_hygiene_enabled` heizt alle `hw_hygiene_interval_days` auf
+  `hw_hygiene_temp_c`, im günstigsten Slot der nächsten 24 h.
+
+### Changed
+
+- **Preislisten mit Datum** (`rates[]` usw.): Die Einheit wird einmal für die
+  ganze Liste bestimmt statt je Wert (ct, €/kWh oder €/MWh, oder fest über
+  `price_unit`). Vorher wurde ein Mittagspreis von 1,5 ct als 1,50 €/kWh
+  gelesen. Neu erkannt: Nord Pool `raw_today`/`raw_tomorrow`, ENTSO-E `time`,
+  `data`/`price_per_kwh`. Bei Octopus-Zeitfenstern ändert sich nichts.
+- Konfigurationsschema v26, Datenbank um Tagesmaxima, Akku-Energie, PV und
+  Prognose je Stunde sowie die Tabelle `hot_water_charges` erweitert.
+- Warnband: fehlende Preisliste bei `tariff_source = rates`, eingeschalteter
+  aber nicht berechneter Tagesplan.
+
+
 ## 3.7.2
 
 ### Fixed
@@ -609,7 +693,7 @@ Integration geladen wird.
   Ampelpunkt neben jeder Klassenüberschrift sichtbar.
 
   **Bewusst NICHT Teil dieses Schritts** (siehe
-  docs/roadmap/v3.0-geraeteprofile.md, I6): ein echter
+  docs/technical/geraeteprofile.md, I6): ein echter
   `sensor.miniems_device_profile_status` in der HA-Integration, und
   Fail-closed-Schreiben bei unaufgelöster Steuerrolle. Beides würde den
   Resolver in die EMS-Tick-Schleife verdrahten — heute läuft er nur einmal
@@ -691,7 +775,7 @@ Integration geladen wird.
   `web_server._coerce()` bekommt eine `_DICT_FIELDS`-Ausnahme, damit ein
   künftiger POST auf `entity_overrides` nicht in den `str(value)`-Fallback
   läuft und das Feld korrumpiert (der genaue Fehlerfall, den
-  docs/roadmap/v3.0-geraeteprofile.md unter "Migration" vorab benannt hatte).
+  docs/technical/geraeteprofile.md unter "Migration" vorab benannt hatte).
 
   10 neue Tests (`test_migration.py`, `test_config_loader.py`,
   `test_web_server.py`). 665 Tests grün, Coverage 94%. Live gegen die
@@ -752,7 +836,7 @@ Integration geladen wird.
   (int, Ampere) → `grid_charge_power_w` (float, Watt).
 
   **Bewusst kleiner geschnitten als ursprünglich in
-  `docs/roadmap/v3.0-geraeteprofile.md` als „I5" geplant** — dort war eine
+  `docs/technical/geraeteprofile.md` als „I5" geplant** — dort war eine
   komplett Watt-native `apply_mode()`-Dispatch über das Profil-`modes:`-
   Vokabular, Migration auf Schema v20 und eine live vom Resolver
   gespeiste Laufzeitkonfiguration in einem Schritt vorgesehen. Das hätte
@@ -833,7 +917,7 @@ Integration geladen wird.
   Resolver muss, gegen eine redigierte echte Registry-Erfassung und die
   echte Produktiv-`config.json`, für 19 Rollen exakt dieselben Entity-IDs
   liefern wie die heutige Konfiguration — automatisiert die stärkste
-  Verifikation aus `docs/roadmap/v3.0-geraeteprofile.md`.
+  Verifikation aus `docs/technical/geraeteprofile.md`.
 
   Live gegen die lokale Testinstanz verifiziert, aus dem gebauten
   Container heraus: alle 19 Pflicht-/Optionalrollen der Klasse `inverter`
@@ -873,7 +957,7 @@ Integration geladen wird.
   Neue read-only Seite **Devices** im Ingress-Dashboard (`/devices`,
   `/api/devices`): zeigt, was HA über Energie-Dashboard und Geräte-Registry
   weiß. Rein informativ — nichts davon fließt in die Steuerung ein, siehe
-  `docs/roadmap/v3.0-geraeteprofile.md`.
+  `docs/technical/geraeteprofile.md`.
 
   Live gegen die lokale Testinstanz verifiziert (aus dem gebauten
   Container heraus, über die eigene Ingress-Route): `/api/devices` liefert
@@ -893,7 +977,7 @@ Integration geladen wird.
   echter WebSocket-Client; der alte Name war irreführend. Macht den Namen
   frei für einen kommenden echten WebSocket-Client
   (`ws://hassio/homeassistant/websocket`) für Geräte-Registry und
-  Energie-Dashboard (siehe `docs/roadmap/v3.0-geraeteprofile.md`).
+  Energie-Dashboard (siehe `docs/technical/geraeteprofile.md`).
 
 ## 2.0.15
 
@@ -1009,7 +1093,7 @@ Integration geladen wird.
 - **`battery_voltage_entity` config field** (`sensor.deye8k_battery_voltage`
   by default) – converts a charge/discharge power target (W) into the
   current (A) the Deye's `number` entities accept. Groundwork for the
-  [Energiefahrplan](../docs/roadmap/energiefahrplan.md) roadmap (V1 "Ladeleistung
+  [Energiefahrplan](../docs/technical/energiefahrplan.md) roadmap (V1 "Ladeleistung
   strecken", V3a "Gelernte Ladeleistung") – not read by any decision yet.
 
 ## 2.0.8

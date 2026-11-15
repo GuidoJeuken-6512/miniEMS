@@ -82,6 +82,13 @@ class FakeInverter:
         events, self._events = self._events, []
         return events
 
+    def failsafe_actions(self):
+        return []
+
+    @property
+    def target_changes_today(self):
+        return {}
+
 
 class FakeModel:
     def __init__(self, prediction=None, remaining=3.0) -> None:
@@ -151,7 +158,7 @@ async def test_update_applies_inverter_mode(make_config, fake_ws):
 
 @pytest.mark.asyncio
 async def test_update_wires_stretched_grid_charge_power_to_inverter(make_config, fake_ws):
-    """V1 (docs/roadmap/energiefahrplan.md): end-to-end, update() must pass a
+    """V1 (docs/technical/energiefahrplan.md): end-to-end, update() must pass a
     stretched (not full-blast) Watts target to the inverter when a tariff
     calendar is available. Since v2.4.0 this is Watts, computed without
     reading battery_voltage at all (that conversion now happens inside
@@ -583,8 +590,17 @@ async def test_update_runs_bridge_plan_and_records_hour(make_config, fake_ws):
     recorded = []
 
     class Rec:
-        async def record_tick(self, now, load_w, hp_w, temp):
+        hour = None
+        has_forecasts = False
+
+        async def record_tick(self, now, load_w, hp_w, temp, pv_w=None):
             recorded.append((load_w, hp_w, temp))
+
+        def set_forecasts(self, pv_fc, load_pred):
+            pass
+
+        async def history_since(self, since):
+            return []
 
     fc = FakeForecaster()
     ctrl._forecaster = fc
@@ -628,6 +644,9 @@ class FakeHotWater:
 
     def planned_pv_kwh_before(self, deadline):
         return 0.0
+
+    def failsafe_actions(self):
+        return []
 
 
 async def test_update_runs_hot_water_and_reports_it(make_config, fake_ws):

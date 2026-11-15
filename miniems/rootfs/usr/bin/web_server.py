@@ -81,13 +81,18 @@ _BOOL_FIELDS = {
     "pv_export_priority_enabled", "device_detection_enabled",
     "load_forecast_enabled", "history_backfill_enabled",
     "hw_control_enabled", "hw_control_simulation",
+    # Phase A (v4.0.0)
+    "price_classes_enabled", "load_profile_enabled", "soc_aware_gate_enabled",
+    "discharge_hold_enabled", "negative_price_enabled", "price_is_spot",
+    "battery_plan_enabled", "battery_learned_values_enabled", "pv_correction_enabled",
+    "plan_feedback_enabled", "hw_start_cost_enabled", "day_ahead_enabled", "hw_hygiene_enabled",
 }
 # Dict-valued fields never have a settings.html form control (no free-text
 # input can represent a dict safely) – but /api/config's merge loop below
 # runs every posted key through _coerce() regardless of source, and without
 # this set a dict value would fall through to the str(value) branch and get
 # silently stringified/corrupted on save. See
-# docs/roadmap/v3.0-geraeteprofile.md, "Migration" – "Mine im selben Schritt
+# docs/technical/geraeteprofile.md, "Migration" – "Mine im selben Schritt
 # entschärfen".
 _DICT_FIELDS = {"entity_overrides"}
 _INT_FIELDS = {
@@ -102,6 +107,8 @@ _INT_FIELDS = {
     "load_forecast_min_days",
     "hp_mode_hot_water_code", "hp_request_hot_water_code", "hp_cop_settle_sec",
     "hw_write_scale", "hw_pv_min_export_w", "hw_min_off_sec",
+    "feed_in_limit_w", "grid_export_limit_normal_w", "failsafe_timeout_min",
+    "write_budget_per_hour", "battery_full_charge_days", "hw_hygiene_interval_days",
 }
 # NOTE: any float field missing here falls through to str(value) in _coerce()
 # and is persisted as a string, which then raises TypeError on first use.
@@ -117,6 +124,9 @@ _FLOAT_FIELDS = {
     "hw_max_temp_c", "hw_heat_power_kw", "hw_cop_prior",
     "hw_cop_prior_temp_c", "hw_adhoc_delta_k", "hw_decision_tolerance_pct",
     "hw_min_charge_k", "hw_min_charge_running_k",
+    "price_cheap_hours", "price_hysteresis_min_eur", "price_hysteresis_max_eur",
+    "price_flat_spread_eur", "battery_wear_cost_eur_kwh", "discharge_hold_min_spread_eur",
+    "price_fee_eur_kwh", "price_vat_pct", "battery_plan_switch_cost_eur", "hw_hygiene_temp_c",
 }
 
 
@@ -264,7 +274,7 @@ def create_app(
         rows = await store.query_all_days()
         return JSONResponse({"rows": rows})
 
-    # ── Devices (read-only preview, see docs/roadmap/v3.0-geraeteprofile.md) ──
+    # ── Devices (read-only preview, see docs/technical/geraeteprofile.md) ──
 
     @app.get("/heatpump", response_class=HTMLResponse)
     async def heatpump_page(request: Request) -> HTMLResponse:
@@ -343,7 +353,7 @@ def create_app(
         # the same data, so the page shows what miniEMS would actually bind
         # – not just what HA reports. Purely a preview: resolve_class() is
         # not called anywhere in the control path yet, see
-        # docs/roadmap/v3.0-geraeteprofile.md. "battery" is left out here –
+        # docs/technical/geraeteprofile.md. "battery" is left out here –
         # its only profile (pylontech_force) is unverified and the legacy
         # config has never had a separate battery slot to compare against.
         live_config = config if config is not None else Config()

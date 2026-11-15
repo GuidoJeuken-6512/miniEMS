@@ -53,7 +53,7 @@ Repository in Home Assistant hinzufügen und das Add-on installieren:
 Die Oberfläche ist danach über Ingress erreichbar (Seitenleiste, Eintrag
 „miniEMS"), mit den Reitern Dashboard, Einstellungen, Log, `config.json`,
 `options.json`, Datenbank und Devices (Geräte-/Rollen-Erkennungsvorschau,
-siehe [Roadmap „Geräteprofile"](../docs/roadmap/v3.0-geraeteprofile.md)).
+siehe [Roadmap „Geräteprofile"](../docs/technical/geraeteprofile.md)).
 
 ## Konfiguration
 

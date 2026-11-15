@@ -1,6 +1,6 @@
 """Der Energiefahrplan – proaktive Tagesbilanz für die kommende Nacht.
 
-See docs/roadmap/energiefahrplan.md, "Der Energiefahrplan — Bausteine zu
+See docs/technical/energiefahrplan.md, "Der Energiefahrplan — Bausteine zu
 einer Tagesbilanz zusammenführen". This answers, explicitly and ahead of
 time, the question EMSController._should_grid_charge()'s reactive
 tomorrow-fallback branch only answers implicitly, late (only once today's
@@ -69,6 +69,7 @@ def compute_energy_plan(
     charge_kw: float | None,
     curve: "PriceCurve | None",
     extra_deficit_kwh: float = 0.0,
+    baseline_mean: bool = False,
 ) -> EnergyPlan:
     """Pure computation, no I/O – see module docstring for the formula.
 
@@ -131,8 +132,17 @@ def compute_energy_plan(
     # this kind of lookup (see its other callers in ems_controller.py).
     if feasible and windows:
         baseline_window = curve.window_at(deadline)
-        if baseline_window is not None:
-            baseline_cost_eur = deficit_kwh * baseline_window.rate_eur_kwh
+        baseline_rate = baseline_window.rate_eur_kwh if baseline_window is not None else None
+        if baseline_mean:
+            # A9: with exchange prices the price exactly at the deadline (often
+            # the cheap midday) says nothing – compare with the mean of the
+            # dearer half of the slots before it.
+            rates = sorted((c[2] for c in candidates), reverse=True)
+            if rates:
+                top = rates[: max(1, len(rates) // 2)]
+                baseline_rate = sum(top) / len(top)
+        if baseline_rate is not None:
+            baseline_cost_eur = deficit_kwh * baseline_rate
             plan_cost_eur = sum(w.cost_eur for w in windows)
             if plan_cost_eur > baseline_cost_eur:
                 return EnergyPlan(

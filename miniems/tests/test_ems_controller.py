@@ -608,7 +608,7 @@ class TestNextPeakTime:
 
 class TestShouldDeferGridCharge:
     """V2: 'is this the last cheapest window before the deadline?', via
-    PriceCurve.later_window_as_cheap() – see docs/roadmap/energiefahrplan.md."""
+    PriceCurve.later_window_as_cheap() – see docs/technical/energiefahrplan.md."""
 
     def _base_kwargs(self):
         return dict(
@@ -689,7 +689,7 @@ class TestGridChargePowerW:
     Since v2.4.0 this returns Watts, not amps, and no longer reads
     battery_voltage at all – the Watts->amps conversion (and the clamp to
     battery_max_charge_current_a) moved to InverterController /
-    device_control.py, see docs/roadmap/v3.0-geraeteprofile.md, "Die
+    device_control.py, see docs/technical/geraeteprofile.md, "Die
     Watt-Abstraktion". `None` means "no precise target, use the actuator's
     own max" – tested at the InverterController level
     (test_inverter_controller.py), not here.

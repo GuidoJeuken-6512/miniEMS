@@ -1,7 +1,7 @@
 # Deye SG0*LP3 / SG0*HP3 hybrid inverter, via the ha-solarman integration.
 #
 # Live-verified against a production installation (see
-# docs/roadmap/v3.0-geraeteprofile.md, "Machbarkeit verifiziert" /
+# docs/technical/geraeteprofile.md, "Machbarkeit verifiziert" /
 # CHANGELOG v2.0.9-2.0.16). translation_key values below are the exact
 # Solarman entity registry values observed live, not guessed.
 schema: 1
@@ -72,6 +72,7 @@ modes:                             # EMSMode -> setpoint vocabulary, no numbers
   PV_CHARGING:     {grid_charge_enable: false, charge: max,       discharge: max}
   EXPORT_SURPLUS:  {grid_charge_enable: false, charge: hold,      discharge: max}
   PROTECT_BATTERY: {grid_charge_enable: false, charge: max,       discharge: off}
+  HOLD_FOR_PEAK:   {grid_charge_enable: false, charge: max,       discharge: off}
   IDLE:            {grid_charge_enable: false, charge: max,       discharge: max}
 
 caveats:

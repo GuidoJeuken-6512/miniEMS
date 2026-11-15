@@ -2,7 +2,7 @@
 
 Input is the raw result of `config/device_registry/list` and
 `config/entity_registry/list` (see `ha_ws_api.py`). Pure – no I/O. Part of
-the device-detection groundwork, see docs/roadmap/v3.0-geraeteprofile.md.
+the device-detection groundwork, see docs/technical/geraeteprofile.md.
 
 Two HA quirks this deliberately works around (both verified live against a
 production installation):
@@ -21,8 +21,8 @@ production installation):
   disqualifying on its own – see the device-profile matcher's own hint-based
   fallback.
 
-A third quirk, found live against a Shelly Gen1 3EM (docs/roadmap/
-v3.0-geraeteprofile.md, I7): a single physical device can show up as
+A third quirk, found live against a Shelly Gen1 3EM (docs/technical/
+geraeteprofile.md, I7): a single physical device can show up as
 *several* registry devices with no formal parent/child link between them –
 this integration's `parent_device_id` is `null` on every one of them. HA
 still groups them under one shared `config_entry_id`, though, which is what

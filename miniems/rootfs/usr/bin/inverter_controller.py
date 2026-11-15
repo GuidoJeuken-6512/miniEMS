@@ -8,7 +8,7 @@ Units: the Deye exposes battery limits as CURRENT in amperes
 charge/discharge *power* entity. Since v2.4.0 the GRID_CHARGING charge
 target arrives as Watts from EMSController (V1 "Ladeleistung strecken") and
 is converted to amps here, at the actuator boundary – see
-device_control.py and docs/roadmap/v3.0-geraeteprofile.md, "Die
+device_control.py and docs/technical/geraeteprofile.md, "Die
 Watt-Abstraktion". Discharge, and every other mode's charge current, are
 still set directly in amps (always either the configured max or 0/blocked
 – never a computed intermediate value, so there is nothing to convert).
@@ -32,6 +32,8 @@ Two fields are exposed per direction:
 """
 import logging
 import time
+from collections import deque
+from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from const import EMSMode
@@ -60,8 +62,13 @@ class InverterController:
         self._cfg = config
         self._writer = ConfirmedWriter(HAServiceCaller(supervisor_token, long_lived_token))
         self._ws = ws_client
-        self._channels = WriteChannelSet(["charge", "discharge", "grid"])
-        # docs/roadmap/v3.0-geraeteprofile.md, "Die Watt-Abstraktion": tracks
+        self._channels = WriteChannelSet(["charge", "discharge", "grid", "export"])
+        # A10: target changes per channel – timestamps of the last hour (the
+        # write budget) and a per-day count (diagnostics).
+        self._changes: dict[str, deque[float]] = {}
+        self._changes_today: dict[str, int] = {}
+        self._changes_day: date | None = None
+        # docs/technical/geraeteprofile.md, "Die Watt-Abstraktion": tracks
         # each actuator's live max across ticks, so a momentarily unavailable
         # attribute read never silently drops the ceiling – see
         # device_control.LiveLimitsCache. Charge and discharge are tracked
@@ -135,7 +142,7 @@ class InverterController:
 
         `grid_charge_power_w` overrides the GRID_CHARGING charge power, in
         WATTS (EMSController._grid_charge_power_w() – V1 "Ladeleistung
-        strecken"; docs/roadmap/v3.0-geraeteprofile.md, "Die Watt-Abstraktion").
+        strecken"; docs/technical/geraeteprofile.md, "Die Watt-Abstraktion").
         `None` (all other modes, and any caller that doesn't pass it) keeps
         the original full-current behaviour – see
         `_resolve_grid_charge_current_a()` for exactly how "no target" and a
@@ -153,6 +160,12 @@ class InverterController:
                 # the energy just bought is not immediately used up again.
                 await self._set_grid_charge(True, sim)
                 charge_a = self._resolve_grid_charge_current_a(grid_charge_power_w)
+                previous = self._channels["charge"].target
+                if (previous is not None and previous != charge_a and previous > 0
+                        and self._budget_exhausted("charge")):
+                    # A10: V1 retargets the stretched power often – once the
+                    # hourly budget is used, keep the current value.
+                    charge_a = previous
                 await self._set_charge_current(charge_a, sim)
                 await self._set_discharge_current(self._resolve_discharge_current_a(0), sim)
 
@@ -173,8 +186,9 @@ class InverterController:
                 await self._set_discharge_current(
                     self._resolve_discharge_current_a(cfg.battery_max_discharge_current_a), sim)
 
-            case EMSMode.PROTECT_BATTERY:
-                # SoC below minimum: no grid charge, no discharging.
+            case EMSMode.PROTECT_BATTERY | EMSMode.HOLD_FOR_PEAK:
+                # SoC below minimum, or energy kept for a dearer hour (A4):
+                # no grid charge, no discharging, PV may still charge.
                 await self._set_grid_charge(False, sim)
                 await self._set_charge_current(
                     self._resolve_charge_current_a(cfg.battery_max_charge_current_a), sim)
@@ -196,7 +210,7 @@ class InverterController:
         charge target.
 
         `battery_voltage_entity` is read here – nowhere else in the control
-        path – per docs/roadmap/v3.0-geraeteprofile.md, "Die
+        path – per docs/technical/geraeteprofile.md, "Die
         Watt-Abstraktion": if it's unavailable, `to_actuator_value()` falls
         back to a fixed assumed voltage (48 V, a mid-range LFP pack voltage)
         rather than blocking the write.
@@ -305,6 +319,84 @@ class InverterController:
         await self._set_grid_charge(False, sim)
         await self._set_charge_current(cfg.battery_max_charge_current_a, sim)
         await self._set_discharge_current(cfg.battery_max_discharge_current_a, sim)
+        await self.apply_export_limit(False)
+
+    def failsafe_actions(self) -> list[dict[str, Any]]:
+        """A10: the service calls that put the inverter back into self-use.
+
+        Exactly what restore_safe_defaults() writes on a clean shutdown. The
+        HA integration keeps the last copy and runs it on its own when the
+        add-on stops reporting – a crash or SIGKILL never gets that far.
+        Empty while not live: in simulation nothing was ever written.
+        """
+        cfg = self._cfg
+        if not cfg.battery_control_enabled or self.simulation:
+            return []
+        actions: list[dict[str, Any]] = []
+        if cfg.grid_charge_switch_entity:
+            actions.append({"service": "switch.turn_off",
+                            "data": {"entity_id": cfg.grid_charge_switch_entity}})
+        for entity, value in ((cfg.inverter_charge_current_entity, cfg.battery_max_charge_current_a),
+                              (cfg.battery_discharging_current_entity,
+                               cfg.battery_max_discharge_current_a)):
+            if entity:
+                actions.append({"service": "number.set_value",
+                                "data": {"entity_id": entity, "value": value}})
+        if cfg.grid_export_limit_entity and cfg.grid_export_limit_normal_w > 0:
+            actions.append({"service": "number.set_value",
+                            "data": {"entity_id": cfg.grid_export_limit_entity,
+                                     "value": cfg.grid_export_limit_normal_w}})
+        return actions
+
+    @property
+    def target_changes_today(self) -> dict[str, int]:
+        """A10: how often each channel's target changed today (diagnostics)."""
+        return dict(self._changes_today)
+
+    def _note_change(self, name: str, target: Any) -> None:
+        if self._channels[name].target == target:
+            return
+        today = date.today()
+        if self._changes_day != today:
+            self._changes_day, self._changes_today = today, {}
+        self._changes_today[name] = self._changes_today.get(name, 0) + 1
+        self._changes.setdefault(name, deque()).append(time.monotonic())
+
+    def _budget_exhausted(self, name: str) -> bool:
+        """A10: has this channel used up write_budget_per_hour?"""
+        budget = self._cfg.write_budget_per_hour
+        if budget <= 0:
+            return False
+        q = self._changes.get(name)
+        if not q:
+            return False
+        cutoff = time.monotonic() - 3600.0
+        while q and q[0] < cutoff:
+            q.popleft()
+        return len(q) >= budget
+
+    async def apply_export_limit(self, block: bool) -> None:
+        """A5 (4): export limit 0 W while exporting would cost money.
+
+        Only with a configured grid_export_limit_entity and a normal limit to
+        return to – without both there is nothing safe to write back, so
+        nothing is written at all. Honours battery_control_simulation.
+        """
+        cfg = self._cfg
+        entity = cfg.grid_export_limit_entity
+        if not cfg.battery_control_enabled or not entity or cfg.grid_export_limit_normal_w <= 0:
+            return
+        value = 0 if block else cfg.grid_export_limit_normal_w
+        actual = self._ws.get_state_value(entity) if self._ws else None
+        spec = WriteSpec(
+            domain="number", service="set_value",
+            entity_id=entity, payload={"entity_id": entity, "value": value}, expected=value,
+            tolerance=max(1.0, 0.01 * cfg.grid_export_limit_normal_w),
+        )
+        await self._write_confirmed(
+            self._channels["export"], spec, matches(actual, spec), self.simulation,
+            f"Export limit ({entity})",
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -317,6 +409,7 @@ class InverterController:
             return
         raw = self._ws.state_cache.get(entity, {}).get("state") if self._ws else None
         expected = "on" if on else "off"
+        self._note_change("grid", expected)
         spec = WriteSpec(
             domain="switch", service="turn_on" if on else "turn_off",
             entity_id=entity, payload={"entity_id": entity}, expected=expected,
@@ -332,6 +425,7 @@ class InverterController:
         if not entity:
             return
         self.charge_current_target_a = value_a
+        self._note_change("charge", value_a)
         actual = self._ws.get_state_value(entity) if self._ws else None
         spec = WriteSpec(
             domain="number", service="set_value",
@@ -349,6 +443,7 @@ class InverterController:
         if not entity:
             return
         self.discharge_current_target_a = value_a
+        self._note_change("discharge", value_a)
         actual = self._ws.get_state_value(entity) if self._ws else None
         spec = WriteSpec(
             domain="number", service="set_value",

@@ -1,6 +1,6 @@
 """Resolves each class's roles to real HA entity ids.
 
-Implements the "Auflösungskette" from docs/roadmap/v3.0-geraeteprofile.md:
+Implements the "Auflösungskette" from docs/technical/geraeteprofile.md:
 
 1. config           – an explicit `entity_overrides["<class>.<role>"]`, or a
                        legacy `*_entity` config field that differs from its
@@ -84,7 +84,7 @@ def resolve_class(
 
     `overrides` keys are `"<class>.<role>"` (e.g. "inverter.battery_power")
     → entity_id, already filtered by the caller to only the fields that
-    differ from their shipped default (see docs/roadmap/v3.0-geraeteprofile.md,
+    differ from their shipped default (see docs/technical/geraeteprofile.md,
     "Migration" – "Bestandswerte klassifizieren, nicht zerstören").
     `config_flags` carries the boolean config fields role_catalog's
     `required_if` can reference (e.g. {"battery_control_enabled": True}).
@@ -235,7 +235,7 @@ def profile_status(resolution: ClassResolution) -> str:
     "degraded" (every role bound, but at least one came from more than one
     source) – a missing binding is the worse problem of the two. Not yet
     wired into the EMS tick loop or any HA sensor – see
-    docs/roadmap/v3.0-geraeteprofile.md, I6: doing that safely needs the
+    docs/technical/geraeteprofile.md, I6: doing that safely needs the
     resolver to run on a cadence of its own rather than once per WS round
     trip in the /api/devices preview, which is a separate step.
     """

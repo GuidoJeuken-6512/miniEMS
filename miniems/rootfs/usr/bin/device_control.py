@@ -2,7 +2,7 @@
 whatever unit a device's actuator natively speaks (A, W, %), per a device
 profile's `control.<role>` declaration (`device_profile.ActuatorControl`).
 
-See docs/roadmap/v3.0-geraeteprofile.md, "Die Watt-Abstraktion". Pure
+See docs/technical/geraeteprofile.md, "Die Watt-Abstraktion". Pure
 conversion/clamping functions plus one small stateful cache
 (`LiveLimitsCache`) for the one thing that must survive across ticks: never
 letting a momentarily `unavailable` HA attribute silently lower a charge

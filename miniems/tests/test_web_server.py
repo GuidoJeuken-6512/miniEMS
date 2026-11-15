@@ -59,7 +59,7 @@ class TestCoerce:
     def test_dict_field_non_dict_value_becomes_empty_dict(self):
         """Regression guard: without this, a stray non-dict POST value for
         entity_overrides would fall through to the str(value) branch and
-        corrupt the field (docs/roadmap/v3.0-geraeteprofile.md, 'Migration'
+        corrupt the field (docs/technical/geraeteprofile.md, 'Migration'
         – 'Mine im selben Schritt entschärfen')."""
         assert _coerce("entity_overrides", "not-a-dict") == {}
         assert _coerce("entity_overrides", None) == {}
@@ -168,7 +168,7 @@ class TestApiDevices:
     def test_resolution_prefers_entity_overrides_over_legacy_field_diff(self, monkeypatch):
         """entity_overrides (explicit, "<class>.<role>" keyed) is the more
         deliberate of the two "config" sources and must win when both are
-        set for the same role – docs/roadmap/v3.0-geraeteprofile.md,
+        set for the same role – docs/technical/geraeteprofile.md,
         'Auflösungskette'."""
         monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", self._fake_snapshot_ok)
         cfg = Config()
@@ -195,7 +195,7 @@ class TestApiDevices:
         assert "pv_power" in data["resolutions"]["inverter"]["unresolved_required"]
 
     def test_resolutions_include_energy_meter_class(self, client, monkeypatch):
-        """docs/roadmap/v3.0-geraeteprofile.md, I6/I7: the preview resolves
+        """docs/technical/geraeteprofile.md, I6/I7: the preview resolves
         every implemented class, not just inverter."""
         monkeypatch.setattr(web_server.ha_ws_api, "get_registry_snapshot", self._fake_snapshot_ok)
         r = client.get("/api/devices")

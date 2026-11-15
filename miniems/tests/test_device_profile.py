@@ -245,7 +245,7 @@ def _write_energy_meter_profile(tmp_path, name, content):
 
 
 class TestGroupByConfigEntry:
-    """docs/roadmap/v3.0-geraeteprofile.md, I7: a Shelly Gen1 3EM registers
+    """docs/technical/geraeteprofile.md, I7: a Shelly Gen1 3EM registers
     as 4 separate devices (1 parent + 3 phase sub-devices) sharing one
     config_entry_id, with no parent_device_id link between them at all –
     group_by_config_entry pools their entities into one match instead of

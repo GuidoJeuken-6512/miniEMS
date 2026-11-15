@@ -32,6 +32,10 @@
     }
   },
   "issues": {
+    "failsafe_triggered": {
+      "title": "miniEMS-Notabschaltung ausgelöst",
+      "description": "Das miniEMS-Add-on hat sich seit {minutes} Minuten nicht gemeldet. Akku- und Warmwasser-Einstellungen wurden auf sichere Werte zurückgesetzt (Eigenverbrauch, kein Netzladen, Ruhe-Sollwert). Bitte das Add-on-Log prüfen. Der Hinweis verschwindet, sobald sich das Add-on wieder meldet."
+    },
     "restart_required": {
       "title": "miniEMS Integration aktualisiert",
       "description": "Die miniEMS Integration wurde auf v{version} aktualisiert. Bitte starte Home Assistant neu, um alle Änderungen zu übernehmen."

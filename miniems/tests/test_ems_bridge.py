@@ -198,8 +198,14 @@ class TestRecording:
         calls = []
 
         class Rec:
-            async def record_tick(self, now, load_w, hp_w, temp):
+            async def record_tick(self, now, load_w, hp_w, temp, pv_w=None):
                 calls.append((load_w, hp_w, temp))
+
+            hour = None
+            has_forecasts = False
+
+            def set_forecasts(self, pv_fc, load_pred):
+                pass
 
         cfg = make_config(heat_pump_power_entity="sensor.l1, sensor.l2,sensor.l3",
                           outdoor_temp_entity="sensor.out")
@@ -214,8 +220,14 @@ class TestRecording:
         calls = []
 
         class Rec:
-            async def record_tick(self, now, load_w, hp_w, temp):
+            async def record_tick(self, now, load_w, hp_w, temp, pv_w=None):
                 calls.append(hp_w)
+
+            hour = None
+            has_forecasts = False
+
+            def set_forecasts(self, pv_fc, load_pred):
+                pass
 
         cfg = make_config(heat_pump_power_entity="sensor.l1,sensor.l2")
         fake_ws.values["sensor.l1"] = 100.0

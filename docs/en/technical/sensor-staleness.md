@@ -288,7 +288,7 @@ out.
 
 - [Calculations](calculations.md) — where the staleness checks feed into the mode
   decision (fail-closed on a missing or stale sensor).
-- [Grid-friendly charging roadmap](../../roadmap/energiefahrplan.md) (German) — the
+- [Grid-friendly charging roadmap](../../technical/energiefahrplan.md) (German) — the
   planned access to entity attributes (`activation_rules` of the price sensor) would
   allow a plausibility check against the actual tariff schedule, which does not exist
   today for lack of attribute access.

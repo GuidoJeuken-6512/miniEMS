@@ -124,6 +124,22 @@ CREATE TABLE IF NOT EXISTS hot_water_draws (
 )
 """
 
+# A8: one row per finished hot-water charge – heat counted by the heat pump
+# against the heat that arrived in the boiler.
+_CREATE_HW_CHARGES_TABLE = """
+CREATE TABLE IF NOT EXISTS hot_water_charges (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    start_ts         TEXT NOT NULL,
+    end_ts           TEXT NOT NULL,
+    start_c          REAL NOT NULL,
+    end_c            REAL NOT NULL,
+    heat_lambda_kwh  REAL NOT NULL,
+    heat_boiler_kwh  REAL NOT NULL,
+    from_running     INTEGER NOT NULL,
+    valid            INTEGER NOT NULL
+)
+"""
+
 
 class EnergyStore:
     """Async SQLite wrapper for daily energy statistics."""
@@ -157,15 +173,36 @@ class EnergyStore:
             # battery discharges. Their quotient is what a stored kWh displaces.
             "discharge_kwh_ticks REAL DEFAULT 0",
             "discharge_value_eur REAL DEFAULT 0",
+            # A11: daily maxima – when was the battery last full, the boiler
+            # last at hygiene temperature? NULL = not recorded that day.
+            "max_soc_pct REAL",
+            "max_boil_temp_c REAL",
+            # A7a: battery energy per day from the power sensor (ticks), the
+            # SoC at the first and last tick, and the discharge efficiency
+            # numerator/denominator (house load ÷ battery output while the
+            # battery alone supplies the house).
+            "bat_in_kwh REAL",
+            "bat_out_kwh REAL",
+            "soc_first_pct REAL",
+            "soc_last_pct REAL",
+            "dis_eff_load_kwh REAL",
+            "dis_eff_bat_kwh REAL",
         ):
             try:
                 await self._db.execute(f"ALTER TABLE daily_stats ADD COLUMN {col_def}")
             except Exception:
                 pass   # column already exists – ignore
         await self._db.execute(_CREATE_HOURLY_TABLE)
+        # A7b/c: measured PV and what was forecast for the hour – plan vs. result.
+        for col_def in ("pv_kwh REAL", "pv_fc_kwh REAL", "load_pred_kwh REAL"):
+            try:
+                await self._db.execute(f"ALTER TABLE hourly_stats ADD COLUMN {col_def}")
+            except Exception:
+                pass   # column already exists – ignore
         await self._db.execute(_CREATE_HP_HOURLY_TABLE)
         await self._db.execute(_CREATE_HW_LOSS_TABLE)
         await self._db.execute(_CREATE_HW_DRAWS_TABLE)
+        await self._db.execute(_CREATE_HW_CHARGES_TABLE)
         await self._db.execute(_CREATE_CAPABILITY_TODAY_TABLE)
         await self._db.execute(_CREATE_CAPABILITY_HISTORY_TABLE)
         await self._db.execute(_CREATE_EVENT_LOG_TABLE)
@@ -295,6 +332,24 @@ class EnergyStore:
         )
         await self._db.commit()
 
+    async def insert_hw_charge(self, fields: dict[str, Any]) -> None:
+        if not self._db:
+            return
+        cols = ", ".join(fields)
+        marks = ", ".join("?" for _ in fields)
+        await self._db.execute(f"INSERT INTO hot_water_charges ({cols}) VALUES ({marks})",
+                               list(fields.values()))
+        await self._db.commit()
+
+    async def query_hw_charges(self, limit: int = 200) -> list[dict[str, Any]]:
+        """Most recent hot-water charges, newest first."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM hot_water_charges ORDER BY id DESC LIMIT ?", (limit,)
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
     async def query_draws(self, limit: int = 500) -> list[dict[str, Any]]:
         """Most recent hot-water draws, newest first."""
         if not self._db:
@@ -341,6 +396,30 @@ class EnergyStore:
         ) as cur:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
+
+    async def last_day_at_least(self, column: str, value: float) -> date | None:
+        """A11: the most recent day whose `column` reached `value`, or None."""
+        if column not in ("max_soc_pct", "max_boil_temp_c"):
+            raise ValueError(column)
+        if self._db is None:
+            return None
+        async with self._db.execute(
+            f"SELECT MAX(date) FROM daily_stats WHERE {column} >= ?", (value,)
+        ) as cur:
+            row = await cur.fetchone()
+        return date.fromisoformat(row[0]) if row and row[0] else None
+
+    async def first_day_with(self, column: str) -> date | None:
+        """A11: the first day on which `column` was recorded at all."""
+        if column not in ("max_soc_pct", "max_boil_temp_c"):
+            raise ValueError(column)
+        if self._db is None:
+            return None
+        async with self._db.execute(
+            f"SELECT MIN(date) FROM daily_stats WHERE {column} IS NOT NULL"
+        ) as cur:
+            row = await cur.fetchone()
+        return date.fromisoformat(row[0]) if row and row[0] else None
 
     async def query_all_days(self) -> list[dict[str, Any]]:
         """Return every row in daily_stats, newest first."""

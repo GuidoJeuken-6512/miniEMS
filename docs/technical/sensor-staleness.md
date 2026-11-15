@@ -301,7 +301,7 @@ Revisionen). Das Verhältnis trägt nicht.
 
 - [Berechnungen](calculations.md) — wo die Staleness-Prüfungen in die
   Modus-Entscheidung einfließen (fail-closed bei fehlendem/veraltetem Sensor).
-- [Energiefahrplan — netzdienliches Laden](../roadmap/energiefahrplan.md) — der geplante Zugriff auf
+- [Energiefahrplan — netzdienliches Laden](energiefahrplan.md) — der geplante Zugriff auf
   Entity-Attribute (`activation_rules` des Tarifsensors) würde eine Plausibilitätsprüfung
   gegen den echten Tarif-Fahrplan erlauben, die heute mangels Attribut-Zugriff nicht
   existiert.

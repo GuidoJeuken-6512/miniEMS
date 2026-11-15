@@ -78,13 +78,38 @@ class HourlyLoadRecorder:
         self._hp_ticks = 0
         self._temp_sum = 0.0
         self._temp_ticks = 0
+        # A7b/c: measured PV and what was forecast for the hour when it began.
+        self._pv_wh = 0.0
+        self._pv_ticks = 0
+        self._pv_fc_kwh: float | None = None
+        self._load_pred_kwh: float | None = None
 
     def _reset(self, hour: datetime) -> None:
         self._hour = hour
         self._seeded = False
         self._ticks = 0
-        self._load_wh = self._hp_wh = self._temp_sum = 0.0
-        self._load_ticks = self._hp_ticks = self._temp_ticks = 0
+        self._load_wh = self._hp_wh = self._temp_sum = self._pv_wh = 0.0
+        self._load_ticks = self._hp_ticks = self._temp_ticks = self._pv_ticks = 0
+        self._pv_fc_kwh = self._load_pred_kwh = None
+
+    @property
+    def hour(self) -> datetime | None:
+        """Start of the hour being recorded."""
+        return self._hour
+
+    @property
+    def has_forecasts(self) -> bool:
+        return self._pv_fc_kwh is not None or self._load_pred_kwh is not None
+
+    def set_forecasts(self, pv_fc_kwh: float | None, load_pred_kwh: float | None) -> None:
+        """A7b/c: the forecast for the current hour, kept from its first tick."""
+        if self._pv_fc_kwh is None:
+            self._pv_fc_kwh = pv_fc_kwh
+        if self._load_pred_kwh is None:
+            self._load_pred_kwh = load_pred_kwh
+
+    async def history_since(self, since: date) -> list[dict]:
+        return await self._store.query_hours_since(since) if self._store is not None else []
 
     async def record_tick(
         self,
@@ -92,6 +117,7 @@ class HourlyLoadRecorder:
         load_w: float | None,
         heat_pump_w: float | None,
         outdoor_temp_c: float | None,
+        pv_w: float | None = None,
     ) -> None:
         hour = now.replace(minute=0, second=0, microsecond=0)
         if hour != self._hour:
@@ -111,6 +137,9 @@ class HourlyLoadRecorder:
         if outdoor_temp_c is not None:
             self._temp_sum += outdoor_temp_c
             self._temp_ticks += 1
+        if pv_w is not None:
+            self._pv_wh += max(0.0, pv_w) * dt_h
+            self._pv_ticks += 1
         await self._flush()
 
     async def _seed_from_store(self) -> None:
@@ -132,6 +161,13 @@ class HourlyLoadRecorder:
         if row.get("outdoor_temp_c") is not None:
             self._temp_sum = float(row["outdoor_temp_c"]) * ticks
             self._temp_ticks = ticks
+        if row.get("pv_kwh") is not None:
+            self._pv_wh = float(row["pv_kwh"]) * 1000.0
+            self._pv_ticks = ticks
+        if row.get("pv_fc_kwh") is not None:
+            self._pv_fc_kwh = float(row["pv_fc_kwh"])
+        if row.get("load_pred_kwh") is not None:
+            self._load_pred_kwh = float(row["load_pred_kwh"])
 
     def _scaled_kwh(self, wh: float, valid: int) -> float:
         return wh / 1000.0 * self._ticks / valid
@@ -152,6 +188,12 @@ class HourlyLoadRecorder:
             ),
             "ticks": self._ticks,
         }
+        if self._pv_ticks:
+            fields["pv_kwh"] = round(self._scaled_kwh(self._pv_wh, self._pv_ticks), 5)
+        if self._pv_fc_kwh is not None:
+            fields["pv_fc_kwh"] = round(self._pv_fc_kwh, 5)
+        if self._load_pred_kwh is not None:
+            fields["load_pred_kwh"] = round(self._load_pred_kwh, 5)
         await self._store.upsert_hour(self._hour.isoformat(), fields)
 
 

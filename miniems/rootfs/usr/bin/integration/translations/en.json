@@ -32,6 +32,10 @@
     }
   },
   "issues": {
+    "failsafe_triggered": {
+      "title": "miniEMS failsafe triggered",
+      "description": "The miniEMS add-on has not reported for {minutes} minutes. Its battery and hot-water settings were reset to their safe values (self-use, no grid charge, idle setpoint). Check the add-on log. The notice clears itself once the add-on reports again."
+    },
     "restart_required": {
       "title": "miniEMS integration updated",
       "description": "miniEMS integration was updated to v{version}. Please restart Home Assistant to apply all changes."

@@ -20,9 +20,10 @@ Three sources are tried, best first:
 from __future__ import annotations
 
 import logging
+import statistics
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from ha_state_client import HAStateClient
@@ -72,22 +73,37 @@ class PriceCurve:
 
     @classmethod
     def from_entity(
-        cls, ws: "HAStateClient", entity_id: str, source: str = "auto"
+        cls,
+        ws: "HAStateClient",
+        entity_id: str,
+        source: str = "auto",
+        unit: str = "auto",
+        adjust: Callable[[float], float] | None = None,
     ) -> "PriceCurve | None":
         """Build from a price entity, or None when it carries no calendar.
 
         `source` (config `tariff_source`): "auto" tries dated market rates
         first and falls back to the time-of-use calendar; "rates" and
-        "timeslots" use only that one.
+        "timeslots" use only that one. `unit` (config `price_unit`) is the
+        unit of a dated list, "auto" decides it once for the whole list.
+        `adjust` turns a raw spot price into the effective purchase price
+        (fees, VAT – A5); None leaves every rate as published.
         """
         if not entity_id:
             return None
 
         if source in ("auto", "rates"):
-            for attr in ("rates", "unit_rate_forecast", "prices", "forecast"):
-                dated = _parse_dated_rates(ws.get_state_attribute(entity_id, attr))
+            for attrs in _DATED_ATTRS:
+                raw: list = []
+                for attr in attrs:
+                    value = ws.get_state_attribute(entity_id, attr)
+                    if isinstance(value, list):
+                        raw.extend(value)
+                dated = _parse_dated_rates(raw, unit)
                 if dated:
-                    return cls([], source=f"{attr}({entity_id})", dated=dated)
+                    if adjust is not None:
+                        dated = [(s, e, adjust(r)) for s, e, r in dated]
+                    return cls([], source=f"{'+'.join(attrs)}({entity_id})", dated=dated)
             if source == "rates":
                 return None
 
@@ -113,7 +129,7 @@ class PriceCurve:
                     _LOGGER.warning(
                         "PriceCurve: unparsable window %r in timeslot %r – skipped", rule, name)
                     continue
-                windows.append(_Window(start, end, rate, name))
+                windows.append(_Window(start, end, adjust(rate) if adjust else rate, name))
 
         if not windows:
             return None
@@ -202,6 +218,58 @@ class PriceCurve:
             return False
         return cheapest_later <= current.rate_eur_kwh
 
+    def mean_rate(self, start: datetime, end: datetime) -> float | None:
+        """A9: time-weighted mean rate over [start, end), None with a hole."""
+        if end <= start:
+            return self.rate_at(start)
+        total = 0.0
+        for s, e, rate in self.windows_before(start, end):
+            total += rate * (e - s).total_seconds()
+        covered = sum((e - s).total_seconds() for s, e, _ in self.windows_before(start, end))
+        if covered < (end - start).total_seconds() - 1:
+            return None
+        return total / covered
+
+    def run_end(self, moment: datetime, tolerance_eur: float, horizon: timedelta) -> datetime | None:
+        """A9: end of the run of windows no dearer than the current one + tolerance.
+
+        With hourly or 15-min prices the current window is one slot long; V1
+        must stretch over the whole cheap run, not just until the slot ends.
+        """
+        current = self.window_at(moment)
+        if current is None:
+            return None
+        end = moment
+        for s, e, rate in self.windows_before(moment, moment + horizon):
+            if s > end or rate > current.rate_eur_kwh + tolerance_eur:
+                break
+            end = e
+        return end if end > moment else None
+
+    def cheap_hours_between(
+        self, start: datetime, end: datetime, rate_max: float
+    ) -> float:
+        """A9: hours in [start, end) whose rate is at most rate_max."""
+        return sum((e - s).total_seconds() for s, e, r in self.windows_before(start, end)
+                   if r <= rate_max) / 3600.0
+
+    def later_window_as_cheap_start(
+        self, now: datetime, deadline: datetime, charge_duration: timedelta
+    ) -> datetime | None:
+        """Like later_window_as_cheap(), but *when* that later window starts.
+
+        None in every case later_window_as_cheap() answers False.
+        """
+        if not self.later_window_as_cheap(now, deadline, charge_duration):
+            return None
+        current = self.window_at(now)
+        window_end_now = self.window_end(now)
+        latest_feasible_start = deadline - charge_duration
+        for start, _, rate in self.windows_before(window_end_now, latest_feasible_start):  # type: ignore[arg-type]
+            if rate <= current.rate_eur_kwh:   # type: ignore[union-attr]
+                return start
+        return None
+
     def is_cheapest_now(
         self, moment: datetime, deadline: datetime, tolerance_eur: float = 0.0005
     ) -> bool | None:
@@ -283,9 +351,17 @@ def _parse_time(raw: object) -> time | None:
     return None
 
 
-_RATE_START_KEYS = ("start", "period_start", "startsAt", "start_time", "from")
+# Attribute (groups) that may carry a dated price list, best first. A group is
+# read as one list: Nord Pool splits today and tomorrow into two attributes.
+_DATED_ATTRS: tuple[tuple[str, ...], ...] = (
+    ("rates",), ("unit_rate_forecast",), ("prices",), ("forecast",),
+    ("raw_today", "raw_tomorrow"), ("data",),
+)
+_RATE_START_KEYS = ("start", "period_start", "startsAt", "start_time", "from", "time")
 _RATE_END_KEYS = ("end", "period_end", "endsAt", "end_time", "to")
-_RATE_VALUE_KEYS = ("value_inc_vat", "total", "price", "value", "rate")
+_RATE_VALUE_KEYS = ("value_inc_vat", "total", "price", "value", "rate", "price_per_kwh")
+# Divisor to €/kWh per unit.
+_UNIT_DIVISOR = {"eur": 1.0, "ct": 100.0, "eur_mwh": 1000.0}
 
 
 def _to_dt(raw: object) -> datetime | None:
@@ -301,15 +377,33 @@ def _to_dt(raw: object) -> datetime | None:
     return dt if dt.tzinfo else None   # a naive time is ambiguous – reject
 
 
-def _parse_dated_rates(raw: object) -> list[tuple[datetime, datetime, float]]:
+def detect_unit(values: list[float]) -> str:
+    """Unit of a whole price list: "eur", "ct" or "eur_mwh".
+
+    Decided once for the list, never per value: a midday exchange price of
+    1.5 ct must not become 1.50 €/kWh because it happens to be small. A
+    median magnitude above 40 is €/MWh (no ct/kWh tariff has a median that
+    high), any magnitude above 2 is ct/kWh (no retail price is 2 €/kWh),
+    otherwise €/kWh.
+    """
+    magnitudes = [abs(v) for v in values]
+    if not magnitudes:
+        return "eur"
+    if statistics.median(magnitudes) > 40.0:
+        return "eur_mwh"
+    if max(magnitudes) > 2.0:
+        return "ct"
+    return "eur"
+
+
+def _parse_dated_rates(raw: object, unit: str = "auto") -> list[tuple[datetime, datetime, float]]:
     """Market-tariff price list -> merged [(start, end, €/kWh)].
 
     Accepts the common shapes (Octopus `rates[]` with value_inc_vat, Tibber
-    `startsAt`/`total`, generic start/end/price). A missing end is taken
-    from the next entry's start (else +1 h). Values above 2 are read as
-    ct/kWh – no retail tariff costs 2 €/kWh, and no ct value is below 2
-    outside negative-price hours, where the sign alone already decides.
-    Empty list whenever the shape is not recognised.
+    `startsAt`/`total`, Nord Pool `start`/`value`, ENTSO-E `time`/`price`,
+    generic start/end/price). A missing end is taken from the next entry's
+    start (else +1 h). The unit is `unit`, or detect_unit() over the whole
+    list for "auto". Empty list whenever the shape is not recognised.
     """
     if not isinstance(raw, list) or not raw:
         return []
@@ -331,11 +425,11 @@ def _parse_dated_rates(raw: object) -> list[tuple[datetime, datetime, float]]:
                 break
         if value is None:
             continue
-        if value > 2.0:
-            value /= 100.0
         parsed.append((start, end, value))
     if not parsed:
         return []
+    divisor = _UNIT_DIVISOR.get(unit) or _UNIT_DIVISOR[detect_unit([p[2] for p in parsed])]
+    parsed = [(s, e, v / divisor) for s, e, v in parsed]
     parsed.sort(key=lambda p: p[0])
     slots: list[tuple[datetime, datetime, float]] = []
     for i, (start, end, value) in enumerate(parsed):

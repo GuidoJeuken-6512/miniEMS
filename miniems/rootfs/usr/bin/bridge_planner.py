@@ -63,6 +63,8 @@ class BridgePlan:
     bridge_pv_kwh: float = 0.0
     capped_by: str | None = None       # "free_capacity" | "charge_time" | None
     slots: list[PlanSlot] = field(default_factory=list, repr=False)
+    # A9: the bridge ended because the known prices ended, not at a cheap window.
+    ends_at_price_horizon: bool = False
 
     def as_dict(self) -> dict:
         return {
@@ -75,6 +77,7 @@ class BridgePlan:
             "bridge_load_kwh": round(self.bridge_load_kwh, 3),
             "bridge_pv_kwh": round(self.bridge_pv_kwh, 3),
             "capped_by": self.capped_by,
+            "ends_at_price_horizon": self.ends_at_price_horizon,
         }
 
 
@@ -91,18 +94,39 @@ def plan_bridge(
     eta: float,
     min_margin_eur_kwh: float,
     charge_kw: float | None,
+    tolerance_eur: float = _RATE_TOLERANCE,
+    check_capacity: bool = False,
 ) -> BridgePlan:
     """Plan the grid charge for the current cheap window. See module docstring.
 
     `slots[0]` must contain "now" and carry the current rate. `stored_kwh` is
     the energy usable above min SoC, `free_kwh` the room up to max SoC.
+
+    A9 (day-ahead prices): `tolerance_eur` is the band within which a rate
+    counts as "as cheap as now"; with `check_capacity` a later cheap run
+    ends the bridge only when it is long enough to refill half the battery –
+    a single cheap quarter hour must not end the planning.
     """
     if not slots or slots[0].rate_eur_kwh is None:
         return _no_need("no current rate")
     now_rate = slots[0].rate_eur_kwh
 
     def is_cheap(s: PlanSlot) -> bool:
-        return s.rate_eur_kwh is not None and s.rate_eur_kwh <= now_rate + _RATE_TOLERANCE
+        return s.rate_eur_kwh is not None and s.rate_eur_kwh <= now_rate + tolerance_eur
+
+    capacity_total = max(0.0, stored_kwh) + max(0.0, free_kwh)
+
+    def ends_bridge(j: int) -> bool:
+        if not is_cheap(slots[j]):
+            return False
+        if not check_capacity or charge_kw is None or charge_kw <= 0:
+            return True
+        hours = 0.0
+        k = j
+        while k < len(slots) and is_cheap(slots[k]):
+            hours += slots[k].hours
+            k += 1
+        return k >= len(slots) or hours * charge_kw >= 0.5 * capacity_total
 
     # 1. current cheap window
     i = 0
@@ -113,16 +137,17 @@ def plan_bridge(
 
     # 2. bridge period – ends at the next equally-cheap slot or an unknown rate
     j = i
-    while j < len(slots) and slots[j].rate_eur_kwh is not None and not is_cheap(slots[j]):
+    while j < len(slots) and slots[j].rate_eur_kwh is not None and not ends_bridge(j):
         j += 1
     bridge = slots[i:j]
     bridge_until = slots[j].start if j < len(slots) else (bridge[-1].end if bridge else None)
+    at_horizon = j >= len(slots) or slots[j].rate_eur_kwh is None
     if not bridge:
         return _no_need("no expensive period ahead", cheap_until=cheap_until,
                         bridge_until=bridge_until)
 
-    # 3. worth-bridging slots
-    worth = [eta * s.rate_eur_kwh - now_rate > min_margin_eur_kwh  # type: ignore[operator]
+    # 3. worth-bridging slots (a short cheap run inside the bridge is not worth it)
+    worth = [not is_cheap(s) and eta * s.rate_eur_kwh - now_rate > min_margin_eur_kwh  # type: ignore[operator]
              for s in bridge]
     n_worth = sum(worth)
     if n_worth == 0:
@@ -183,7 +208,7 @@ def plan_bridge(
     # what that cheaper stretch cannot deliver in time.
     cheaper_h = sum(s.hours for s in cheap
                     if s.rate_eur_kwh is not None
-                    and s.rate_eur_kwh < now_rate - _RATE_TOLERANCE)
+                    and s.rate_eur_kwh < now_rate - tolerance_eur)
     if cheaper_h > 0:
         if charge_kw is None or charge_kw <= 0:
             need = 0.0
@@ -209,4 +234,5 @@ def plan_bridge(
         bridge_pv_kwh=pv_sum,
         capped_by=capped_by,
         slots=slots,
+        ends_at_price_horizon=at_horizon,
     )

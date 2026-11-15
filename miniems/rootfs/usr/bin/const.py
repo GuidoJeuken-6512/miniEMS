@@ -8,10 +8,10 @@ from enum import Enum
 # ── Add-on version ─────────────────────────────────────────────────────────
 # Fallback only – overwritten at startup by main._sync_version_from_supervisor()
 # which reads the real version from http://supervisor/addons/self/info.
-VERSION = "3.7.2"
+VERSION = "4.0.0"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
-CONFIG_SCHEMA_VERSION = 25
+CONFIG_SCHEMA_VERSION = 26
 
 # ── Battery current limits ────────────────────────────────────────────────────
 # The Deye inverter exposes battery limits as CURRENT in amperes
@@ -77,7 +77,7 @@ PRICE_MAX_AGE_SEC    = 21720   # 6 h + 2 min. A time-of-use tariff is written on
 # from yesterday is legitimate. 15 min gives that margin without letting a truly
 # stopped integration hide. Used by HAStateClient.is_stale_daily(), which
 # asks "was it written today?" instead of "how old is it?" – see
-# docs/roadmap/sensor-staleness.md for why no age threshold can be right here.
+# docs/technical/sensor-staleness.md for why no age threshold can be right here.
 DAILY_VALUE_GRACE_SEC = 900
 
 # How old the Solcast *data* may be – measured on the value of the last-fetch
@@ -134,7 +134,7 @@ INVERTER_WRITE_STUCK_THRESHOLD_SEC = 1800   # 30 min – provisional, see above
 # ── Gelernte Ladeleistung (battery_capability.py) ─────────────────────────────
 # SoC-bucketed history of GRID_CHARGING throughput, replacing
 # battery_max_charge_current_a x voltage with an observed value once enough
-# history exists – see docs/roadmap/energiefahrplan.md, "Gelernte
+# history exists – see docs/technical/energiefahrplan.md, "Gelernte
 # Ladeleistung statt Konfigurationswert".
 #
 # Provisional, like INVERTER_WRITE_STUCK_THRESHOLD_SEC above: not yet derived
@@ -188,7 +188,7 @@ HW_WH_PER_L_K = 1.163
 # ── Energiefahrplan (energy_plan.py) ──────────────────────────────────────────
 # Recompute interval for the proactive tomorrow-deficit plan. Hourly, not
 # every 30s tick: display-only, and price/PV forecasts don't change on a
-# tick's timescale – see docs/roadmap/energiefahrplan.md, "Trigger".
+# tick's timescale – see docs/technical/energiefahrplan.md, "Trigger".
 ENERGY_PLAN_RECOMPUTE_SEC = 3600
 
 # ── Stündliche Bedarfsprognose / Überbrückungsplanung (v3.3.0) ────────────────
@@ -230,6 +230,11 @@ class EMSMode(str, Enum):
     EXPORT_SURPLUS  = "Export Surplus"
     GRID_CHARGING   = "Grid Charging (Cheap Rate)"
     PROTECT_BATTERY = "Battery Protection (Min SoC)"
+    # A4: no discharge in a cheap hour – the stored energy is needed for
+    # dearer hours later. Electrically the same as PROTECT_BATTERY (discharge
+    # 0, PV may charge, no grid charge). No "PV"/"Grid"/"Export"/"Protect" in
+    # the label – the dashboard classifies badges by substring.
+    HOLD_FOR_PEAK   = "Hold for Peak (No Discharge)"
 
 
 # ── Hot-water operating modes ─────────────────────────────────────────────────

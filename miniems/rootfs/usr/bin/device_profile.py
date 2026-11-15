@@ -1,7 +1,7 @@
 """Loads and matches device profiles (profiles/**/*.yaml) against the HA
 device registry.
 
-See docs/roadmap/v3.0-geraeteprofile.md. Deliberately does NOT read
+See docs/technical/geraeteprofile.md. Deliberately does NOT read
 Solarman's `inverter_definitions/` at runtime (see that doc's revision
 note) – profiles are miniEMS's own, authored offline, optionally derived
 from Solarman as a starting point (see profiles/SOURCES.md for licensing).
