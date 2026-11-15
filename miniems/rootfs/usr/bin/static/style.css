@@ -142,6 +142,7 @@ h1 {
 .mode-EXPORT { background: #fff3e0; color: #ef6c00; }
 .mode-GRID { background: #e3f2fd; color: #1976d2; }
 .mode-PROTECT { background: #ffebee; color: #d32f2f; }
+.mode-HOLD { background: #f3e5f5; color: #7b1fa2; }
 .mode-IDLE { background: #fff; color: #0099ff; }
 
 .refresh-hint {
@@ -229,6 +230,7 @@ h1 {
 .mode-EXPORT  { background: #4a3a1a; color: #d29922; }
 .mode-GRID    { background: #1a2a4a; color: #58a6ff; }
 .mode-PROTECT { background: #4a1a1a; color: #f85149; }
+.mode-HOLD    { background: #3a1a4a; color: #d2a8ff; }
 
 /* ── Live-values grid ───────────────────────────────────── */
 .grid {

@@ -173,8 +173,9 @@ class InverterController:
                 await self._set_discharge_current(
                     self._resolve_discharge_current_a(cfg.battery_max_discharge_current_a), sim)
 
-            case EMSMode.PROTECT_BATTERY:
-                # SoC below minimum: no grid charge, no discharging.
+            case EMSMode.PROTECT_BATTERY | EMSMode.HOLD_FOR_PEAK:
+                # SoC below minimum, or energy kept for a dearer hour (A4):
+                # no grid charge, no discharging, PV may still charge.
                 await self._set_grid_charge(False, sim)
                 await self._set_charge_current(
                     self._resolve_charge_current_a(cfg.battery_max_charge_current_a), sim)

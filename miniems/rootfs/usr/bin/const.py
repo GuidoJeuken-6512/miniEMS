@@ -230,6 +230,11 @@ class EMSMode(str, Enum):
     EXPORT_SURPLUS  = "Export Surplus"
     GRID_CHARGING   = "Grid Charging (Cheap Rate)"
     PROTECT_BATTERY = "Battery Protection (Min SoC)"
+    # A4: no discharge in a cheap hour – the stored energy is needed for
+    # dearer hours later. Electrically the same as PROTECT_BATTERY (discharge
+    # 0, PV may charge, no grid charge). No "PV"/"Grid"/"Export"/"Protect" in
+    # the label – the dashboard classifies badges by substring.
+    HOLD_FOR_PEAK   = "Hold for Peak (No Discharge)"
 
 
 # ── Hot-water operating modes ─────────────────────────────────────────────────

@@ -218,6 +218,23 @@ class PriceCurve:
             return False
         return cheapest_later <= current.rate_eur_kwh
 
+    def later_window_as_cheap_start(
+        self, now: datetime, deadline: datetime, charge_duration: timedelta
+    ) -> datetime | None:
+        """Like later_window_as_cheap(), but *when* that later window starts.
+
+        None in every case later_window_as_cheap() answers False.
+        """
+        if not self.later_window_as_cheap(now, deadline, charge_duration):
+            return None
+        current = self.window_at(now)
+        window_end_now = self.window_end(now)
+        latest_feasible_start = deadline - charge_duration
+        for start, _, rate in self.windows_before(window_end_now, latest_feasible_start):  # type: ignore[arg-type]
+            if rate <= current.rate_eur_kwh:   # type: ignore[union-attr]
+                return start
+        return None
+
     def is_cheapest_now(
         self, moment: datetime, deadline: datetime, tolerance_eur: float = 0.0005
     ) -> bool | None:

@@ -23,6 +23,7 @@ from const import (
     EMSMode,
 )
 from energy_plan import EnergyPlan, compute_energy_plan
+from energy_value import RATE_TOLERANCE, EnergyValue, assess_energy, should_hold
 from event_log import EventLog, LogEntry
 from price_classes import classes_for
 from price_curve import PriceCurve
@@ -130,6 +131,14 @@ class EMSController:
         self._bridge_status: str = "disabled"
         # A1: last (relative, fixed) cheap verdict, to log a disagreement once.
         self._price_class_diff: tuple[bool, bool] | None = None
+        # A2–A4: planning slots with load (and PV, when known) from now on,
+        # refreshed once per tick in update() for the synchronous _decide().
+        # None when no A2/A3/A4 switch is on or the load model is missing.
+        self._value_slots: list[PlanSlot] | None = None
+        self._buy_value: EnergyValue | None = None       # A3
+        self._hold: tuple[bool, str] = (False, "")       # A4 verdict
+        self._hold_value: EnergyValue | None = None
+        self._gate_diff: tuple[bool, bool] | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -182,6 +191,24 @@ class EMSController:
             )
         else:
             self._remaining_load_kwh = None
+        if self._cfg.load_profile_enabled:
+            # A2: the hourly model (temperature, hour of day) instead of the
+            # day median minus what was measured so far.
+            now_l = datetime.now().astimezone()
+            if self._forecaster is not None:
+                await self._forecaster.refresh(now_l)
+            rest = self._load_between(now_l, self._next_midnight(now_l))
+            if rest is not None:
+                self._remaining_load_kwh = rest
+        if self._cfg.load_profile_enabled:
+            # A2: the hourly model (temperature, hour of day) instead of the
+            # day median minus what was measured so far.
+            now_l = datetime.now().astimezone()
+            if self._forecaster is not None:
+                await self._forecaster.refresh(now_l)
+            rest = self._load_between(now_l, self._next_midnight(now_l))
+            if rest is not None:
+                self._remaining_load_kwh = rest
 
         # Refresh before deciding: _grid_charge_pays() needs it, and _decide()
         # is synchronous. Memoised per day inside the optimizer, so this is a DB
@@ -207,6 +234,7 @@ class EMSController:
         # replaces the flat hot-water share in the bridge plan below.
         await self._update_hot_water(now, pv_w, grid_w, price, bat_kwh_use, bat_kwh_free)
         await self._update_bridge_plan(pv_w, price, bat_kwh_free, bat_kwh_use, now)
+        await self._update_energy_value(now, price, pv_w, bat_kwh_use, bat_kwh_free)
         prev_mode = self._mode
         self._mode = self._determine_mode(pv_w, load_w, bat_soc, price, bat_kwh_free, now)
         await self._record_hourly(now, load_w)
@@ -471,6 +499,7 @@ class EMSController:
             result["temp_tomorrow_c"] = self._prediction.temp_tomorrow_c
         result["remaining_load_kwh"] = self._remaining_load_kwh
         result["bridge_plan"] = self._bridge_plan_dict()
+        result["energy_value"] = self._energy_value_dict()
         if self._hp_recorder is not None and self._hp_recorder.enabled:
             result["heat_pump"] = self._hp_recorder.status()
         if self._hot_water is not None and self._hot_water.enabled:
@@ -590,6 +619,13 @@ class EMSController:
                     f"bridge plan: {plan.need_kwh:.1f} kWh by {until}",
                 )
             return ModeDecision(EMSMode.GRID_CHARGING, "cheap rate, pv cannot fill battery")
+
+        # 5. A4 – keep the stored energy for dearer hours. After the grid-
+        #    charge check on purpose: in a cheap window both would apply, and
+        #    the hold must never crowd out a charge (GRID_CHARGING blocks
+        #    discharging anyway).
+        if cfg.discharge_hold_enabled and self._hold[0]:
+            return ModeDecision(EMSMode.HOLD_FOR_PEAK, self._hold[1])
 
         return ModeDecision(EMSMode.IDLE, "no action")
 
@@ -808,6 +844,12 @@ class EMSController:
                 tomorrow_load = (self._prediction.predicted_load_kwh
                                  if self._prediction is not None
                                  and self._prediction.predicted_load_kwh > 0 else 0.0)
+                if cfg.load_profile_enabled:
+                    # A2: tomorrow from the hourly model and tomorrow's temperatures.
+                    midnight = self._next_midnight(now)
+                    modelled = self._load_between(midnight, midnight + timedelta(days=1))
+                    if modelled is not None:
+                        tomorrow_load = modelled
                 need = bat_kwh_free + ww_pv + tomorrow_load + (self._remaining_load_kwh or 0.0)
                 if tomorrow > need * cfg.pv_charge_margin_factor:
                     return False   # tomorrow's PV will refill it – skip grid charging
@@ -902,7 +944,10 @@ class EMSController:
         if remaining_h <= 0:
             return None
 
-        p_soll_kw = bat_kwh_free / remaining_h
+        energy = bat_kwh_free
+        if self._cfg.soc_aware_gate_enabled and self._buy_value is not None:
+            energy = min(bat_kwh_free, self._buy_value.buy_kwh)   # A3: only what pays
+        p_soll_kw = energy / remaining_h
         return p_soll_kw * 1000.0
 
     # ------------------------------------------------------------------
@@ -980,6 +1025,114 @@ class EMSController:
                     "low" if fixed else "not low", cfg.cheap_rate_threshold_eur,
                 )
             self._price_class_diff = verdict
+
+    # ------------------------------------------------------------------
+    # A2–A4 – load per window, value of a kWh, discharge hold
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _next_midnight(now: datetime) -> datetime:
+        return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    def _load_between(self, start: datetime, end: datetime) -> float | None:
+        """A2: expected household load in [start, end) from the hourly model.
+
+        Walked in 30-min steps with the hourly temperature forecast, like the
+        planning slots. None without a fitted model.
+        """
+        fc = self._forecaster
+        if fc is None or fc.model is None:
+            return None
+        step = timedelta(minutes=PLAN_SLOT_MIN)
+        total = 0.0
+        t = start
+        while t < end:
+            nxt = min(end, t + step)
+            temp = self._weather.hourly_temp_at(t) if self._weather is not None else None
+            total += fc.predict_kwh(t, (nxt - t).total_seconds() / 60.0, temp) or 0.0
+            t = nxt
+        return total
+
+    def _round_trip_eta(self) -> float:
+        """Round-trip efficiency a bought kWh suffers."""
+        eta = self._optimizer.today_efficiency()
+        return eta if eta and eta > 0 else _DEFAULT_ETA
+
+    def _discharge_eta(self) -> float:
+        """Share of a stored kWh that reaches the house (square root of the round trip)."""
+        return self._round_trip_eta() ** 0.5
+
+    def _rate_tolerance(self) -> float:
+        """Band within which two rates count as equally cheap."""
+        return RATE_TOLERANCE
+
+    async def _update_energy_value(
+        self,
+        now: datetime,
+        price: float | None,
+        pv_w: float | None,
+        bat_kwh_use: float | None,
+        bat_kwh_free: float | None,
+    ) -> None:
+        """Refresh the slots, the A3 buy value and the A4 hold verdict.
+
+        Everything stays None / "no hold" whenever an input is missing: the
+        gates then fall back to the v3.7.2 behaviour, the hold never starts.
+        """
+        cfg = self._cfg
+        self._value_slots = None
+        self._buy_value = None
+        self._hold_value = None
+        self._hold = (False, "")
+        if not (cfg.load_profile_enabled or cfg.soc_aware_gate_enabled
+                or cfg.discharge_hold_enabled):
+            return
+        if self._forecaster is not None:
+            await self._forecaster.refresh(now)
+        slots, _, _, load_known = self._plan_slots(now, price, pv_w, need_pv=False, need_load=True)
+        if slots is None or not load_known:
+            return
+        hw = self._hot_water
+        if hw is not None and hw.couples:
+            slots = [
+                PlanSlot(s.start, s.end, s.rate_eur_kwh,
+                         max(0.0, s.load_kwh + hw.load_delta_kwh(s.end, s.hours)), s.pv_kwh)
+                for s in slots
+            ]
+        self._value_slots = slots
+        if bat_kwh_use is None or bat_kwh_free is None:
+            return
+        if cfg.soc_aware_gate_enabled:
+            self._buy_value = assess_energy(
+                slots, bat_kwh_use, bat_kwh_free,
+                eta=self._round_trip_eta(), eta_discharge=self._discharge_eta(),
+                wear_eur_kwh=cfg.battery_wear_cost_eur_kwh,
+                min_margin_eur_kwh=cfg.grid_charge_min_margin_eur_kwh,
+                hold=cfg.discharge_hold_enabled, tolerance_eur=self._rate_tolerance(),
+            )
+        if cfg.discharge_hold_enabled:
+            hold, value = should_hold(
+                slots, bat_kwh_use, bat_kwh_free, eta_discharge=self._discharge_eta(),
+                min_spread_eur_kwh=cfg.discharge_hold_min_spread_eur,
+                holding=self._mode is EMSMode.HOLD_FOR_PEAK,
+                tolerance_eur=self._rate_tolerance(),
+            )
+            self._hold_value = value
+            if hold and value is not None:
+                self._hold = (True, (
+                    f"hold for peak: {value.held_for_kwh:.1f} kWh needed later at >= "
+                    f"{(value.rate_now + cfg.discharge_hold_min_spread_eur) * 100:.0f} ct, "
+                    f"{value.available_kwh:.1f} kWh available"
+                ))
+
+    def _energy_value_dict(self) -> dict | None:
+        if self._buy_value is None and self._hold_value is None:
+            return None
+        return {
+            "buy": self._buy_value.as_dict() if self._buy_value is not None else None,
+            "hold": self._hold_value.as_dict() if self._hold_value is not None else None,
+            "holding": self._hold[0],
+        }
 
     # ------------------------------------------------------------------
     # Überbrückungsplanung (v3.3.0)
@@ -1386,7 +1539,19 @@ class EMSController:
         if charge_kw is None or charge_kw <= 0:
             return False
         t_needed_h = bat_kwh_free / charge_kw
-        return curve.later_window_as_cheap(now, deadline, timedelta(hours=t_needed_h))
+        if not self._cfg.load_profile_enabled:
+            return curve.later_window_as_cheap(now, deadline, timedelta(hours=t_needed_h))
+        later = curve.later_window_as_cheap_start(now, deadline, timedelta(hours=t_needed_h))
+        if later is None or self._value_slots is None:
+            return False
+        # A2: deferring is only free when the battery is not drawn on until
+        # then – a charge pushed past the evening is bought in the evening.
+        draw = sum(max(0.0, s.load_kwh - s.pv_kwh) for s in self._value_slots if s.start < later)
+        if draw > self._cfg.grid_charge_min_free_kwh:
+            _LOGGER.debug("V2: not deferring – %.1f kWh expected from the battery before %s",
+                          draw, later.strftime("%H:%M"))
+            return False
+        return True
 
     def _next_peak_time(self, now: datetime) -> datetime | None:
         """The next upcoming Solcast peak-power time – today's if still
@@ -1468,6 +1633,31 @@ class EMSController:
         at all until a week of data existed. That would be a regression, and
         this gate is an economic refinement, not a safety interlock.
         """
+        legacy = self._grid_charge_pays_legacy(price)
+        if not self._cfg.soc_aware_gate_enabled or self._buy_value is None:
+            return legacy
+
+        # A3: what the dearest hour the battery cannot already cover is
+        # worth. Start only for a real amount, keep going down to the stop
+        # threshold – the same hysteresis as the bridging plan.
+        threshold = (PLAN_STOP_BELOW_KWH if self._mode is EMSMode.GRID_CHARGING
+                     else max(0.5, self._cfg.grid_charge_min_free_kwh / 2.0))
+        pays = self._buy_value.buy_kwh > threshold
+        verdict = (pays, legacy)
+        if pays != legacy and verdict != self._gate_diff:
+            v = self._buy_value
+            _LOGGER.info(
+                "SoC-aware gate: %s (buy %.1f kWh, dearest uncovered %s €/kWh, %.1f kWh "
+                "available) – the historical gate would say %s",
+                "charge" if pays else "no charge", v.buy_kwh,
+                f"{v.first_value_eur_kwh:.4f}" if v.first_value_eur_kwh is not None else "-",
+                v.available_kwh, "charge" if legacy else "no charge",
+            )
+        self._gate_diff = verdict
+        return pays
+
+    def _grid_charge_pays_legacy(self, price: float) -> bool:
+        """The pre-A3 gate: η × historical discharge tariff − price > margin."""
         tariff = self._discharge_tariff
         eff = self._optimizer.today_efficiency()
         if tariff is None or eff is None or eff <= 0:
