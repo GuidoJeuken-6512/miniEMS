@@ -64,8 +64,9 @@ async def test_fuse_guard_caps_the_grid_charge(make_config, fake_ws):
 
 @pytest.mark.asyncio
 async def test_ev_charging_holds_the_battery(make_config, fake_ws):
+    # Default dwell time: the hold must apply at once, not after 300 s.
     ctrl, _, inverter, _ = build_controller(
-        make_config, fake_ws, mode_dwell_sec=0,
+        make_config, fake_ws, mode_dwell_sec=300,
         ev_charge_power_entity="sensor.wb_power", ev_plugged_entity="binary_sensor.wb",
         ev_mode_entity="input_select.ev", ev_control_enabled=True)
     caller = FakeCaller()

@@ -125,6 +125,7 @@ class TestCoupling:
         d = ctrl._couple_ev(ModeDecision(EMSMode.IDLE, "no action"))
         assert d.mode is EMSMode.HOLD_FOR_PEAK
         assert "ev charging" in d.reason
+        assert d.urgent      # no dwell time: the battery must not feed the car meanwhile
 
     @pytest.mark.parametrize("mode", [EMSMode.GRID_CHARGING, EMSMode.PROTECT_BATTERY])
     def test_modes_that_already_block_stay(self, make_config, fake_ws, mode):

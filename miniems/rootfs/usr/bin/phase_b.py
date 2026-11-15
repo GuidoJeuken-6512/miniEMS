@@ -219,9 +219,12 @@ class PhaseBMixin:
         if decision.mode in (EMSMode.GRID_CHARGING, EMSMode.PROTECT_BATTERY,
                              EMSMode.HOLD_FOR_PEAK):
             return decision
+        # Urgent: waiting out mode_dwell_sec would let the battery feed the
+        # car for minutes – exactly what the rule is there to prevent. Leaving
+        # the hold again goes through the normal dwell time.
         return type(decision)(EMSMode.HOLD_FOR_PEAK,
                               f"ev charging: battery does not discharge into the car "
-                              f"(was: {decision.reason})")
+                              f"(was: {decision.reason})", urgent=True)
 
     # ------------------------------------------------------------------
     # Before the inverter write (B1)
