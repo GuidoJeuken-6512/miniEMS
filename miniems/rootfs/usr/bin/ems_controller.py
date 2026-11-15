@@ -2299,6 +2299,16 @@ class EMSController:
                     f"Sensor stale: {label} – no update today ({entity})"
                 )
 
+        # A9: a price list was asked for but the entity carries none – say so
+        # instead of silently falling back to the fixed thresholds.
+        if cfg.tariff_source == "rates" and cfg.electricity_price_entity and self._price_curve() is None:
+            warnings.append(
+                f"Tariff: no dated price list on {cfg.electricity_price_entity} "
+                "(tariff_source = rates) – deciding with the fixed thresholds"
+            )
+        if cfg.battery_plan_enabled and self._battery_plan is None:
+            warnings.append(f"Battery plan enabled but not computed: {self._battery_plan_status}")
+
         # Forecast *data* age – independent of how often HA rewrites the sensors.
         if self._solcast_data_stale():
             age_h = (self._solcast_data_age_sec() or 0) / 3600

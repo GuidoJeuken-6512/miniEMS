@@ -231,6 +231,65 @@ The hourly history is **always** recorded, even with the switch off, so history 
 
 ---
 
+## Decision Logic v4 (since v4.0.0)
+
+Phase A of the [overall plan](../../roadmap/gesamtplan.md) (German). **Every building block has its own switch, all are off**: with the defaults miniEMS decides exactly like v3.7.2. Switch them on one at a time, watch with `battery_control_simulation` first, then go live. What a block decides is in the log and in `/api/status` (`price_classes`, `energy_value`, `battery_plan`, `learning`).
+
+### Prices and battery
+
+| Setting | Default | Description |
+|---|---|---|
+| `price_classes_enabled` | `false` | **A1** – "cheap" relative to the day instead of a fixed threshold, for grid charging, `price_tier` and the hot-water planner's low-price window. Cost statistics by tier keep the fixed thresholds. |
+| `price_cheap_hours` | `6` | This many cheapest hours of the calendar day are "low". With Octopus (8 h NIEDRIG) 6 gives exactly NIEDRIG. 1–20. |
+| `price_hysteresis_min_eur` / `_max_eur` | `0.005` / `0.02` | Bounds of the price hysteresis (15 % of the day's spread); used as the band for day-ahead prices. |
+| `price_flat_spread_eur` | `0.03` | A day whose prices lie closer together has nothing "low" – no optimisation. |
+| `load_profile_enabled` | `false` | **A2** – remaining load today and tomorrow from the hourly model instead of the day median. V2 defers a charge only when the battery is not needed before the later window. |
+| `soc_aware_gate_enabled` | `false` | **A3** – grid-charge only when the bought kWh replaces a dearer hour the battery could not cover otherwise, and only that amount. Replaces the historical discharge tariff. |
+| `battery_wear_cost_eur_kwh` | `0.0` | Wear per discharged kWh: battery price ÷ (cycles × usable kWh). |
+| `discharge_hold_enabled` | `false` | **A4** – mode *Hold for Peak*: no discharge while the energy is needed for dearer hours later. PV keeps charging. Never replaces a grid charge. |
+| `discharge_hold_min_spread_eur` | `0.03` | Hold only for hours at least this much dearer than now. |
+| `battery_plan_enabled` | `false` | **A6** – the battery day plan decides (slot 0). Off = it is still computed and shown (shadow mode); differences to the real decision are logged. |
+| `battery_plan_style` | `careful` | `careful` (PV × 0.85, load × 1.1), `balanced`, `bold`. |
+| `battery_plan_switch_cost_eur` | `0.01` | Cost per change of action in the plan – keeps it calm. |
+| `battery_learned_values_enabled` | `false` | **A7a** – use the learned battery efficiencies. Always learned (`learning.battery`). |
+| `pv_correction_enabled` | `false` | **A7b** – correct the PV forecast per hour of day (0.3–2.0). |
+| `plan_feedback_enabled` | `false` | **A7c** – correct load (0.8–1.25) and PV (0.7–1.2) by the systematic deviation. |
+| `day_ahead_enabled` | `false` | **A9** – for exchange prices: a band instead of equality, short cheap outliers do not end the bridging, V1 over the whole cheap run, mean price per slot. No effect on time-of-use tariffs. |
+| `price_unit` | `auto` | Unit of a dated price list: `auto` (decided once for the whole list), `eur`, `ct`, `eur_mwh`. An explicit value also applies to the price sensor. |
+| `battery_full_charge_days` | `0` | **A11** – charge to `battery_max_soc` at least every n days (cell balancing, SoC calibration). 0 = off, suggested 14. |
+
+### Negative prices and feed-in (A5)
+
+| Setting | Default | Description |
+|---|---|---|
+| `negative_price_enabled` | `false` | At a price ≤ 0 or unpaid feed-in: store PV instead of exporting, grid-charge without the gate (leaving room for the remaining PV), hot water up to `hw_max_temp_c` with a full battery, optionally export limited to 0 W. |
+| `feed_in_price_entity` | empty | Sensor with the current feed-in price; ≤ 0 means exporting earns nothing. |
+| `feed_in_limit_w` | `0` | Feed-in limit at the grid connection in W. Above it there is no PV hold. 0 = none. |
+| `grid_export_limit_entity` | empty | `number` entity of the inverter's export limit (W). Only together with `grid_export_limit_normal_w`. |
+| `grid_export_limit_normal_w` | `0` | Value the limit is reset to. |
+| `price_is_spot` | `false` | The price sensor delivers raw exchange prices: effective = (spot + `price_fee_eur_kwh`) × (1 + `price_vat_pct` %). |
+| `price_fee_eur_kwh` | `0.0` | Grid fees and levies in €/kWh. |
+| `price_vat_pct` | `0.0` | VAT in %. |
+
+### Safety (A10)
+
+| Setting | Default | Description |
+|---|---|---|
+| `failsafe_timeout_min` | `15` | When the add-on has not reported for this long, the **HA integration** switches grid charging off, sets charge/discharge current to maximum, the boiler setpoint to idle and the export limit back, fires `miniems_alert` and shows a repair notice. Only while a control is live. 0 = off. |
+| `write_budget_per_hour` | `0` | At most this many changes of the stretched charge current (V1) per hour. Mode changes are not limited. 0 = unlimited. |
+
+### Hot water (A8, A11)
+
+| Setting | Default | Description |
+|---|---|---|
+| `hw_start_cost_enabled` | `false` | **A8** – add the learned heat lost per start to every planned charge. |
+| `hw_thermal_energy_entity` | empty | The heat pump's lifetime hot-water heat counter in kWh. Nothing is learned without it. |
+| `hw_hygiene_enabled` | `false` | **A11** – hygiene charge, in the cheapest slot of the next 24 h. |
+| `hw_hygiene_temp_c` | `60.0` | Target of the hygiene charge. 50–70. |
+| `hw_hygiene_interval_days` | `7` | Due when the boiler has not reached the temperature for this long. |
+
+---
+
 ## Solcast PV Forecast
 
 **Required.** [Solcast](https://solcast.com/) provides rooftop PV forecasts. Install the Solcast HA integration, enable the **detailed forecast** option (attribute `detailedForecast` with 30-minute values on the "forecast today/tomorrow" sensors) and configure the entities here.

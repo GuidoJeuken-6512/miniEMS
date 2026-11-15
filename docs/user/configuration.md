@@ -246,6 +246,69 @@ ist – so ist beim Einschalten schon Historie da.
 
 ---
 
+## Entscheidungslogik v4 (seit v4.0.0)
+
+Phase A des [Gesamtplans](../roadmap/gesamtplan.md). **Jeder Baustein hat einen
+eigenen Schalter, alle stehen auf aus**: Mit den Standardwerten entscheidet miniEMS
+genau wie v3.7.2. Einzeln einschalten, erst mit `battery_control_simulation`
+beobachten, dann live. Was ein Baustein entscheidet, steht im Protokoll und in
+`/api/status` (`price_classes`, `energy_value`, `battery_plan`, `learning`).
+
+### Preise und Akku
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `price_classes_enabled` | `false` | **A1** – „günstig“ relativ zum Tag statt fester Schwelle. Gilt für Netzladen, `price_tier` und das Niedrigpreisfenster des Warmwasser-Planers. Die Kostenstatistik nach Tarifstufe bleibt bei den festen Schwellen. |
+| `price_cheap_hours` | `6` | So viele günstigste Stunden des Kalendertags gelten als „low“. Bei Octopus (8 h NIEDRIG) ergibt 6 genau NIEDRIG. 1–20. |
+| `price_hysteresis_min_eur` / `_max_eur` | `0.005` / `0.02` | Grenzen der Preis-Hysterese (15 % der Tagesspanne). Wird für das Band bei Day-Ahead-Preisen genutzt. |
+| `price_flat_spread_eur` | `0.03` | Liegen alle Preise des Tages enger beieinander, ist nichts „low“ – keine Optimierung. |
+| `load_profile_enabled` | `false` | **A2** – Restverbrauch heute und morgen aus dem Stundenmodell der Bedarfsprognose statt aus dem Tagesmedian. V2 verschiebt eine Ladung nur, wenn der Akku bis zum späteren Fenster nicht gebraucht wird. Braucht Stundenhistorie. |
+| `soc_aware_gate_enabled` | `false` | **A3** – Netzladen nur, wenn die gekaufte kWh eine teurere Stunde ersetzt, die der Akku sonst nicht mehr decken kann; geladen wird nur diese Menge. Ersetzt den historischen Entladetarif. Braucht das Stundenmodell. |
+| `battery_wear_cost_eur_kwh` | `0.0` | Verschleiß je entladener kWh: Akkupreis ÷ (Zyklen × nutzbare kWh), z. B. 4000 € ÷ (6000 × 9 kWh) ≈ 0,074 €. Senkt die Marge im Gate, im Überbrückungsplan und im Tagesplan. |
+| `discharge_hold_enabled` | `false` | **A4** – Modus *Hold for Peak*: kein Entladen, wenn der Akku für spätere, teurere Stunden gebraucht wird. PV lädt weiter. Greift nie anstelle einer Netzladung. |
+| `discharge_hold_min_spread_eur` | `0.03` | Gehalten wird nur für Stunden, die mindestens so viel teurer sind als jetzt. |
+| `battery_plan_enabled` | `false` | **A6** – Der Akku-Tagesplan entscheidet (Slot 0). Aus = er wird trotzdem berechnet und angezeigt (Schattenbetrieb); Abweichungen zur tatsächlichen Entscheidung stehen im Log. Braucht Stundenmodell und Solcast-Detailprognose. |
+| `battery_plan_style` | `careful` | `careful` (PV × 0,85, Last × 1,1), `balanced`, `bold`. |
+| `battery_plan_switch_cost_eur` | `0.01` | Kosten je Aktionswechsel im Plan – hält ihn ruhig. |
+| `battery_learned_values_enabled` | `false` | **A7a** – Gelernte Akku-Wirkungsgrade statt der Wechselrichter-Effizienz im Gate, in der Sperre und im Plan. Gelernt wird immer (`learning.battery`). |
+| `pv_correction_enabled` | `false` | **A7b** – PV-Prognose je Tagesstunde mit Messung ÷ Prognose korrigieren (0,3–2,0). |
+| `plan_feedback_enabled` | `false` | **A7c** – Last (0,8–1,25) und PV (0,7–1,2) um die systematische Abweichung korrigieren. |
+| `day_ahead_enabled` | `false` | **A9** – für Börsenpreise: „gleich günstig“ als Band, kurze günstige Ausreißer beenden die Überbrückung nicht, V1 über den ganzen günstigen Lauf, Mittelpreis je Slot. Für Zeitfenster-Tarife ohne Wirkung. |
+| `price_unit` | `auto` | Einheit einer datierten Preisliste: `auto` (einmal für die ganze Liste bestimmt), `eur`, `ct`, `eur_mwh`. Ein expliziter Wert gilt auch für den Preissensor. |
+| `battery_full_charge_days` | `0` | **A11** – spätestens alle n Tage auf `battery_max_soc` laden (Zellausgleich, SoC-Kalibrierung): PV wird nicht zurückgehalten, im günstigen Fenster wird aus dem Netz geladen, wenn die PV es nicht schafft. 0 = aus, Vorschlag 14. |
+
+### Negative Preise und Einspeisung (A5)
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `negative_price_enabled` | `false` | Bei Preis ≤ 0 oder unvergüteter Einspeisung: PV in den Akku statt einspeisen, Netzladen ohne Gate (mit Platz für die restliche PV), bei vollem Akku Warmwasser bis `hw_max_temp_c`, optional Einspeisung auf 0 W. |
+| `feed_in_price_entity` | leer | Sensor mit dem aktuellen Einspeisepreis; ≤ 0 heißt „Einspeisen bringt nichts“. |
+| `feed_in_limit_w` | `0` | Einspeisegrenze am Netzanschluss in W (z. B. 60 % der Modulleistung). Darüber gibt es keinen PV-Halt, der Akku nimmt den Überschuss; der Tagesplan hält dafür Platz frei. 0 = keine Grenze. |
+| `grid_export_limit_entity` | leer | `number`-Entity der Einspeisebegrenzung am Wechselrichter (W). Nur zusammen mit `grid_export_limit_normal_w`. |
+| `grid_export_limit_normal_w` | `0` | Wert, auf den die Begrenzung zurückgesetzt wird (auch beim Beenden und von der Notabschaltung). |
+| `price_is_spot` | `false` | Der Preissensor liefert reine Börsenpreise: wirksamer Preis = (Börsenpreis + `price_fee_eur_kwh`) × (1 + `price_vat_pct` %). |
+| `price_fee_eur_kwh` | `0.0` | Netzentgelt, Abgaben, Umlagen in €/kWh. |
+| `price_vat_pct` | `0.0` | Mehrwertsteuer in %. |
+
+### Sicherheit (A10)
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `failsafe_timeout_min` | `15` | Meldet sich das Add-on so lange nicht, setzt die **HA-Integration** Netzladen aus, Lade- und Entladestrom auf Maximum, den Boiler-Sollwert auf den Ruhewert und die Einspeisebegrenzung zurück, feuert `miniems_alert` und zeigt einen Reparaturhinweis. Nur wenn eine Steuerung live ist. 0 = aus. |
+| `write_budget_per_hour` | `0` | Höchstens so viele Änderungen des gestreckten Ladestroms (V1) pro Stunde, danach bleibt der Wert stehen. Moduswechsel sind nicht begrenzt. 0 = unbegrenzt. Die Zahl der Sollwertwechsel je Kanal steht in `/api/status` (`write_changes_today`). |
+
+### Warmwasser (A8, A11)
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `hw_start_cost_enabled` | `false` | **A8** – den gelernten Wärmeverlust je Start jeder geplanten Ladung aufschlagen (getrennt für Start aus Standby und Umschalten aus dem Heizbetrieb). Kleine Nachladungen lohnen sich dann von selbst nicht; `hw_min_charge_k` bleibt als Untergrenze. |
+| `hw_thermal_energy_entity` | leer | Wärmezähler Warmwasser der Wärmepumpe in kWh (Lebenszeit), z. B. `sensor.eu08l_hp1_hot_water_thermal_energy_total`. Ohne ihn wird nichts gelernt. |
+| `hw_hygiene_enabled` | `false` | **A11** – Hygieneladung, im günstigsten Slot der nächsten 24 h. Für ein Einfamilienhaus keine Pflicht; prüfen, ob die Wärmepumpe ein eigenes Programm fährt. |
+| `hw_hygiene_temp_c` | `60.0` | Zieltemperatur der Hygieneladung. 50–70. |
+| `hw_hygiene_interval_days` | `7` | Fällig, wenn der Boiler so lange nicht auf der Temperatur war. |
+
+---
+
 ## Wärmepumpe: Warmwasser (seit v3.5.0)
 
 Datensammlung und Steuerung der Warmwasserbereitung haben eine eigene Seite:

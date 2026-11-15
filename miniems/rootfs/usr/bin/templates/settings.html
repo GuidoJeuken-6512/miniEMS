@@ -30,7 +30,11 @@
     const BOOL_FIELDS = new Set([
       'battery_control_enabled', 'battery_control_simulation',
       'pv_export_priority_enabled', 'load_forecast_enabled',
-      'hw_control_enabled', 'hw_control_simulation'
+      'hw_control_enabled', 'hw_control_simulation',
+      'price_classes_enabled', 'load_profile_enabled', 'soc_aware_gate_enabled',
+      'discharge_hold_enabled', 'negative_price_enabled', 'price_is_spot',
+      'battery_plan_enabled', 'battery_learned_values_enabled', 'pv_correction_enabled',
+      'plan_feedback_enabled', 'hw_start_cost_enabled', 'day_ahead_enabled', 'hw_hygiene_enabled'
     ]);
     const INT_FIELDS = new Set([
       'battery_min_soc', 'battery_max_soc', 'pv_surplus_threshold_w',
@@ -42,7 +46,9 @@
       'sensor_max_age_sec', 'forecast_max_age_sec', 'price_max_age_sec',
       'inverter_write_stuck_threshold_sec', 'load_forecast_min_days',
       'hp_mode_hot_water_code', 'hp_request_hot_water_code', 'hp_cop_settle_sec',
-      'hw_write_scale', 'hw_pv_min_export_w', 'hw_min_off_sec'
+      'hw_write_scale', 'hw_pv_min_export_w', 'hw_min_off_sec',
+      'feed_in_limit_w', 'grid_export_limit_normal_w', 'failsafe_timeout_min',
+      'write_budget_per_hour', 'battery_full_charge_days', 'hw_hygiene_interval_days'
     ]);
     const FLOAT_FIELDS = new Set([
       'battery_capacity_kwh', 'cheap_rate_threshold_eur', 'medium_rate_threshold_eur',
@@ -56,6 +62,9 @@
       'hw_max_temp_c', 'hw_heat_power_kw', 'hw_cop_prior',
       'hw_cop_prior_temp_c', 'hw_adhoc_delta_k', 'hw_decision_tolerance_pct',
       'hw_min_charge_k', 'hw_min_charge_running_k',
+      'price_cheap_hours', 'price_hysteresis_min_eur', 'price_hysteresis_max_eur',
+      'price_flat_spread_eur', 'battery_wear_cost_eur_kwh', 'discharge_hold_min_spread_eur',
+      'price_fee_eur_kwh', 'price_vat_pct', 'battery_plan_switch_cost_eur', 'hw_hygiene_temp_c',
     ]);
 
     const SECTIONS = [
@@ -151,6 +160,50 @@
           { key: 'pv_forecast_scenario',     label: 'Solcast scenario: estimate | estimate10 | blend' },
           { key: 'pv_forecast_blend_weight', label: 'Blend weight of estimate (0–1, rest = estimate10)' },
           { key: 'tariff_source',            label: 'Tariff source: auto | timeslots | rates' },
+          { key: 'price_unit',               label: 'Unit of a dated price list: auto | eur | ct | eur_mwh' },
+        ]
+      },
+      {
+        title: 'Decision Logic v4 – Prices and Battery (all off = as before)',
+        fields: [
+          { key: 'price_classes_enabled',        label: 'Relative price classes instead of the fixed thresholds (A1)' },
+          { key: 'price_cheap_hours',            label: 'Cheapest hours per day that count as low' },
+          { key: 'price_hysteresis_min_eur',     label: 'Price hysteresis minimum (€/kWh)' },
+          { key: 'price_hysteresis_max_eur',     label: 'Price hysteresis maximum (€/kWh)' },
+          { key: 'price_flat_spread_eur',        label: 'Flat day below this price spread (€/kWh)' },
+          { key: 'load_profile_enabled',         label: 'Hourly load model for the remaining load and V2 (A2)' },
+          { key: 'soc_aware_gate_enabled',       label: 'Grid-charge gate by the dearest uncovered hour (A3)' },
+          { key: 'battery_wear_cost_eur_kwh',    label: 'Battery wear per discharged kWh (€/kWh)' },
+          { key: 'discharge_hold_enabled',       label: 'Hold the battery for dearer hours (A4)' },
+          { key: 'discharge_hold_min_spread_eur', label: 'Hold only for hours at least this much dearer (€/kWh)' },
+          { key: 'battery_plan_enabled',         label: 'Battery day plan decides (A6, else shadow mode only)' },
+          { key: 'battery_plan_style',           label: 'Planning style: careful | balanced | bold' },
+          { key: 'battery_plan_switch_cost_eur', label: 'Cost per change of action in the plan (€)' },
+          { key: 'battery_learned_values_enabled', label: 'Use learned battery efficiency (A7a)' },
+          { key: 'pv_correction_enabled',        label: 'PV forecast correction per hour of day (A7b)' },
+          { key: 'plan_feedback_enabled',        label: 'Correct load/PV by plan vs. result (A7c)' },
+          { key: 'day_ahead_enabled',            label: 'Day-ahead prices: band, capacity check, slot mean (A9)' },
+          { key: 'battery_full_charge_days',     label: 'Full charge at least every n days (0 = off, A11)' },
+        ]
+      },
+      {
+        title: 'Negative Prices and Feed-in (A5)',
+        fields: [
+          { key: 'negative_price_enabled',       label: 'React to negative prices / unpaid feed-in' },
+          { key: 'feed_in_price_entity',         label: 'Feed-in price entity (optional, ≤ 0 = unpaid)' },
+          { key: 'feed_in_limit_w',              label: 'Feed-in limit at the grid connection (W, 0 = none)' },
+          { key: 'grid_export_limit_entity',     label: 'Export-limit actuator (number, W, optional)' },
+          { key: 'grid_export_limit_normal_w',   label: 'Normal export limit to restore (W)' },
+          { key: 'price_is_spot',                label: 'Price is a raw exchange price (add fee and VAT)' },
+          { key: 'price_fee_eur_kwh',            label: 'Fees and levies on top of the spot price (€/kWh)' },
+          { key: 'price_vat_pct',                label: 'VAT on spot price + fees (%)' },
+        ]
+      },
+      {
+        title: 'Safety (A10)',
+        fields: [
+          { key: 'failsafe_timeout_min',         label: 'HA integration resets the actuators after this many minutes without status (0 = off)' },
+          { key: 'write_budget_per_hour',        label: 'Max. changes of the stretched charge current per hour (0 = unlimited)' },
         ]
       },
       {
@@ -194,6 +247,11 @@
           { key: 'hw_min_charge_k',         label: 'Minimum charge: start only this far below shut-off (K, compressor off)' },
           { key: 'hw_min_charge_running_k', label: 'Minimum charge while the compressor already runs (K)' },
           { key: 'hw_compressor_entity',    label: 'Compressor running entity (numeric > 0, or CH/DHW/CC/DEFROST)' },
+          { key: 'hw_start_cost_enabled',   label: 'Learn the heat lost per start and price every start (A8)' },
+          { key: 'hw_thermal_energy_entity', label: 'Heat pump thermal hot-water counter (kWh, lifetime)' },
+          { key: 'hw_hygiene_enabled',      label: 'Hygiene charge (A11)' },
+          { key: 'hw_hygiene_temp_c',       label: 'Hygiene temperature (°C)' },
+          { key: 'hw_hygiene_interval_days', label: 'Hygiene charge every n days' },
         ]
       },
       {

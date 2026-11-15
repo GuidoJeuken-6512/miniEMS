@@ -19,7 +19,7 @@ revision_date: 2026-11-15
 
     | Phase | Inhalt | Stand |
     |---|---|---|
-    | **A** – Logik Akku und Netzladen | relative Preise, Entladesperre, SoC-bewusstes Gate, negative Preise, Tagesplan | begonnen: Rückfallpfad mit Hausverbrauch (v3.7.1) |
+    | **A** – Logik Akku und Netzladen | relative Preise, Entladesperre, SoC-bewusstes Gate, negative Preise, Tagesplan | **umgesetzt in v4.0.0** (A1–A11), alle Schalter aus; Simulation und Live-Freigabe je Baustein offen |
     | **B** – Mehrere Verbraucher | Sicherung, Ressourcen-Verteiler, E-Auto, Heizung | offen |
     | **C** – Integration und GUI | Klartext, Bedienung aus HA, Plan-Ansicht, Plan-Treue, Ersparnis | offen |
     | **D** – Geräteoffen (Ausblick) | Logik spricht mit Fähigkeiten statt mit Deye und Lambda | Grundlage da (Geräteprofile v3.0) |
@@ -247,6 +247,25 @@ Wärme      : Strompreis ÷ COP(Vorlauf, Außentemperatur)        (Heizung, Warm
 ```
 
 ## 4. Phase A – Logik Akku und Netzladen
+
+!!! success "Umgesetzt in v4.0.0"
+    Alle Bausteine A1–A11 sind im Code, jeder mit eigenem Schalter (Standard aus, nur
+    `failsafe_timeout_min` ist aktiv). Die Einstellungen stehen in
+    [Konfiguration](../user/configuration.md#entscheidungslogik-v4-seit-v400). Offen ist die
+    Freigabe nach Abschnitt 8: je Baustein eine bis zwei Wochen Simulation auf der Anlage,
+    für A6 zusätzlich Schattenbetrieb mit Auswertung der geloggten Abweichungen.
+    Abweichungen von der Beschreibung unten:
+
+    - **A3:** Der günstige Lauf selbst wird aus dem Netz gedeckt, nicht aus dem Akku. Wer
+      dort lädt, sperrt das Entladen (`GRID_CHARGING`), und mit Sperre gilt das ohnehin.
+    - **A5 (4):** Die Einspeisebegrenzung folgt `battery_control_simulation`, eine eigene
+      Simulationsstufe gibt es nicht.
+    - **A6:** zusätzliche Aktion `export` (PV-Halt im Plan); berechnet alle 15 min und an
+      jeder Slotgrenze in einem Thread.
+    - **A7a:** Die gelernte Kapazität wird nur angezeigt, nicht verwendet.
+    - **A10:** Die Integration hält die Rücksetz-Aufrufe nur im Speicher. Startet HA neu,
+      während das Add-on ausgefallen ist, greift die Notabschaltung erst nach der nächsten
+      gültigen Statusmeldung wieder.
 
 Ziel: Netzladen bei niedrigen Kosten, und zwar nur dann, wenn sich das gegen die tatsächlich
 ungedeckten teuren Stunden lohnt. Dazu soll der Akku nicht in billigen Stunden leerlaufen.
