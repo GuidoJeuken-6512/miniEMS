@@ -20,9 +20,9 @@ revision_date: 2026-11-15
     | Phase | Inhalt | Stand |
     |---|---|---|
     | **A** – Logik Akku und Netzladen | relative Preise, Entladesperre, SoC-bewusstes Gate, negative Preise, Tagesplan | **umgesetzt in v4.0.0** (A1–A11), alle Schalter aus; Simulation und Live-Freigabe je Baustein offen |
-    | **B** – Mehrere Verbraucher | Sicherung, Ressourcen-Verteiler, E-Auto, Heizung | offen |
+    | **B** – Mehrere Verbraucher | Sicherung, Ressourcen-Verteiler, E-Auto, Heizung | **umgesetzt in v4.1.0** (B1–B8), alle Schalter aus; Simulation und Live-Freigabe je Baustein offen, E-Auto mangels Wallbox nur in Simulation prüfbar |
     | **C** – Integration und GUI | Klartext, Bedienung aus HA, Plan-Ansicht, Plan-Treue, Ersparnis | offen |
-    | **D** – Geräteoffen (Ausblick) | Logik spricht mit Fähigkeiten statt mit Deye und Lambda | Grundlage da (Geräteprofile v3.0) |
+    | **D** – Geräteoffen (Ausblick) | Logik spricht mit Fähigkeiten statt mit Deye und Lambda | **D1 umgesetzt in v4.1.0**, D2–D4 offen |
 
     Am 2026-11-15 wurde der Plan auf Fehler und fehlende Pflichtfunktionen geprüft. Geändert
     wurden die Preisklassen-Formel, die Reihenfolge der Entladesperre und die Kaufwert-Rechnung.
@@ -537,6 +537,48 @@ der Frist ist frei und wird in den günstigsten Slot gelegt.
 
 ## 5. Phase B – Mehrere Verbraucher (E-Auto und Heizung)
 
+!!! success "Umgesetzt in v4.1.0"
+    B1–B8 und D1 sind im Code, jeder Baustein mit eigenem Schalter (Standard aus,
+    E-Auto und Heizung zusätzlich mit eigener Simulation). Die Einstellungen stehen in
+    [Konfiguration](../user/configuration.md#mehrere-verbraucher-seit-v410). Offen ist
+    die Freigabe nach Abschnitt 8. Vorher zu klären: der Nennstrom der Hauptsicherung
+    und die Phasenzuordnung der Netz-CTs (B1), eine Wallbox (B3–B5), ob die
+    Lambda-Raumtemperatur repräsentativ ist (B7). Am 2026-11-15 per HA-MCP in der
+    Anlage nachgesehen:
+
+    - Phasenströme: die externen CTs des Deye (`sensor.deye8k_external_ct1..3_current`,
+      ohne Vorzeichen), die Richtung kommt aus `sensor.deye8k_grid_l1..3_power`
+      (+ = Bezug, Summe = `grid_power`). Beide sind die Standardwerte.
+    - Keine Wallbox, kein Fahrzeug, kein Steuerbox-Signal (§14a) in HA.
+    - Vorlauf-Offset `number.eu08l_hc1_flow_line_offset_temperature` (−10 … +10 K,
+      Schritt 0,1) und Raumtemperatur `sensor.eu08l_hc1_room_device_temperature`
+      sind vorhanden und vorbelegt.
+
+    Abweichungen von der Beschreibung unten:
+
+    - **B1:** Es gibt keinen Heizstab-Aktor, der Wächter wirkt auf Netzladen und
+      Wallbox. Die Mindestleistung nach §14a bei mehreren Geräten wird nicht
+      berechnet, sondern eingestellt (`grid_dimming_limit_w`). Der Deye hat eine eigene
+      Peak-Shaving-Funktion (`number.deye8k_grid_peak_shaving`, Schalter aus), die als
+      zweite, gerätenahe Grenze dienen kann.
+    - **B2:** Der Echtzeit-Verteiler rechnet die Aufteilung nach Rang 7 und zeigt sie an
+      (`surplus_share`). Das E-Auto regelt selbst nach Netzleistung, der Akku gibt seine
+      PV-Ladung über den Prioritäts-SoC ab. Warmwasser behält seinen PV-Auslöser. Einen
+      eigenen Modus „Akku pausiert“ gibt es nicht.
+    - **B3:** kein Wallbox-Profil (Regel D4: erst mit einem echten Gerät). Die
+      Anbindung läuft über Konfigurationsfelder, die den Rollen der Klasse `ev` folgen.
+    - **B4:** Die Grundlast je Slot kommt aus dem vorhandenen Lastmodell, das schon
+      nach Temperatur rechnet. Eigene Heizgradstunden gibt es nicht.
+    - **B6:** Die Abstimmung mit dem Warmwasser läuft nur über den Verdichterzustand
+      aus v3.7.0 (kleinerer Ladehub bei laufendem Verdichter).
+    - **B7:** Der Rückblick prüft die Modellgüte (Vorhersagefehler je Stunde), nicht
+      die Ersparnis in Euro. Dafür fehlen in der Historie die Preise und die
+      Wärmepumpen-Energie je Stunde. Der Ersparnis-Nachweis bleibt dem Schattenbetrieb
+      vorbehalten: Der Plan steht im Status, auch wenn er nicht entscheidet.
+    - **D1:** Der Resolver bleibt Vorschau (`/devices` zeigt jetzt auch `heat_pump`).
+      Die Lambda-Werte bleiben Standardwerte der Konfiguration, die Logik kennt nur
+      die Fähigkeiten aus `heat_pump_device.py`.
+
 Ziel: E-Auto und Heizung als gleichberechtigte Verbraucher, die sich PV-Überschuss,
 Netzleistung und Akku-Energie nach festen Regeln teilen.
 
@@ -898,6 +940,9 @@ ohne Simulationszeit). Risiko bezieht sich auf Fehlentscheidungen im Live-Betrie
 
 **Meilensteine:**
 
+Die Versionsnummern unten stammen aus der Planung. Tatsächlich kam Phase A als v4.0.0
+und Phase B (Nr. 10–17 mit 14a) als v4.1.0.
+
 - **v3.8 – Netzladen nach Bedarf:** Nr. 1–5 mit 4a. Danach lädt miniEMS nur noch, was die teuren
   Stunden wirklich brauchen, und hält es für diese zurück.
 - **v3.9 – Prognosegüte und Tagesplan:** Nr. 6–9b.
@@ -1024,10 +1069,14 @@ angegebenen Stand.
 3. **A6:** Gemeinsame Funktion `uncovered_windows` für Gate, Sperre und Anzeige, damit sie
    nicht auseinanderlaufen? Vorschlag: ja, in `energy_plan.py`.
 4. **B1:** Woher kommen die Phasenströme, vom Shelly 3EM am Netzanschluss oder von den
-   Netz-CTs des Deye? Wie hoch ist der Nennstrom der Hauptsicherung?
+   Netz-CTs des Deye? Wie hoch ist der Nennstrom der Hauptsicherung? Teilweise
+   beantwortet: Die Netz-CTs des Deye liefern Strom und Leistung je Phase (Standard in
+   v4.1.0). Der Shelly 3EM misst nur die Wärmepumpe. Offen: Nennstrom und Phasenzuordnung.
 5. **B3:** Welche Wallbox und Integration? Liefert das Auto einen SoC an HA? Sitzt die Wallbox
    hinter dem Netz-Messwandler des Deye? Davon hängt ab, ob „offload“ möglich ist oder nur „block“.
-6. **B6/B7:** Welcher Innenfühler ist repräsentativ? Wirkt der Vorlauf-Offset sofort oder
+   Stand 2026-11-15: keine Wallbox in HA. v4.1.0 setzt „block“ als Standard.
+6. **B6/B7:** Welcher Innenfühler ist repräsentativ? (Vorbelegt: Lambda HC1
+   Raumtemperatur; ob sie das Haus abbildet, ist offen.) Wirkt der Vorlauf-Offset sofort oder
    erst nach der nächsten Neuberechnung der Heizkurve? Teilweise beantwortet: „Verdichter
    läuft“ und den Zustand CH/DHW liefert seit v3.7.0 `hw_compressor_entity`.
 7. **C2:** Welche Seite gewinnt bei gleichzeitiger Änderung? Vorschlag: der zuletzt
@@ -1037,6 +1086,7 @@ angegebenen Stand.
    abgelesen werden, nicht aus dem Quellcode der Integration übernommen.
 9. **B1:** Fällt die Anlage unter §14a (Inbetriebnahme von Wärmepumpe, Wallbox oder Speicher
    ab 2024)? Welches Modul gilt? Gibt es eine Steuerbox, und ist ihr Signal in HA sichtbar?
+   Stand 2026-11-15: kein Steuerbox-Signal in HA gefunden.
 10. **A5:** Gilt für die PV-Anlage eine Einspeisegrenze (60 %, 70 % oder ein festes Limit am
     Wechselrichter)?
 11. **B6/A11:** Ist die Lambda-Option `pv_surplus` aktiv? Meldet die Lambda den Heizstab-Betrieb?
@@ -1051,13 +1101,15 @@ angegebenen Stand.
   `const.py`, neu `battery_plan.py`, `battery_learning.py`, `load_forecast.py`, `solcast_client.py`,
   `store.py`, `config_loader.py`, `migration.py`, `hot_water_controller.py`,
   `integration/` (Wächter, A10).
-- **Phase B:** neu `fuse_guard.py`, `energy_task.py` (aus `ChargeTask`), `ev_controller.py`,
-  `heating_controller.py`, `heating_model.py`; `roles.yaml`, `profiles/` (Wallbox),
-  `device_resolver.py`.
+- **Phase B (v4.1.0):** neu `fuse_guard.py`, `resources.py`, `energy_task.py` (aus
+  `ChargeTask`), `ev_controller.py`, `ev_planner.py`, `ev_surplus.py`,
+  `heating_controller.py`, `heating_model.py`, `best_start.py`, `phase_b.py` (Verdrahtung
+  in `EMSController`); `roles.yaml`, `store.py`, `integration/sensor.py`.
 - **Phase C:** `integration/` (`switch.py`, `select.py`, `number.py`, `button.py`,
   `sensor.py`, Karten), `web_server.py`, `templates/`, `translations/`.
-- **Phase D:** `roles.yaml` (Klasse `heat_pump`), neu `profiles/heat_pump/`,
-  `device_resolver.py`, `hot_water_controller.py`, `config_loader.py`.
+- **Phase D (D1 in v4.1.0):** `roles.yaml` (Klasse `heat_pump`), neu
+  `profiles/heat_pump/lambda_eu08l.yaml`, `heat_pump_device.py`, `hot_water_controller.py`,
+  `legacy_entity_fields.py`, `web_server.py` (`/devices`).
 - **Doku:** `docs/technical/netzladen-entscheidung.md`, `calculations.md`,
   `docs/user/configuration.md`, `costs.md`, DE und EN. Von `netzladen-entscheidung.md`,
   `energiefahrplan.md` und `geraeteprofile.md` gibt es noch keine englische Fassung.
