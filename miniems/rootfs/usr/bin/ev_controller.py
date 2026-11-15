@@ -105,6 +105,8 @@ class EVController:
         self._stuck_retry_at: float | None = None
         self._stuck_retries = 0
         self.cap_w: float | None = None
+        # C2: an override with an expiry beats the input_select helper.
+        self.override_mode = "auto"
 
     # ------------------------------------------------------------------
     # Properties
@@ -187,7 +189,8 @@ class EVController:
             return
         t = time.monotonic() if t is None else t
         self.cap_w = cap_w
-        self._mode = parse_mode(self._raw(self._cfg.ev_mode_entity))
+        self._mode = (parse_mode(self.override_mode) if self.override_mode != "auto"
+                      else parse_mode(self._raw(self._cfg.ev_mode_entity)))
         plugged = self._read_plugged()
         if self._last_t is not None and plugged:
             self._session_kwh += self.power_w * max(0.0, t - self._last_t) / 3_600_000.0

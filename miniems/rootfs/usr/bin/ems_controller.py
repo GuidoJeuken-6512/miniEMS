@@ -32,6 +32,7 @@ from energy_value import RATE_TOLERANCE, EnergyValue, assess_energy, should_hold
 from event_log import EventLog, LogEntry
 from price_classes import classes_for
 from phase_b import PhaseBMixin
+from phase_c import PhaseCMixin
 from price_curve import PriceCurve
 from sensor_availability import SensorAvailabilityMonitor
 
@@ -41,6 +42,7 @@ if TYPE_CHECKING:
     from cost_optimizer import CostOptimizer
     from ev_controller import EVController
     from heating_controller import HeatingController
+    from overrides import OverrideStore
     from resources import ResourceCoordinator
     from store import EnergyStore
     from event_log import EventLog
@@ -74,7 +76,7 @@ class ModeDecision:
     urgent: bool = False   # safety / data-loss transitions bypass the debounce
 
 
-class EMSController(PhaseBMixin):
+class EMSController(PhaseBMixin, PhaseCMixin):
     """Evaluates sensor readings and determines the current EMS operating mode."""
 
     def __init__(
@@ -96,6 +98,7 @@ class EMSController(PhaseBMixin):
         heating: "HeatingController | None" = None,
         resources: "ResourceCoordinator | None" = None,
         store: "EnergyStore | None" = None,
+        overrides: "OverrideStore | None" = None,
     ) -> None:
         self._cfg = config
         self._ws = ws_client
@@ -166,6 +169,8 @@ class EMSController(PhaseBMixin):
         self._gate_diff: tuple[bool, bool] | None = None
         # Phase B (v4.1.0): fuse guard, EV, heating, start advice – phase_b.py.
         self._init_phase_b(ev, heating, resources, store)
+        # Phase C (v4.2.0): overrides, plain text, timeline, fidelity, savings.
+        self._init_phase_c(overrides, store)
 
     # ------------------------------------------------------------------
     # Public API
@@ -260,12 +265,15 @@ class EMSController(PhaseBMixin):
         await self._update_bridge_plan(pv_w, price, bat_kwh_free, bat_kwh_use, now)
         await self._update_energy_value(now, price, pv_w, bat_kwh_use, bat_kwh_free)
         await self._update_battery_plan(now, price, pv_w, bat_kwh_use, bat_kwh_free)
+        # C2: active overrides (EV override goes to the EV controller).
+        await self._update_phase_c_pre(now)
         # Phase B: fuse guard and EV before the battery decision (B1–B5).
         await self._update_phase_b_pre(now, price, pv_w, load_w, grid_w, bat_w, bat_soc)
         prev_mode = self._mode
         self._mode = self._determine_mode(pv_w, load_w, bat_soc, price, bat_kwh_free, now)
         self._log_plan_shadow(now)
         await self._update_phase_b_post(now, price, grid_w)
+        await self._update_phase_c_post(now, price, pv_w, bat_kwh_free)
         await self._record_hourly(now, load_w)
         await self._record_heat_pump(now)
 
@@ -572,6 +580,8 @@ class EMSController(PhaseBMixin):
                     for w in plan.windows
                 ],
             }
+        # Phase C: plain text, timeline, next action, fidelity, savings, alerts.
+        result.update(self._phase_c_status(result, now))
         return result
 
     # ------------------------------------------------------------------
@@ -590,6 +600,8 @@ class EMSController(PhaseBMixin):
         """Pick the operating mode, then apply the dwell time before committing."""
         now = now or datetime.now().astimezone()
         decision = self._decide(pv_w, load_w, bat_soc, price, bat_kwh_free, now)
+        # C2 (rank 3): a manual override, never over a hard limit.
+        decision = self._apply_override(decision, bat_soc, now)
         # B2 coupling rule: the battery does not discharge into the EV.
         decision = self._couple_ev(decision)
         return self._commit(decision, now)
@@ -2312,6 +2324,7 @@ class EMSController(PhaseBMixin):
         if cfg.battery_plan_enabled and self._battery_plan is None:
             warnings.append(f"Battery plan enabled but not computed: {self._battery_plan_status}")
         warnings.extend(self._phase_b_warnings())
+        warnings.extend(self._phase_c_warnings())
 
         # Forecast *data* age – independent of how often HA rewrites the sensors.
         if self._solcast_data_stale():

@@ -198,6 +198,9 @@ class EnergyStore:
             "soc_last_pct REAL",
             "dis_eff_load_kwh REAL",
             "dis_eff_bat_kwh REAL",
+            # C4: plan fidelity – minutes observed / kept per day.
+            "plan_minutes INTEGER",
+            "plan_kept_minutes INTEGER",
         ):
             try:
                 await self._db.execute(f"ALTER TABLE daily_stats ADD COLUMN {col_def}")
@@ -208,7 +211,9 @@ class EnergyStore:
         for col_def in ("pv_kwh REAL", "pv_fc_kwh REAL", "load_pred_kwh REAL",
                         # B7: room temperature, share of the hour the heat pump
                         # heated, mean flow-line offset.
-                        "room_temp_c REAL", "heating_frac REAL", "flow_offset_k REAL"):
+                        "room_temp_c REAL", "heating_frac REAL", "flow_offset_k REAL",
+                        # C5: mean price of the hour, for the savings baseline.
+                        "price_eur_kwh REAL"):
             try:
                 await self._db.execute(f"ALTER TABLE hourly_stats ADD COLUMN {col_def}")
             except Exception:

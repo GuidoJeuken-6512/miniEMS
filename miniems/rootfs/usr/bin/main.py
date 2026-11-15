@@ -22,10 +22,12 @@ from event_log import EventLog
 from ev_controller import EVController
 from ha_service import HAServiceCaller
 from ha_state_client import HAStateClient
+from ha_entities import EntityCache
 from heating_controller import HeatingController
 from hot_water_controller import HotWaterController
 from integration_installer import install_integration
 from inverter_controller import InverterController
+from overrides import OverrideStore
 from resources import ResourceCoordinator
 from solcast_client import SolcastClient
 from store import EnergyStore
@@ -152,6 +154,12 @@ async def main() -> None:
         _LOGGER.info("Fuse guard active: %.0f A, working limit %.0f %%",
                      cfg.fuse_rated_a, cfg.fuse_work_limit_pct)
 
+    # Phase C (v4.2.0): overrides with an expiry (shared by the EMS, the
+    # ingress page and the HA entities), entity list for the settings page.
+    overrides = OverrideStore(store)
+    await overrides.load()
+    entity_cache = EntityCache(supervisor_token)
+
     controller = EMSController(
         cfg, ws_client, cost_optimizer, inverter, consumption_model,
         solcast=solcast_client,
@@ -166,9 +174,11 @@ async def main() -> None:
         heating=heating,
         resources=resources,
         store=store,
+        overrides=overrides,
     )
     app = create_app(status_store, cfg, supervisor_token, store,
-                     hot_water=hot_water, inverter=inverter, ev=ev, heating=heating)
+                     hot_water=hot_water, inverter=inverter, ev=ev, heating=heating,
+                     overrides=overrides, entities=entity_cache)
 
     await install_integration()
     await backfill_daily_stats(cfg, store)

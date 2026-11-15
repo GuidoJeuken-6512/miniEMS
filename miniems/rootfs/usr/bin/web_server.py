@@ -8,7 +8,7 @@ import json
 import logging
 import os
 from dataclasses import fields as dc_fields
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +28,9 @@ from device_profile import load_profiles
 from device_registry import RegistrySnapshot
 from device_resolver import profile_status, resolve_class
 from energy_dashboard import parse_energy_prefs
+from ha_entities import candidates as entity_candidates, entity_fields, validate as validate_entities
 from legacy_entity_fields import heat_pump_overrides, inverter_overrides
+from overrides import OverrideError
 from role_catalog import load_role_catalog
 
 _LOGGER = logging.getLogger(__name__)
@@ -211,6 +213,8 @@ def create_app(
     inverter: Any = None,        # InverterController instance
     ev: Any = None,              # EVController instance (B3)
     heating: Any = None,         # HeatingController instance (B6)
+    overrides: Any = None,       # OverrideStore (C2)
+    entities: Any = None,        # ha_entities.EntityCache (C7)
 ) -> FastAPI:
     """Create FastAPI app; status_store is the shared dict updated by EMS loop."""
     app = FastAPI(title="miniEMS", docs_url=None, redoc_url=None)
@@ -230,11 +234,81 @@ def create_app(
 
     @app.get("/api/status")
     async def api_status() -> dict[str, Any]:
-        # status_store is only refreshed per EMS tick; the hot-water part is
-        # read live so a button press shows up at once.
+        # status_store is only refreshed per EMS tick; the hot-water part,
+        # the control mode and the overrides are read live so a button press
+        # or a switch in HA shows up at once.
+        data = dict(status_store)
         if hot_water is not None and hot_water.enabled and "hot_water" in status_store:
-            return {**status_store, "hot_water": hot_water.status()}
-        return status_store
+            data["hot_water"] = hot_water.status()
+        if config is not None:
+            data["control_mode"] = _control_mode()
+        if overrides is not None:
+            data["overrides"] = overrides.status(datetime.now().astimezone())
+        return data
+
+    # ── Phase C pages (C6 navigation: Jetzt / Plan / Geräte / Kosten / System) ──
+
+    def _page(name: str):
+        async def handler(request: Request) -> HTMLResponse:
+            lang = await get_ha_language(request)
+            return _TEMPLATES.TemplateResponse(
+                request, f"{name}.html",
+                {"version": const.VERSION, "translations": load_translations(lang), "lang": lang})
+        return handler
+
+    for _route, _name in (("/plan", "plan"), ("/costs", "costs"), ("/consumers", "consumers"),
+                          ("/system", "system")):
+        app.add_api_route(_route, _page(_name), methods=["GET"], response_class=HTMLResponse)
+
+    # ── C2: overrides with an expiry ────────────────────────────────────
+
+    @app.get("/api/override")
+    async def api_override_get() -> JSONResponse:
+        if overrides is None:
+            return JSONResponse({"error": "overrides not available"}, status_code=409)
+        return JSONResponse(overrides.status(datetime.now().astimezone()))
+
+    @app.post("/api/override")
+    async def api_override_post(request: Request) -> JSONResponse:
+        """{"device": "battery"|"ev", "value": ..., "minutes": 15–360} starts an
+        override ("auto" ends it); {"minutes": n} alone sets the default
+        duration; {"clear": "battery"|"ev"|"all"} ends overrides."""
+        if overrides is None:
+            return JSONResponse({"error": "overrides not available"}, status_code=409)
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+        if not isinstance(body, dict) or not body:
+            return JSONResponse({"error": "nothing to change"}, status_code=400)
+        now = datetime.now().astimezone()
+        try:
+            if "clear" in body:
+                target = body["clear"]
+                await overrides.clear(None if target == "all" else str(target))
+            elif "device" in body:
+                minutes = body.get("minutes")
+                await overrides.set(str(body["device"]), str(body.get("value", "")), now,
+                                    None if minutes is None else int(minutes),
+                                    source=str(body.get("source", "api")))
+            elif "minutes" in body:
+                await overrides.set_minutes(int(body["minutes"]))
+            else:
+                return JSONResponse({"error": "expected device, minutes or clear"}, status_code=400)
+        except (OverrideError, TypeError, ValueError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        _LOGGER.info("Override: %s", body)
+        return JSONResponse(overrides.status(now))
+
+    # ── C7: entity picker ──────────────────────────────────────────────
+
+    @app.get("/api/entities")
+    async def api_entities(field: str = "") -> JSONResponse:
+        states = await entities.states() if entities is not None else None
+        if states is None:
+            return JSONResponse({"error": "entity list unavailable", "entities": []}, status_code=503)
+        return JSONResponse({"field": field, "entities": entity_candidates(field, states),
+                             "fields": entity_fields()})
 
     # ── Settings ───────────────────────────────────────────────────────
 
@@ -435,6 +509,16 @@ def create_app(
             except Exception as exc:
                 _LOGGER.warning("Failed to read existing config for merge: %s", exc)
 
+        # C7: refuse entities that do not exist or have the wrong domain/unit.
+        # "_force": true saves anyway (e.g. an integration not loaded yet).
+        if entities is not None and not body.get("_force"):
+            states = await entities.states()
+            if states is not None:
+                problems = validate_entities(body, states)
+                if problems:
+                    return JSONResponse({"error": "invalid entities", "problems": problems},
+                                        status_code=422)
+
         # Merge and coerce types
         for key, value in body.items():
             if not key.startswith("_"):
@@ -490,6 +574,7 @@ def create_app(
             "ev_live": bool(c.ev_control_enabled and not c.ev_control_simulation),
             "heating_live": bool(c.heating_control_enabled and not c.heating_control_simulation),
             "history_backfill": bool(c.history_backfill_enabled),
+            "charge_priority": c.charge_priority,
         }
 
     @app.get("/api/control_mode")
@@ -515,7 +600,7 @@ def create_app(
         if not isinstance(body, dict):
             return JSONResponse({"error": "Invalid JSON"}, status_code=400)
 
-        updates: dict[str, bool] = {}
+        updates: dict[str, Any] = {}
         if "simulation" in body:
             sim = _coerce("battery_control_simulation", body["simulation"])
             updates["battery_control_simulation"] = sim
@@ -531,6 +616,11 @@ def create_app(
         if "heating_control" in body:
             updates["heating_control_enabled"] = _coerce("heating_control_enabled",
                                                          body["heating_control"])
+        if "charge_priority" in body:
+            if body["charge_priority"] not in ("battery", "ev"):
+                return JSONResponse({"error": "charge_priority must be battery or ev"},
+                                    status_code=400)
+            updates["charge_priority"] = body["charge_priority"]
         if "history_backfill" in body:
             updates["history_backfill_enabled"] = _coerce(
                 "history_backfill_enabled", body["history_backfill"])

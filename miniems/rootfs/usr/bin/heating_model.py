@@ -273,7 +273,8 @@ class HeatingPlan:
             "ready": self.ready, "reason": self.reason,
             "lowered_h": round(self.lowered_h, 1), "preheat_h": round(self.preheat_h, 1),
             "slots": [
-                {"start": s.start.isoformat(), "action": a, "temp_c": round(t, 2)}
+                {"start": s.start.isoformat(), "end": s.end.isoformat(), "action": a,
+                 "temp_c": round(t, 2)}
                 for s, a, t in zip(self.slots, self.actions, self.temps) if a != 0
             ],
         }
