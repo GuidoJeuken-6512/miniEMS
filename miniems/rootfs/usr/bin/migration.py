@@ -122,6 +122,9 @@ def migrate(data: dict, *, is_fresh: bool = False) -> dict:
     if version < 25:
         data = _v24_to_v25(data)
 
+    if version < 26:
+        data = _v25_to_v26(data)
+
     data["_version"] = CURRENT_VERSION
     return data
 
@@ -461,6 +464,56 @@ def _v24_to_v25(data: dict) -> dict:
         if key not in data:
             data[key] = default
             _LOGGER.info("Migration v24→v25: set %s = %r", key, default)
+    return data
+
+
+# Phase A (v4.0.0, docs/roadmap/gesamtplan.md): every new switch off, so an
+# upgraded install decides exactly as before. failsafe_timeout_min is the one
+# active default – it only resets actuators when the add-on has stopped.
+_V26_DEFAULTS: dict = {
+    "price_unit": "auto",
+    "price_classes_enabled": False,
+    "price_cheap_hours": 6.0,
+    "price_hysteresis_min_eur": 0.005,
+    "price_hysteresis_max_eur": 0.02,
+    "price_flat_spread_eur": 0.03,
+    "load_profile_enabled": False,
+    "soc_aware_gate_enabled": False,
+    "battery_wear_cost_eur_kwh": 0.0,
+    "discharge_hold_enabled": False,
+    "discharge_hold_min_spread_eur": 0.03,
+    "negative_price_enabled": False,
+    "feed_in_price_entity": "",
+    "feed_in_limit_w": 0,
+    "grid_export_limit_entity": "",
+    "grid_export_limit_normal_w": 0,
+    "price_is_spot": False,
+    "price_fee_eur_kwh": 0.0,
+    "price_vat_pct": 0.0,
+    "battery_plan_enabled": False,
+    "battery_plan_style": "careful",
+    "battery_plan_switch_cost_eur": 0.01,
+    "battery_learned_values_enabled": False,
+    "pv_correction_enabled": False,
+    "plan_feedback_enabled": False,
+    "hw_start_cost_enabled": False,
+    "hw_thermal_energy_entity": "",
+    "day_ahead_enabled": False,
+    "failsafe_timeout_min": 15,
+    "write_budget_per_hour": 0,
+    "battery_full_charge_days": 0,
+    "hw_hygiene_enabled": False,
+    "hw_hygiene_temp_c": 60.0,
+    "hw_hygiene_interval_days": 7,
+}
+
+
+def _v25_to_v26(data: dict) -> dict:
+    """v25 → v26: Phase A switches and parameters, all off by default."""
+    for key, default in _V26_DEFAULTS.items():
+        if key not in data:
+            data[key] = default
+            _LOGGER.info("Migration v25→v26: set %s = %r", key, default)
     return data
 
 

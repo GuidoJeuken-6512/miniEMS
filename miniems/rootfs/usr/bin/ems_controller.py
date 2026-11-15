@@ -24,6 +24,7 @@ from const import (
 )
 from energy_plan import EnergyPlan, compute_energy_plan
 from event_log import EventLog, LogEntry
+from price_classes import classes_for
 from price_curve import PriceCurve
 from sensor_availability import SensorAvailabilityMonitor
 
@@ -127,6 +128,8 @@ class EMSController:
         self._availability = SensorAvailabilityMonitor()
         self._bridge_plan: BridgePlan | None = None
         self._bridge_status: str = "disabled"
+        # A1: last (relative, fixed) cheap verdict, to log a disagreement once.
+        self._price_class_diff: tuple[bool, bool] | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -152,7 +155,7 @@ class EMSController:
         grid_w = ws.get_state_value(cfg.grid_power_entity)
         bat_soc = ws.get_state_value(cfg.battery_soc_entity)
         bat_w = ws.get_state_value(cfg.battery_power_entity)
-        price = ws.get_state_value(cfg.electricity_price_entity)
+        price = self._sensor_price()
         self._check_sensor_availability()
 
         # Prefer the live capacity sensor so the decision and the dashboard agree.
@@ -195,6 +198,7 @@ class EMSController:
             self._learned_charge_kw = None
 
         now = datetime.now().astimezone()
+        self._update_price_classes(now, price)
         if self._weather is not None:
             # Hourly temperatures feed both the load forecast and – without an
             # outdoor sensor – the hourly history. Cached for 30 min inside.
@@ -407,6 +411,7 @@ class EMSController:
             "electricity_price_eur": price,
             "is_cheap_rate": self._optimizer.is_cheap_rate(price),
             "price_tier": self._optimizer.price_tier(price),
+            "price_classes": self._price_classes_dict(),
             "battery_control_active": cfg.battery_control_enabled,
             "battery_control_simulation": cfg.battery_control_simulation,
             "battery_kwh_freetochange": round(bat_kwh_free, 3) if bat_kwh_free is not None else None,
@@ -883,7 +888,7 @@ class EMSController:
             energy = min(plan.need_kwh, bat_kwh_free)  # type: ignore[union-attr]
             return energy / remaining_h * 1000.0
 
-        curve = PriceCurve.from_entity(self._ws, cfg.electricity_price_entity, cfg.tariff_source)
+        curve = self._price_curve()
         if curve is None:
             return None
         window_end = curve.window_end(now)
@@ -899,6 +904,82 @@ class EMSController:
 
         p_soll_kw = bat_kwh_free / remaining_h
         return p_soll_kw * 1000.0
+
+    # ------------------------------------------------------------------
+    # A1 – relative price classes
+    # ------------------------------------------------------------------
+
+    def _price_curve(self) -> PriceCurve | None:
+        """The tariff calendar of the price entity, in effective €/kWh."""
+        cfg = self._cfg
+        return PriceCurve.from_entity(
+            self._ws, cfg.electricity_price_entity, cfg.tariff_source,
+            unit=cfg.price_unit, adjust=self._price_adjust(),
+        )
+
+    def _price_adjust(self):
+        """A5 (5): spot price → effective purchase price, or None (as is)."""
+        cfg = self._cfg
+        if not cfg.price_is_spot:
+            return None
+        fee, vat = cfg.price_fee_eur_kwh, cfg.price_vat_pct / 100.0
+        return lambda spot: (spot + fee) * (1.0 + vat)
+
+    def _sensor_price(self) -> float | None:
+        """Current price in effective €/kWh.
+
+        An explicit price_unit converts the sensor as well ("auto" leaves it
+        as is – the sensor has always been read as €/kWh); price_is_spot adds
+        fees and VAT (A5).
+        """
+        cfg = self._cfg
+        raw = self._ws.get_state_value(cfg.electricity_price_entity)
+        if raw is None:
+            return None
+        divisor = {"ct": 100.0, "eur_mwh": 1000.0}.get(cfg.price_unit)
+        if divisor:
+            raw /= divisor
+        adjust = self._price_adjust()
+        return adjust(raw) if adjust is not None else raw
+
+    def _price_classes_dict(self) -> dict | None:
+        classes = getattr(self._optimizer, "price_classes", None) if self._cfg.price_classes_enabled else None
+        return classes.as_dict() if classes is not None else None
+
+    def _update_price_classes(self, now: datetime, price: float | None) -> None:
+        """Today's relative price classes → optimizer and hot water.
+
+        Off, or no tariff calendar → None, and the fixed thresholds decide as
+        before. Every change of the cheap/not-cheap verdict against the fixed
+        threshold is logged once, so the two can be compared in the log.
+        """
+        cfg = self._cfg
+        if not cfg.price_classes_enabled:
+            return   # optimizer and hot water keep the fixed thresholds
+        classes = classes_for(
+            self._price_curve(),
+            now, cfg.price_cheap_hours, cfg.price_hysteresis_min_eur,
+            cfg.price_hysteresis_max_eur, cfg.price_flat_spread_eur,
+        )
+        self._optimizer.set_price_classes(classes)
+        if self._hot_water is not None:
+            # Nothing is low on a flat day: no slot may count as cheap.
+            self._hot_water.set_cheap_rate(
+                None if classes is None
+                else (float("-inf") if classes.flat else classes.limit_eur + 1e-6)
+            )
+        if classes is not None and price is not None:
+            relative = classes.is_low(price)
+            fixed = price < cfg.cheap_rate_threshold_eur
+            verdict = (relative, fixed)
+            if relative != fixed and verdict != self._price_class_diff:
+                _LOGGER.info(
+                    "Price classes: %.4f €/kWh is %s relative to the day (limit %.4f) but %s "
+                    "against cheap_rate_threshold_eur %.4f – the relative class decides",
+                    price, "low" if relative else "not low", classes.limit_eur,
+                    "low" if fixed else "not low", cfg.cheap_rate_threshold_eur,
+                )
+            self._price_class_diff = verdict
 
     # ------------------------------------------------------------------
     # Überbrückungsplanung (v3.3.0)
@@ -1002,7 +1083,7 @@ class EMSController:
         cfg = self._cfg
         if price is None:
             return None, "price unavailable", False, False
-        curve = PriceCurve.from_entity(self._ws, cfg.electricity_price_entity, cfg.tariff_source)
+        curve = self._price_curve()
         if curve is None:
             return None, "no tariff calendar on price entity", False, False
 
@@ -1273,7 +1354,7 @@ class EMSController:
                 and not self._is_stale_daily(cfg.solcast_tomorrow_entity)):
             tomorrow_pv = self._solcast.tomorrow_kwh
 
-        curve = PriceCurve.from_entity(self._ws, cfg.electricity_price_entity, cfg.tariff_source)
+        curve = self._price_curve()
         self._energy_plan = compute_energy_plan(
             now=now,
             deadline=self._plan_deadline(now),
@@ -1295,7 +1376,7 @@ class EMSController:
         could strand the battery empty; not deferring only ever means
         charging somewhat earlier than strictly necessary.
         """
-        curve = PriceCurve.from_entity(self._ws, self._cfg.electricity_price_entity, self._cfg.tariff_source)
+        curve = self._price_curve()
         if curve is None:
             return False
         deadline = self._next_peak_time(now)

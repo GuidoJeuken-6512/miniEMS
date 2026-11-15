@@ -294,6 +294,84 @@ class Config:
     # Tariff calendar source: "auto" (dated rates[] if present, else the
     # time-of-use timeslots[]), "timeslots" or "rates".
     tariff_source: str = "auto"
+    # Unit of a dated price list: "auto" (decided once for the whole list),
+    # "eur" (€/kWh), "ct" (ct/kWh) or "eur_mwh" (€/MWh, raw exchange prices).
+    price_unit: str = "auto"
+
+    # ── Phase A (v4.0.0, docs/roadmap/gesamtplan.md) ─────────────────────
+    # Every switch below is off by default: with all of them off, every
+    # decision is identical to v3.7.2.
+    # A1 – relative price classes instead of cheap_rate_threshold_eur
+    # wherever a tariff calendar exists: the cheapest price_cheap_hours of the
+    # calendar day are "low", the peak above the median is "high".
+    price_classes_enabled: bool = False
+    price_cheap_hours: float = 6.0
+    price_hysteresis_min_eur: float = 0.005
+    price_hysteresis_max_eur: float = 0.02
+    # A day whose prices span less than this is flat: nothing is low.
+    price_flat_spread_eur: float = 0.03
+    # A2 – the hourly load model (load_forecast) replaces the day median in
+    # the fallback path, and V2 defers only when the battery is not needed
+    # before the later window.
+    load_profile_enabled: bool = False
+    # A3 – the grid-charge gate values a bought kWh by the dearest hour the
+    # battery cannot already cover, instead of a historical average.
+    soc_aware_gate_enabled: bool = False
+    # Battery wear per discharged kWh (€/kWh): price ÷ (cycles × usable kWh).
+    battery_wear_cost_eur_kwh: float = 0.0
+    # A4 – hold the battery (no discharge) in cheap hours when the stored
+    # energy is needed for dearer hours later.
+    discharge_hold_enabled: bool = False
+    # Minimum price difference (€/kWh) between now and the later hour.
+    discharge_hold_min_spread_eur: float = 0.03
+    # A5 – negative prices and unremunerated feed-in.
+    negative_price_enabled: bool = False
+    # Optional sensor with the current feed-in price (€/kWh or ct/kWh);
+    # ≤ 0 means exporting earns nothing (Solarspitzengesetz).
+    feed_in_price_entity: str = ""
+    # Feed-in limit at the grid connection (W, 0 = none), e.g. 60 % of the
+    # module power: surplus above it is curtailed unless the battery takes it.
+    feed_in_limit_w: int = 0
+    # Optional export-limit actuator (number, W): set to 0 while the price is
+    # negative and the battery is full, back to export_limit_normal_w after.
+    grid_export_limit_entity: str = ""
+    grid_export_limit_normal_w: int = 0
+    # Price components for a spot tariff that delivers raw exchange prices:
+    # effective = (spot + fee) × (1 + VAT).
+    price_is_spot: bool = False
+    price_fee_eur_kwh: float = 0.0
+    price_vat_pct: float = 0.0
+    # A6 – battery day plan (dynamic programming). Off = computed and shown
+    # only (shadow mode); on = slot 0 of the plan decides.
+    battery_plan_enabled: bool = False
+    # "careful" | "balanced" | "bold": scales PV down / load up and the
+    # residual value of the stored energy.
+    battery_plan_style: str = "careful"
+    # Cost of one change of action (€) – keeps the plan calm.
+    battery_plan_switch_cost_eur: float = 0.01
+    # A7 – learned corrections. Recorded always; used only when switched on.
+    battery_learned_values_enabled: bool = False
+    pv_correction_enabled: bool = False
+    plan_feedback_enabled: bool = False
+    # A8 – hot water: learn the heat lost per start and charge it to every
+    # planned charge. Needs the heat pump's thermal hot-water counter (kWh).
+    hw_start_cost_enabled: bool = False
+    hw_thermal_energy_entity: str = ""
+    # A9 – day-ahead prices: tolerance band instead of equality, capacity
+    # check of later windows, V1 over the whole cheap run, slot mean price.
+    day_ahead_enabled: bool = False
+    # A10 – the HA integration resets every actuator to its safe value when
+    # the add-on has not reported for this long (minutes, 0 = off).
+    failsafe_timeout_min: int = 15
+    # Maximum changes of one actuator target per hour (0 = unlimited).
+    write_budget_per_hour: int = 0
+    # A11 – charge the battery to battery_max_soc at least every n days
+    # (0 = off), from PV if possible, else in the cheapest window.
+    battery_full_charge_days: int = 0
+    # Weekly hot-water hygiene charge (optional, off).
+    hw_hygiene_enabled: bool = False
+    hw_hygiene_temp_c: float = 60.0
+    hw_hygiene_interval_days: int = 7
 
     @property
     def heat_pump_entities(self) -> list[str]:
@@ -358,9 +436,11 @@ class Config:
                 self.inverter_charge_current_entity,
                 self.battery_discharging_current_entity,
                 self.grid_charge_switch_entity,
+                self.grid_export_limit_entity,
             ]
             if e
         ]
+        tariff = [e for e in [self.feed_in_price_entity] if e]
         forecast = [
             e for e in [*self.heat_pump_entities, self.outdoor_temp_entity] if e
         ]
@@ -373,12 +453,14 @@ class Config:
                 self.hw_target_entity,
                 self.hw_workday_entity,
                 self.hw_compressor_entity,
+                self.hw_thermal_energy_entity,
             ]
             if e
         ]
         # sun.sun: is it dark? Silences the PV-power staleness warning at night.
         context = [SUN_ENTITY]
-        return base + solcast + optional + scenario2 + control + forecast + heat_pump + context
+        return (base + solcast + optional + scenario2 + control + tariff + forecast
+                + heat_pump + context)
 
 
 def _defaults() -> dict:
@@ -481,6 +563,22 @@ def _validate(cfg: "Config") -> None:
         ("hw_decision_tolerance_pct", 0.0, 50.0),
         ("hw_min_charge_k", 0.5, 15.0),
         ("hw_min_charge_running_k", 0.5, 15.0),
+        ("price_cheap_hours", 1.0, 20.0),
+        ("price_hysteresis_min_eur", 0.0, 0.2),
+        ("price_hysteresis_max_eur", 0.0, 0.5),
+        ("price_flat_spread_eur", 0.0, 0.5),
+        ("battery_wear_cost_eur_kwh", 0.0, 0.5),
+        ("discharge_hold_min_spread_eur", 0.0, 0.5),
+        ("feed_in_limit_w", 0, 100000),
+        ("grid_export_limit_normal_w", 0, 100000),
+        ("price_fee_eur_kwh", -0.5, 1.0),
+        ("price_vat_pct", 0.0, 50.0),
+        ("battery_plan_switch_cost_eur", 0.0, 1.0),
+        ("failsafe_timeout_min", 0, 1440),
+        ("write_budget_per_hour", 0, 3600),
+        ("battery_full_charge_days", 0, 90),
+        ("hw_hygiene_temp_c", 50.0, 70.0),
+        ("hw_hygiene_interval_days", 1, 30),
     )
     for name, lo, hi in clamps:
         value = getattr(cfg, name)
@@ -497,6 +595,15 @@ def _validate(cfg: "Config") -> None:
     if cfg.tariff_source not in ("auto", "timeslots", "rates"):
         _LOGGER.warning("tariff_source = %r is unknown – using 'auto'", cfg.tariff_source)
         cfg.tariff_source = "auto"
+    if cfg.price_unit not in ("auto", "eur", "ct", "eur_mwh"):
+        _LOGGER.warning("price_unit = %r is unknown – using 'auto'", cfg.price_unit)
+        cfg.price_unit = "auto"
+    if cfg.battery_plan_style not in ("careful", "balanced", "bold"):
+        _LOGGER.warning("battery_plan_style = %r is unknown – using 'careful'",
+                        cfg.battery_plan_style)
+        cfg.battery_plan_style = "careful"
+    if cfg.price_hysteresis_max_eur < cfg.price_hysteresis_min_eur:
+        cfg.price_hysteresis_max_eur = cfg.price_hysteresis_min_eur
 
     if parse_hhmm(cfg.hw_morning_time) is None:
         _LOGGER.warning("hw_morning_time = %r is not HH:MM – using '06:30'", cfg.hw_morning_time)

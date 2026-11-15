@@ -8,6 +8,7 @@ from sensor_validator import SensorValidator
 
 if TYPE_CHECKING:
     from config_loader import Config
+    from price_classes import PriceClasses
     from store import EnergyStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,6 +58,10 @@ class CostOptimizer:
         self._kwh_high_rate:   dict[date, float] = defaultdict(float)
         self._kwh_medium_rate: dict[date, float] = defaultdict(float)
         self._kwh_low_rate:    dict[date, float] = defaultdict(float)
+        # A1: today's relative price classes, set by EMSController once per
+        # tick. None = no tariff calendar or price_classes_enabled off → the
+        # fixed thresholds decide, exactly as before.
+        self._price_classes: "PriceClasses | None" = None
         # Peak PV power per day (for yield prediction)
         self._peak_pv_w: dict[date, float] = defaultdict(float)
         # Running averages for price and outdoor temperature
@@ -581,14 +586,32 @@ class CostOptimizer:
         saving = usable_kwh * avg_discharge_tariff
         return round(saving - gc_cost, 6)
 
+    def set_price_classes(self, classes: "PriceClasses | None") -> None:
+        """A1: relative classes of today (None = fixed thresholds decide).
+
+        Only is_cheap_rate() and price_tier() follow them. The kWh split by
+        price tier in record_tick() and the plausibility floor of the
+        discharge tariff keep the fixed thresholds on purpose: the statistics
+        must stay comparable over months.
+        """
+        self._price_classes = classes
+
+    @property
+    def price_classes(self) -> "PriceClasses | None":
+        return self._price_classes
+
     def is_cheap_rate(self, price_eur_kwh: float | None) -> bool:
         if price_eur_kwh is None:
             return False
+        if self._price_classes is not None:
+            return self._price_classes.is_low(price_eur_kwh)
         return price_eur_kwh < self._cfg.cheap_rate_threshold_eur
 
     def price_tier(self, price_eur_kwh: float | None) -> str | None:
         if price_eur_kwh is None:
             return None
+        if self._price_classes is not None:
+            return self._price_classes.tier(price_eur_kwh)
         if price_eur_kwh < self._cfg.cheap_rate_threshold_eur:
             return "low"
         if price_eur_kwh < self._cfg.medium_rate_threshold_eur:

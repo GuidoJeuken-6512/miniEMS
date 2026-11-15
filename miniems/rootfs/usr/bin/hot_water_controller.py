@@ -112,6 +112,9 @@ class HotWaterController:
         # charge planned for the next slot starts on time (and every tariff
         # change is a decision point).
         self._plan_slot_end: datetime | None = None
+        # A1: "next low-price slot" boundary from the relative price classes
+        # (EMSController.set_cheap_rate). None = cheap_rate_threshold_eur.
+        self._cheap_rate_eur: float | None = None
         self._last_rate: float | None = None
         self._pending_logs: list[LogEntry] = []
         # Summary of the charge just stopped, logged by the next _step().
@@ -261,7 +264,8 @@ class HotWaterController:
                 min_charge_k=cfg.hw_min_charge_k,
                 min_charge_running_k=cfg.hw_min_charge_running_k,
                 compressor_running=compressor,
-                cheap_rate_eur=cfg.cheap_rate_threshold_eur,
+                cheap_rate_eur=(self._cheap_rate_eur if self._cheap_rate_eur is not None
+                                else cfg.cheap_rate_threshold_eur),
             )
             self._plan_at = now
             self._plan_slot_end = hw_slots[0].end if hw_slots else None
@@ -379,6 +383,10 @@ class HotWaterController:
     def reset_write_state(self) -> None:
         """Forget the last sent/confirmed setpoint (see InverterController.reset_write_state)."""
         self._channel = WriteChannel()
+
+    def set_cheap_rate(self, rate_eur: float | None) -> None:
+        """A1: slots below this rate count as low-price (None = fixed threshold)."""
+        self._cheap_rate_eur = rate_eur
 
     async def restore_safe_defaults(self) -> None:
         """Hand the boiler back to the heat pump's own control on shutdown."""

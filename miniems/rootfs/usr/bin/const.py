@@ -11,7 +11,7 @@ from enum import Enum
 VERSION = "3.7.2"
 
 # ── Config schema version (used by migration.py) ────────────────────────────
-CONFIG_SCHEMA_VERSION = 25
+CONFIG_SCHEMA_VERSION = 26
 
 # ── Battery current limits ────────────────────────────────────────────────────
 # The Deye inverter exposes battery limits as CURRENT in amperes
