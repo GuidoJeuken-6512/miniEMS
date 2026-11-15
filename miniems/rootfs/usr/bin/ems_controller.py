@@ -1,4 +1,6 @@
 """EMS decision logic – determines operating mode and triggers cost accounting."""
+import asyncio
+import functools
 import logging
 from dataclasses import dataclass, fields
 from datetime import date, datetime, timedelta, timezone
@@ -23,6 +25,7 @@ from const import (
     EMSMode,
 )
 from battery_learning import LearnedBattery, learn_battery
+from battery_plan import Action, BatteryPlan, plan_battery
 from energy_plan import EnergyPlan, compute_energy_plan
 from forecast_learning import ForecastCorrections, learn_corrections
 from energy_value import RATE_TOLERANCE, EnergyValue, assess_energy, should_hold
@@ -131,6 +134,10 @@ class EMSController:
         self._availability = SensorAvailabilityMonitor()
         self._bridge_plan: BridgePlan | None = None
         self._bridge_status: str = "disabled"
+        # A6: battery day plan – shadow mode unless battery_plan_enabled.
+        self._battery_plan: BatteryPlan | None = None
+        self._battery_plan_status = "not computed"
+        self._shadow_logged_slot: datetime | None = None
         # A7: learned battery values and forecast corrections, refreshed hourly.
         self._learned_battery: LearnedBattery | None = None
         self._corrections = ForecastCorrections()
@@ -250,8 +257,10 @@ class EMSController:
         await self._update_hot_water(now, pv_w, grid_w, price, bat_kwh_use, bat_kwh_free)
         await self._update_bridge_plan(pv_w, price, bat_kwh_free, bat_kwh_use, now)
         await self._update_energy_value(now, price, pv_w, bat_kwh_use, bat_kwh_free)
+        await self._update_battery_plan(now, price, pv_w, bat_kwh_use, bat_kwh_free)
         prev_mode = self._mode
         self._mode = self._determine_mode(pv_w, load_w, bat_soc, price, bat_kwh_free, now)
+        self._log_plan_shadow(now)
         await self._record_hourly(now, load_w)
         await self._record_heat_pump(now)
 
@@ -519,6 +528,7 @@ class EMSController:
         result["remaining_load_kwh"] = self._remaining_load_kwh
         result["failsafe"] = self._failsafe_spec()
         result["learning"] = self._learning_dict()
+        result["battery_plan"] = self._battery_plan_dict()
         result["maintenance_full_charge_due"] = self._full_charge_due
         if self._inverter is not None:
             result["write_changes_today"] = self._inverter.target_changes_today
@@ -620,6 +630,11 @@ class EMSController:
         #    economic gate, but leave room for the PV still to come.
         if self._negative_price_charge(price, bat_kwh_free, now):
             return ModeDecision(EMSMode.GRID_CHARGING, "negative price")
+
+        # 3b. (A6) Battery day plan in control: slot 0 of the plan decides.
+        planned = self._plan_decision(surplus_w, now)
+        if planned is not None:
+            return planned
 
         # 3a. Überbrückungsplanung: a small PV surplus must not block a grid
         #     charge the plan needs (winter noon: 300 W surplus, 15 kWh
@@ -972,6 +987,13 @@ class EMSController:
         if bat_kwh_free is None or bat_kwh_free <= 0:
             return None
 
+        step = self._plan_step(now)
+        if step is not None and step.action is Action.CHARGE and step.grid_charge_kwh > 0:
+            # A6: the energy the plan buys in this slot, over the rest of it.
+            remaining_h = (step.end - now).total_seconds() / 3600.0
+            if remaining_h > 0:
+                return step.grid_charge_kwh / max(remaining_h, 0.25) * 1000.0
+
         if self._bridge_in_control() and self._bridge_plan.cheap_until is not None:  # type: ignore[union-attr]
             # Only the planned energy, over the rest of the cheap window.
             plan = self._bridge_plan
@@ -1206,6 +1228,131 @@ class EMSController:
         if remaining is None:
             return True
         return remaining - (self._remaining_load_kwh or 0.0) < bat_kwh_free * cfg.pv_charge_margin_factor
+
+    # ------------------------------------------------------------------
+    # A6 – battery day plan
+    # ------------------------------------------------------------------
+
+    _PLAN_RECOMPUTE_SEC = 900
+    _PLAN_MAX_AGE_SEC = 1800
+    _MODE_ACTION = {
+        EMSMode.GRID_CHARGING: Action.CHARGE,
+        EMSMode.HOLD_FOR_PEAK: Action.HOLD,
+        EMSMode.PROTECT_BATTERY: Action.HOLD,
+        EMSMode.EXPORT_SURPLUS: Action.EXPORT,
+    }
+
+    async def _update_battery_plan(
+        self,
+        now: datetime,
+        price: float | None,
+        pv_w: float | None,
+        bat_kwh_use: float | None,
+        bat_kwh_free: float | None,
+    ) -> None:
+        """Recompute the plan every 15 min and at every slot boundary.
+
+        Always computed when the inputs exist (shadow mode); it decides only
+        with battery_plan_enabled. Every missing input → no plan, status says why.
+        """
+        cfg = self._cfg
+        plan = self._battery_plan
+        if (plan is not None and plan.first is not None and now < plan.first.end
+                and (now - plan.computed_at).total_seconds() < self._PLAN_RECOMPUTE_SEC):
+            return
+        self._battery_plan = None
+        if bat_kwh_use is None or bat_kwh_free is None:
+            self._battery_plan_status = "soc unavailable"
+            return
+        slots, status, _, _ = self._plan_slots(now, price, pv_w, need_pv=True, need_load=True)
+        if slots is None:
+            self._battery_plan_status = status
+            return
+        hw = self._hot_water
+        if hw is not None and hw.couples:
+            slots = [
+                PlanSlot(s.start, s.end, s.rate_eur_kwh,
+                         max(0.0, s.load_kwh + hw.load_delta_kwh(s.end, s.hours)), s.pv_kwh)
+                for s in slots
+            ]
+        charge_kw = self._charge_power_kw()
+        if charge_kw is None or charge_kw <= 0:
+            self._battery_plan_status = "no charge power estimate"
+            return
+        voltage = (self._ws.get_state_value(cfg.battery_voltage_entity)
+                   if cfg.battery_voltage_entity else None)
+        discharge_kw = (cfg.battery_max_discharge_current_a * voltage / 1000.0
+                        if voltage and voltage > 0 else charge_kw)
+        eta = self._round_trip_eta() ** 0.5
+        feed_in = 0.0 if self._export_unpaid(price) else cfg.feed_in_tariff_eur_kwh
+        # ~0.1 s on a PC, more on a Raspberry Pi – off the event loop.
+        self._battery_plan = await asyncio.to_thread(functools.partial(
+            plan_battery,
+            now, slots, stored_kwh=bat_kwh_use, capacity_kwh=bat_kwh_use + bat_kwh_free,
+            charge_kw=charge_kw, discharge_kw=discharge_kw, eta_charge=eta, eta_discharge=eta,
+            feed_in_eur_kwh=feed_in, wear_eur_kwh=cfg.battery_wear_cost_eur_kwh,
+            switch_cost_eur=cfg.battery_plan_switch_cost_eur,
+            feed_in_limit_kw=cfg.feed_in_limit_w / 1000.0, style=cfg.battery_plan_style,
+            last_action=self._MODE_ACTION.get(self._mode, Action.AUTO),
+        ))
+        self._battery_plan_status = ("in control" if cfg.battery_plan_enabled else "shadow")
+        if self._battery_plan.reason:
+            self._battery_plan_status = self._battery_plan.reason
+
+    def _plan_step(self, now: datetime):
+        """Slot 0 of a fresh plan that is allowed to decide, or None."""
+        plan = self._battery_plan
+        if not self._cfg.battery_plan_enabled or plan is None or plan.first is None:
+            return None
+        if (now - plan.computed_at).total_seconds() > self._PLAN_MAX_AGE_SEC:
+            return None
+        first = plan.first
+        return first if first.start <= now < first.end else None
+
+    def _plan_decision(self, surplus_w: float | None, now: datetime) -> ModeDecision | None:
+        """A6: the mode for the plan's action in this slot, or None."""
+        step = self._plan_step(now)
+        if step is None:
+            return None
+        surplus = surplus_w is not None and surplus_w > self._cfg.pv_surplus_threshold_w
+        if step.action is Action.CHARGE and step.grid_charge_kwh > PLAN_STOP_BELOW_KWH:
+            return ModeDecision(EMSMode.GRID_CHARGING,
+                                f"battery plan: charge {step.grid_charge_kwh:.1f} kWh "
+                                f"until {step.end.strftime('%H:%M')}")
+        if step.action in (Action.HOLD, Action.CHARGE):
+            if surplus:
+                return ModeDecision(EMSMode.PV_CHARGING, "battery plan: hold, pv charges")
+            return ModeDecision(EMSMode.HOLD_FOR_PEAK, "battery plan: hold for later")
+        if step.action is Action.EXPORT and surplus:
+            return ModeDecision(EMSMode.EXPORT_SURPLUS, "battery plan: export now, charge later")
+        if surplus:
+            return ModeDecision(EMSMode.PV_CHARGING, "battery plan: self-use")
+        return ModeDecision(EMSMode.IDLE, "battery plan: self-use")
+
+    def _log_plan_shadow(self, now: datetime) -> None:
+        """Shadow mode: log once per slot where plan and decision differ."""
+        plan = self._battery_plan
+        if self._cfg.battery_plan_enabled or plan is None or plan.first is None:
+            return
+        first = plan.first
+        if self._shadow_logged_slot == first.start:
+            return
+        self._shadow_logged_slot = first.start
+        actual = self._MODE_ACTION.get(self._mode, Action.AUTO)
+        if actual is not first.action:
+            _LOGGER.info(
+                "Battery plan (shadow) %s: plan %s%s, decided %s – plan saves %.2f € vs. self-use",
+                first.start.strftime("%H:%M"), first.action.value,
+                f" {first.grid_charge_kwh:.1f} kWh" if first.grid_charge_kwh else "",
+                self._mode.value, plan.savings_eur,
+            )
+
+    def _battery_plan_dict(self) -> dict:
+        return {
+            "enabled": self._cfg.battery_plan_enabled,
+            "status": self._battery_plan_status,
+            "plan": self._battery_plan.as_dict() if self._battery_plan is not None else None,
+        }
 
     def _export_unpaid(self, price: float | None) -> str:
         """A5: why exporting earns nothing right now, or "" when it does."""
