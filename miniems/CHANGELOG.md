@@ -1,5 +1,58 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 4.2.0
+
+Phase C des [Gesamtplans](../docs/roadmap/gesamtplan.md): Integration und Oberfläche.
+Mit Ausnahme der Übersteuerung (C2) ändert nichts davon eine Entscheidung.
+
+### Added
+
+- **C1 – Entscheidung im Klartext:** Jeder Grund-Code wird zu einem Satz mit Zahlen
+  (Deutsch und Englisch), z. B. „Netzladen: 3,2 kWh bis 05:00, weil später bis 31 ct
+  statt jetzt 18 ct“. Als `reason_text` an `sensor.miniems_mode`, als Banner auf der
+  Seite „Jetzt“ und je Gerät (E-Auto, Heizung). `/api/status` → `explain`.
+- **C2 – Bedienung aus HA:** neue Plattformen `switch` (Simulation, Akku-, Warmwasser-,
+  E-Auto-, Heizungssteuerung, Vorrang E-Auto), `select` (Übersteuerung Akku und E-Auto),
+  `number` (Dauer 15–360 min), `button` (Warmwasser jetzt, Übersteuerung beenden). Jede
+  Übersteuerung hat eine Ablaufzeit, danach gilt wieder Auto. Sie beginnt und endet
+  sofort, ohne Verweildauer, und harte Grenzen gelten weiter. Gespeichert über einen
+  Neustart hinweg. Endpunkte `GET/POST /api/override`, `/api/control_mode` kennt
+  `charge_priority`.
+- **C3 – Plan-Ansicht:** `sensor.miniems_next_action` (ein Satz als Zustand, Gerät,
+  Start und Ende als Attribute), neue Karte `custom:miniems-timeline-card` mit allen
+  Plänen auf einer Zeitachse (Preis und PV im Hintergrund) im Plan-Reiter des
+  generierten Dashboards, dazu die Grundlage der Pläne (Preise bis, PV-Quelle,
+  Lastmodell).
+- **C4 – Plan-Treue:** Soll gegen Ist je Kanal und Minute (Lade-, Entlade- und
+  Netzladestrom, Boiler-Sollwert, Wallbox-Strom, Vorlauf-Offset), Tagesquote und
+  Abweichungen mit Erklärung. `sensor.miniems_plan_fidelity`. In der Simulation wird
+  nichts gezählt.
+- **C5 – Ersparnis-Kachel:** 7 Tage und Monat gegen einen Haushalt ohne PV und Akku
+  mit gleichem Verbrauch nach Standardprofil zum tatsächlichen Stundenpreis;
+  `sensor.miniems_savings_week_eur`, `_month_eur`. Methode in der Kosten-Doku.
+- **C6 – Navigation:** Jetzt / Plan / Geräte / Kosten / System, mit Unterseiten. Die
+  Flow-Karte zeigt rechts eine Verbraucher-Spalte (Warmwasser, E-Auto, Heizung,
+  nächste Aktion).
+- **C7 – Einrichtung und Diagnose:** Entitätsauswahl je Feld, gefiltert nach Domain
+  und Einheit (`/api/entities`), Prüfung beim Speichern (422 mit Feld und Grund,
+  „Save anyway“). Ereignis `miniems_alert` für „Ziel nicht erreichbar“,
+  „Schreibvorgang unbestätigt“ und „Plan nicht umsetzbar“. Warnband: Überbrückungsplan
+  an, entscheidet aber nicht; Netzladeleistung reicht nicht für das Fenster.
+
+### Changed
+
+- Generiertes Dashboard: Layout 4 (Zeitachsen-Karte im Plan-Reiter).
+- Datenbank: `hourly_stats.price_eur_kwh`, `daily_stats.plan_minutes` und
+  `plan_kept_minutes`.
+- Der Reiter „Geräte“ (Geräteerkennung) heißt jetzt „Geräteerkennung“ und liegt unter
+  System.
+
+### Note
+
+- Neue Plattformen brauchen nach dem Update einen Neustart von Home Assistant; die
+  Integration selbst lädt sich wie bisher neu.
+
+
 ## 4.1.0
 
 Phase B des [Gesamtplans](../docs/roadmap/gesamtplan.md): mehrere Verbraucher –

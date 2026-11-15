@@ -258,6 +258,34 @@ roi            = 1.99 − 1.51       = +€0.48  ✅
 
 ---
 
+## Savings against a household without the system (since v4.2.0)
+
+The "Savings" tile on the **Costs** page and the sensors
+`sensor.miniems_savings_week_eur` and `_month_eur` compare with a household without PV,
+battery and miniEMS that uses the same amount of energy:
+
+```text
+baseline per day = daily load × Σ_h (w_h × price_h) ÷ Σ_h w_h
+actual           = grid cost − feed-in revenue
+saving           = baseline − actual
+```
+
+- **Daily load:** the measured load of the day (`load_total_kwh`).
+- **w_h:** weight of the hour from a standard household profile. miniEMS uses an
+  **approximation of the daily shape** of the BDEW standard household profile (H0, from
+  2025 H25): one weekday shape, normalised. It is not the official quarter-hour table;
+  it can be replaced in `savings.py` (`PROFILE_WEIGHTS`) without changing anything else.
+- **price_h:** the actual mean price of the hour, recorded per hour since v4.2.0
+  (`hourly_stats.price_eur_kwh`). A day counts once prices cover at least 75 % of the
+  profile weight, so the tile fills from the first complete day after the update.
+- **Negative stays negative.** A day on which the system was dearer than the baseline is
+  shown that way.
+
+Next to it, **"Plan saves today"** shows the battery day plan's (A6) saving against pure
+self-use with the same valuation of the end state.
+
+---
+
 ## Where the values show up
 
 - **Dashboard** (`/`) — the key daily values as cards, see

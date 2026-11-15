@@ -229,6 +229,38 @@ ROI = 1.99 − 1.51 = +0.48 € ✅
 
 ---
 
+## Control, Plain Text and Plan (since v4.2.0)
+
+| Entity | Content |
+|---|---|
+| `sensor.miniems_mode` | Attributes `reason` (reason code) and `reason_text` (one sentence with numbers, in HA's language) |
+| `sensor.miniems_next_action` | One sentence on the next planned action, e.g. "Grid charging: 02:00–05:00 (4.2 kWh)". Attributes `device`, `action`, `start`, `end`, `energy_kwh`, plus `timeline` for the timeline card (not recorded) |
+| `sensor.miniems_savings_week_eur` / `_month_eur` | Savings against a household without PV and battery, see [Costs](costs.md) |
+| `sensor.miniems_plan_fidelity` | Share of today's minutes in which the devices reported the target (%), only while a control is live. Attributes per channel and open deviations |
+| `switch.miniems_simulation` | Simulation for every part |
+| `switch.miniems_battery_control` / `_hot_water_control` / `_ev_control` / `_heating_control` | Control on/off |
+| `switch.miniems_ev_priority` | On = PV surplus to the EV first (`charge_priority = ev`) |
+| `select.miniems_battery_override` | Auto / Grid charge / Hold / No grid charge, with expiry |
+| `select.miniems_ev_override` | Auto / Now / PV only / Stop, with expiry; beats the `input_select` helper of `ev_mode_entity` |
+| `number.miniems_override_minutes` | Duration of a new override (15–360 min) |
+| `button.miniems_hot_water_now` | Charge hot water now |
+| `button.miniems_end_overrides` | End every override |
+
+Switches apply at once, without a restart, and are stored in `config.json`. Overrides
+survive a restart until they expire. Hard limits (SoC below minimum, missing data)
+always apply, also during an override.
+
+### Event `miniems_alert`
+
+The integration fires `miniems_alert` when one of these conditions newly appears:
+
+| `type` | Meaning |
+|---|---|
+| `target_unreachable` | The EV or hot-water target cannot be reached by its deadline (`device`: `ev`, `hot_water`) |
+| `write_unconfirmed` | A write to the inverter has stayed unconfirmed (write status `error`) |
+| `plan_infeasible` | The energy plan cannot be met |
+| `failsafe` / `failsafe_cleared` | The failsafe fired / the add-on reports again (A10) |
+
 ## Using Sensors in HA
 
 ### Example Lovelace card

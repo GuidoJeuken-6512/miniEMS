@@ -8,16 +8,25 @@ The miniEMS dashboard is an ingress panel accessible directly from the HA sideba
 
 ## Navigation
 
-Six tabs are available:
+Since v4.2.0 there are five main tabs, with the previous pages below them:
 
-| Tab | Path | Purpose |
+| Tab | Path | Content |
 |---|---|---|
-| **Dashboard** | `/` | Live status, costs, battery, Solcast, prediction |
-| **Settings** | `/settings` | Configuration form |
-| **Log** | `/log` | Unified event log (mode changes + price changes) |
-| **config.json** | `/config-json` | Raw editor for `/data/config.json` |
-| **options.json** | `/options-json` | Raw editor for `/data/options.json` |
-| **Database** | `/database` | Browse all rows in `daily_stats` |
+| **Now** | `/` | Live status with a plain sentence on the current decision, the next action, short status of every consumer, costs, battery, Solcast |
+| **Plan** | `/plan` | Every plan on one time axis (battery, grid charge, hot water, EV, heating, with price and PV in the background), what the plans are based on, manual override with expiry, plan fidelity |
+| **Devices** | `/consumers` | Hot water, heating, EV, main fuse, start advice. Sub page **Heat Pump** (`/heatpump`) |
+| **Costs** | `/costs` | Savings against a household without PV and battery (7 days, month, per day), today's values |
+| **System** | `/system` | Control state, alerts, warnings. Sub pages **Settings**, **Log**, **Database**, **Device detection**, **config.json**, **options.json** |
+
+On the Plan page the battery (Auto / Grid charge / Hold / No grid charge) and the EV
+(Auto / Now / PV only / Stop) can be overridden by hand, always with an expiry
+(15 min to 6 h); Auto applies again afterwards. The same override is available in Home
+Assistant as a `select` entity; the value written last wins.
+
+On the settings page every entity field offers the matching HA entities when clicked,
+filtered by domain and unit. On save miniEMS checks every entity entered: if it does not
+exist or its domain or unit does not fit, nothing is saved and the page names the field
+and the reason. "Save anyway" saves regardless, e.g. while an integration is not loaded.
 
 ---
 

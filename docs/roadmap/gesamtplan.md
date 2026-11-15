@@ -21,7 +21,7 @@ revision_date: 2026-11-15
     |---|---|---|
     | **A** – Logik Akku und Netzladen | relative Preise, Entladesperre, SoC-bewusstes Gate, negative Preise, Tagesplan | **umgesetzt in v4.0.0** (A1–A11), alle Schalter aus; Simulation und Live-Freigabe je Baustein offen |
     | **B** – Mehrere Verbraucher | Sicherung, Ressourcen-Verteiler, E-Auto, Heizung | **umgesetzt in v4.1.0** (B1–B8), alle Schalter aus; Simulation und Live-Freigabe je Baustein offen, E-Auto mangels Wallbox nur in Simulation prüfbar |
-    | **C** – Integration und GUI | Klartext, Bedienung aus HA, Plan-Ansicht, Plan-Treue, Ersparnis | offen |
+    | **C** – Integration und GUI | Klartext, Bedienung aus HA, Plan-Ansicht, Plan-Treue, Ersparnis | **umgesetzt in v4.2.0** (C1–C7); offen: Profil-Erkennung für Solcast und Wärmepumpenzähler (C7) |
     | **D** – Geräteoffen (Ausblick) | Logik spricht mit Fähigkeiten statt mit Deye und Lambda | **D1 umgesetzt in v4.1.0**, D2–D4 offen |
 
     Am 2026-11-15 wurde der Plan auf Fehler und fehlende Pflichtfunktionen geprüft. Geändert
@@ -752,6 +752,33 @@ Geräte (kWh, Dauer). Er steuert nichts.
 
 ## 6. Phase C – Integration und GUI
 
+!!! success "Umgesetzt in v4.2.0"
+    C1–C7 sind im Code. Bis auf die Übersteuerung (C2) ändert keiner der Bausteine eine
+    Entscheidung. Im lokalen Devcontainer gegen Home Assistant geprüft: neue Entities,
+    Übersteuerung aus HA über `select.select_option`, Entitätsliste und Prüfung beim
+    Speichern, alle Seiten. Beschreibung für Nutzer:
+    [Dashboard](../user/dashboard.md#navigation), [Sensoren](../user/sensors.md),
+    [Kosten](../user/costs.md#ersparnis-gegen-einen-haushalt-ohne-anlage-seit-v420).
+    Abweichungen von der Beschreibung unten:
+
+    - **C1:** Die Gründe des Warmwassers sind schon lesbare Sätze. Sie bekommen nur den
+      Gerätenamen vorangestellt und werden nicht übersetzt.
+    - **C2:** Eine Übersteuerung beginnt und endet sofort, ohne Verweildauer. Der Knopf
+      „Übersteuerung beenden“ beendet alle Übersteuerungen; einzeln endet eine
+      Übersteuerung über „Auto“ in der Auswahl.
+    - **C3:** Die Plan-Ansicht ist eine neue Karte (`miniems-timeline-card`) und eine
+      eigene Seite; die bisherige Plan-Karte bleibt daneben.
+    - **C4:** Gezählt werden die Kanäle mit Zahlenwert (Lade-, Entlade- und
+      Netzladestrom, Boiler-Sollwert, Wallbox-Strom, Vorlauf-Offset). Schalter
+      (Netzladen, Wallbox-Freigabe) zählen noch nicht.
+    - **C5:** Statt der offiziellen H25-Viertelstundentabelle nutzt miniEMS eine
+      Näherung der Tagesform (austauschbar in `savings.py`). Stundenpreise werden erst
+      seit v4.2.0 aufgezeichnet, die Ersparnis beginnt also mit dem ersten
+      vollständigen Tag danach.
+    - **C7:** Die Erkennung von Solcast-Sensoren und Wärmepumpenzähler über
+      Geräteprofile fehlt noch. Die produktive HA war bei der Umsetzung nicht
+      erreichbar, und ein Profil entsteht nur aus geprüften Registry-Daten (Regel D4).
+
 Erst nach den funktionalen Änderungen, weil die Inhalte (Gründe, Pläne, Aufgaben) aus A und
 B kommen. Die Reihenfolge innerhalb von C ist nach Nutzen gewählt.
 
@@ -940,8 +967,8 @@ ohne Simulationszeit). Risiko bezieht sich auf Fehlentscheidungen im Live-Betrie
 
 **Meilensteine:**
 
-Die Versionsnummern unten stammen aus der Planung. Tatsächlich kam Phase A als v4.0.0
-und Phase B (Nr. 10–17 mit 14a) als v4.1.0.
+Die Versionsnummern unten stammen aus der Planung. Tatsächlich kam Phase A als v4.0.0,
+Phase B (Nr. 10–17 mit 14a) als v4.1.0 und Phase C (Nr. 18–24) als v4.2.0.
 
 - **v3.8 – Netzladen nach Bedarf:** Nr. 1–5 mit 4a. Danach lädt miniEMS nur noch, was die teuren
   Stunden wirklich brauchen, und hält es für diese zurück.
@@ -1105,8 +1132,12 @@ angegebenen Stand.
   `ChargeTask`), `ev_controller.py`, `ev_planner.py`, `ev_surplus.py`,
   `heating_controller.py`, `heating_model.py`, `best_start.py`, `phase_b.py` (Verdrahtung
   in `EMSController`); `roles.yaml`, `store.py`, `integration/sensor.py`.
-- **Phase C:** `integration/` (`switch.py`, `select.py`, `number.py`, `button.py`,
-  `sensor.py`, Karten), `web_server.py`, `templates/`, `translations/`.
+- **Phase C (v4.2.0):** neu `reason_text.py`, `overrides.py`, `timeline.py`,
+  `plan_fidelity.py`, `savings.py`, `ha_entities.py`, `phase_c.py`; `integration/`
+  (`control.py`, `switch.py`, `select.py`, `number.py`, `button.py`, `sensor.py`,
+  `miniems-timeline-card.js`, Flow-Karte), `web_server.py`, `templates/` (`_nav.html`,
+  `plan.html`, `consumers.html`, `costs.html`, `system.html`), `static/pages.js`,
+  `translations/`.
 - **Phase D (D1 in v4.1.0):** `roles.yaml` (Klasse `heat_pump`), neu
   `profiles/heat_pump/lambda_eu08l.yaml`, `heat_pump_device.py`, `hot_water_controller.py`,
   `legacy_entity_fields.py`, `web_server.py` (`/devices`).
