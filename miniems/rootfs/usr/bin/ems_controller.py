@@ -1812,6 +1812,8 @@ class EMSController:
         except Exception as exc:   # history is best-effort, never block control
             _LOGGER.warning("Heat-pump history write failed: %s", exc)
         for ev in rec.pop_events():
+            if ev.get("type") == "draw_start" and self._hot_water is not None:
+                self._hot_water.note_draw()     # A8: this charge's balance is void
             await self._log_draw_event(ev)
 
     async def _log_draw_event(self, ev: dict) -> None:

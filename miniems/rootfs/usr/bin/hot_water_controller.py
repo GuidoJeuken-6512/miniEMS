@@ -38,6 +38,7 @@ from event_log import LogEntry
 from ha_service import ConfirmedWriter
 from hot_water_model import HotWaterModelLoader, is_workday
 from hot_water_planner import HotWaterPlan, HWRequirement, HWSlot, plan_hot_water
+from hw_start_loss import StartLosses, learn_start_losses
 from write_channel import WriteChannel, WriteSpec
 
 if TYPE_CHECKING:
@@ -78,6 +79,10 @@ class _Charge:
     # Started by the plan: runs to shut-off whatever PV does meanwhile. Only a
     # spontaneous export-driven PV charge ends when the surplus is gone.
     planned: bool = False
+    # A8: thermal counter at the start, compressor state, a draw meanwhile.
+    counter_start_kwh: float | None = None
+    from_running: bool = False
+    draw_seen: bool = False
 
 
 class HotWaterController:
@@ -94,6 +99,11 @@ class HotWaterController:
         self._cfg = cfg
         self._ws = ws
         self._loader = HotWaterModelLoader(store, cfg, interval_sec)
+        self._store = store
+        # A8: finished charges waiting for the trailing run, and what was learned.
+        self._pending_charges: list[dict] = []
+        self._start_losses: StartLosses | None = None
+        self._losses_at: datetime | None = None
         self._writer = ConfirmedWriter(caller) if caller is not None else None
         self._channel = WriteChannel()
         self._event_log = event_log
@@ -247,6 +257,8 @@ class HotWaterController:
                            else (self._weather.hourly_temp_at(now) if self._weather else None))
         model = await self._loader.refresh(now)
         compressor = self._compressor_running()
+        await self._finish_charges(now)
+        await self._refresh_start_losses(now)
 
         if self._boil_c is not None and (
             self._plan is None or self._plan_at is None
@@ -273,6 +285,7 @@ class HotWaterController:
                 compressor_running=compressor,
                 cheap_rate_eur=(self._cheap_rate_eur if self._cheap_rate_eur is not None
                                 else cfg.cheap_rate_threshold_eur),
+                **self._start_loss_args(),
             )
             self._plan_at = now
             self._plan_slot_end = hw_slots[0].end if hw_slots else None
@@ -390,6 +403,64 @@ class HotWaterController:
     def reset_write_state(self) -> None:
         """Forget the last sent/confirmed setpoint (see InverterController.reset_write_state)."""
         self._channel = WriteChannel()
+
+    # ------------------------------------------------------------------
+    # A8 – heat lost per start
+    # ------------------------------------------------------------------
+
+    _TRAILING_SEC = 600
+
+    def note_draw(self) -> None:
+        """A draw started: the boiler balance of a running charge is void."""
+        if self._charge is not None:
+            self._charge.draw_seen = True
+        for pending in self._pending_charges:
+            pending["valid"] = 0
+
+    def _start_loss_args(self) -> dict:
+        losses = self._start_losses
+        if not self._cfg.hw_start_cost_enabled or losses is None:
+            return {}
+        return {"start_loss_kwh_th": losses.standby_kwh_th or 0.0,
+                "start_loss_running_kwh_th": losses.running_kwh_th}
+
+    async def _finish_charges(self, now: datetime) -> None:
+        """Book a finished charge once the trailing run is over."""
+        if not self._pending_charges:
+            return
+        counter = self._value(self._cfg.hw_thermal_energy_entity)
+        keep = []
+        for c in self._pending_charges:
+            if (now - c["stopped"]).total_seconds() < self._TRAILING_SEC:
+                keep.append(c)
+                continue
+            if counter is None or self._store is None:
+                continue
+            heat_lambda = counter - c["counter_start"]
+            heat_boiler = (c["end_c"] - c["start_c"]) * HW_WH_PER_L_K * self._cfg.hw_volume_l / 1000.0
+            valid = c["valid"] and heat_lambda > 0 and c["end_c"] > c["start_c"]
+            try:
+                await self._store.insert_hw_charge({
+                    "start_ts": c["since"].isoformat(), "end_ts": c["stopped"].isoformat(),
+                    "start_c": round(c["start_c"], 2), "end_c": round(c["end_c"], 2),
+                    "heat_lambda_kwh": round(heat_lambda, 4),
+                    "heat_boiler_kwh": round(heat_boiler, 4),
+                    "from_running": int(c["from_running"]), "valid": int(bool(valid)),
+                })
+            except Exception as exc:   # history is best-effort
+                _LOGGER.warning("Hot-water charge record failed: %s", exc)
+        self._pending_charges = keep
+
+    async def _refresh_start_losses(self, now: datetime) -> None:
+        if self._store is None or not self._cfg.hw_thermal_energy_entity:
+            return
+        if self._losses_at is not None and (now - self._losses_at).total_seconds() < 3600:
+            return
+        self._losses_at = now
+        try:
+            self._start_losses = learn_start_losses(await self._store.query_hw_charges())
+        except Exception as exc:
+            _LOGGER.warning("Hot-water start-loss learning failed: %s", exc)
 
     def set_hygiene_due(self, due: bool) -> None:
         """A11: the boiler has not reached hw_hygiene_temp_c for too long."""
@@ -557,7 +628,9 @@ class HotWaterController:
         setpoint = self._impulse_c(mode, goal_c, t)
         self._charge = _Charge(mode=mode, goal_c=goal_c, setpoint_c=setpoint,
                                since=now, reason=reason, start_c=t,
-                               cost_th_eur_kwh=self._start_cost_th(mode))
+                               cost_th_eur_kwh=self._start_cost_th(mode),
+                               counter_start_kwh=self._value(self._cfg.hw_thermal_energy_entity),
+                               from_running=bool(self._compressor_running()))
 
     def _start_cost_th(self, mode: HWMode) -> float | None:
         """Assumed cost per kWh of heat for a charge started now."""
@@ -584,6 +657,12 @@ class HotWaterController:
             note += f", ~{heat_kwh * ch.cost_th_eur_kwh:.2f} €"
         self._stop_note, self._stop_cost = note, ch.cost_th_eur_kwh
         self._last_stop = now
+        if ch.counter_start_kwh is not None:
+            self._pending_charges.append({
+                "since": ch.since, "stopped": now, "start_c": ch.start_c, "end_c": t,
+                "counter_start": ch.counter_start_kwh, "from_running": ch.from_running,
+                "valid": 0 if ch.draw_seen else 1,
+            })
         self._charge = None
         self._reason = why
 

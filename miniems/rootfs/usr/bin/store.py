@@ -124,6 +124,22 @@ CREATE TABLE IF NOT EXISTS hot_water_draws (
 )
 """
 
+# A8: one row per finished hot-water charge – heat counted by the heat pump
+# against the heat that arrived in the boiler.
+_CREATE_HW_CHARGES_TABLE = """
+CREATE TABLE IF NOT EXISTS hot_water_charges (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    start_ts         TEXT NOT NULL,
+    end_ts           TEXT NOT NULL,
+    start_c          REAL NOT NULL,
+    end_c            REAL NOT NULL,
+    heat_lambda_kwh  REAL NOT NULL,
+    heat_boiler_kwh  REAL NOT NULL,
+    from_running     INTEGER NOT NULL,
+    valid            INTEGER NOT NULL
+)
+"""
+
 
 class EnergyStore:
     """Async SQLite wrapper for daily energy statistics."""
@@ -186,6 +202,7 @@ class EnergyStore:
         await self._db.execute(_CREATE_HP_HOURLY_TABLE)
         await self._db.execute(_CREATE_HW_LOSS_TABLE)
         await self._db.execute(_CREATE_HW_DRAWS_TABLE)
+        await self._db.execute(_CREATE_HW_CHARGES_TABLE)
         await self._db.execute(_CREATE_CAPABILITY_TODAY_TABLE)
         await self._db.execute(_CREATE_CAPABILITY_HISTORY_TABLE)
         await self._db.execute(_CREATE_EVENT_LOG_TABLE)
@@ -314,6 +331,24 @@ class EnergyStore:
             [ts, temp_before_c, temp_after_c, round(temp_before_c - temp_after_c, 2)],
         )
         await self._db.commit()
+
+    async def insert_hw_charge(self, fields: dict[str, Any]) -> None:
+        if not self._db:
+            return
+        cols = ", ".join(fields)
+        marks = ", ".join("?" for _ in fields)
+        await self._db.execute(f"INSERT INTO hot_water_charges ({cols}) VALUES ({marks})",
+                               list(fields.values()))
+        await self._db.commit()
+
+    async def query_hw_charges(self, limit: int = 200) -> list[dict[str, Any]]:
+        """Most recent hot-water charges, newest first."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM hot_water_charges ORDER BY id DESC LIMIT ?", (limit,)
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
 
     async def query_draws(self, limit: int = 500) -> list[dict[str, Any]]:
         """Most recent hot-water draws, newest first."""
