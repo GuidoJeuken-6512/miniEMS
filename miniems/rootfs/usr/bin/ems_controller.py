@@ -1007,6 +1007,9 @@ class EMSController:
         if curve is None:
             return None
         window_end = curve.window_end(now)
+        if cfg.day_ahead_enabled:
+            # A9: stretch over the whole cheap run, not one 15-min slot.
+            window_end = curve.run_end(now, self._rate_tolerance(), timedelta(hours=12)) or window_end
         if window_end is None:
             return None
 
@@ -1183,8 +1186,15 @@ class EMSController:
         return self._corrections.load_total if self._cfg.plan_feedback_enabled else 1.0
 
     def _rate_tolerance(self) -> float:
-        """Band within which two rates count as equally cheap."""
-        return RATE_TOLERANCE
+        """Band within which two rates count as equally cheap.
+
+        A9: with day-ahead prices "equal" is a band – the hysteresis of the
+        day's price classes (A1) when known, else 1 ct.
+        """
+        if not self._cfg.day_ahead_enabled:
+            return RATE_TOLERANCE
+        classes = getattr(self._optimizer, "price_classes", None)
+        return max(RATE_TOLERANCE, classes.hysteresis_eur if classes is not None else 0.01)
 
     async def _update_maintenance(self, now: datetime, bat_soc: float | None) -> None:
         """A11: record today's maxima, refresh the due flags at most hourly."""
@@ -1543,8 +1553,11 @@ class EMSController:
             stored_kwh=bat_kwh_use,
             free_kwh=bat_kwh_free,
             eta=eta,
-            min_margin_eur_kwh=self._cfg.grid_charge_min_margin_eur_kwh,
+            min_margin_eur_kwh=self._cfg.grid_charge_min_margin_eur_kwh
+            + self._cfg.battery_wear_cost_eur_kwh,
             charge_kw=self._charge_power_kw(),
+            tolerance_eur=self._rate_tolerance(),
+            check_capacity=self._cfg.day_ahead_enabled,
         )
         self._bridge_status = "active" if self._forecaster.ready else (
             f"learning ({self._forecaster.model.days}/{self._cfg.load_forecast_min_days} days)"
@@ -1653,7 +1666,12 @@ class EMSController:
             ahead_h = (a - now).total_seconds() / 3600.0
             if ahead_h < _NOWCAST_HORIZON_H:
                 pv_kwh *= 1.0 + (ratio - 1.0) * (1.0 - ahead_h / _NOWCAST_HORIZON_H)
-            rate = price if not slots else curve.rate_at(a)
+            if not slots:
+                rate = price
+            elif cfg.day_ahead_enabled:
+                rate = curve.mean_rate(a, end)     # A9: the whole slot, not its start
+            else:
+                rate = curve.rate_at(a)
             slots.append(PlanSlot(a, end, rate, load, pv_kwh))
             start = end
         if not slots:
@@ -1904,6 +1922,7 @@ class EMSController:
             curve=curve,
             extra_deficit_kwh=(self._hot_water.planned_pv_kwh_before(self._plan_deadline(now))
                                if self._hot_water is not None else 0.0),
+            baseline_mean=cfg.day_ahead_enabled,
         )
         self._last_energy_plan_at = now
 
@@ -1925,11 +1944,23 @@ class EMSController:
         if charge_kw is None or charge_kw <= 0:
             return False
         t_needed_h = bat_kwh_free / charge_kw
-        if not self._cfg.load_profile_enabled:
+        if not self._cfg.load_profile_enabled and not self._cfg.day_ahead_enabled:
             return curve.later_window_as_cheap(now, deadline, timedelta(hours=t_needed_h))
+        if not self._cfg.load_profile_enabled:
+            later = curve.later_window_as_cheap_start(now, deadline, timedelta(hours=t_needed_h))
+            current = curve.rate_at(now)
+            return (later is not None and current is not None
+                    and curve.cheap_hours_between(later, deadline, current + self._rate_tolerance())
+                    >= t_needed_h)
         later = curve.later_window_as_cheap_start(now, deadline, timedelta(hours=t_needed_h))
         if later is None or self._value_slots is None:
             return False
+        if self._cfg.day_ahead_enabled:
+            # A9: the later cheap hours must be long enough for the whole charge.
+            current = curve.rate_at(now)
+            if current is None or curve.cheap_hours_between(
+                    later, deadline, current + self._rate_tolerance()) < t_needed_h:
+                return False
         # A2: deferring is only free when the battery is not drawn on until
         # then – a charge pushed past the evening is bought in the evening.
         draw = sum(max(0.0, s.load_kwh - s.pv_kwh) for s in self._value_slots if s.start < later)

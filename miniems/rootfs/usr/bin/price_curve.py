@@ -218,6 +218,41 @@ class PriceCurve:
             return False
         return cheapest_later <= current.rate_eur_kwh
 
+    def mean_rate(self, start: datetime, end: datetime) -> float | None:
+        """A9: time-weighted mean rate over [start, end), None with a hole."""
+        if end <= start:
+            return self.rate_at(start)
+        total = 0.0
+        for s, e, rate in self.windows_before(start, end):
+            total += rate * (e - s).total_seconds()
+        covered = sum((e - s).total_seconds() for s, e, _ in self.windows_before(start, end))
+        if covered < (end - start).total_seconds() - 1:
+            return None
+        return total / covered
+
+    def run_end(self, moment: datetime, tolerance_eur: float, horizon: timedelta) -> datetime | None:
+        """A9: end of the run of windows no dearer than the current one + tolerance.
+
+        With hourly or 15-min prices the current window is one slot long; V1
+        must stretch over the whole cheap run, not just until the slot ends.
+        """
+        current = self.window_at(moment)
+        if current is None:
+            return None
+        end = moment
+        for s, e, rate in self.windows_before(moment, moment + horizon):
+            if s > end or rate > current.rate_eur_kwh + tolerance_eur:
+                break
+            end = e
+        return end if end > moment else None
+
+    def cheap_hours_between(
+        self, start: datetime, end: datetime, rate_max: float
+    ) -> float:
+        """A9: hours in [start, end) whose rate is at most rate_max."""
+        return sum((e - s).total_seconds() for s, e, r in self.windows_before(start, end)
+                   if r <= rate_max) / 3600.0
+
     def later_window_as_cheap_start(
         self, now: datetime, deadline: datetime, charge_duration: timedelta
     ) -> datetime | None:
