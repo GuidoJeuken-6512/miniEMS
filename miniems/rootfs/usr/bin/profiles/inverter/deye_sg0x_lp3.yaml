@@ -36,6 +36,8 @@ roles:
   power_losses:                   {translation_key: [power_losses]}
   grid_charge_enable:             {translation_key: [battery_grid_charging]}
   battery_charge_limit:           {translation_key: [battery_max_charging_current]}
+  # live-verified 2026-11-15: solarman, 0–350 A, step 1
+  battery_grid_charge_limit:      {translation_key: [battery_grid_charging_current]}
   battery_discharge_limit:        {translation_key: [battery_max_discharging_current]}
 
 signs:

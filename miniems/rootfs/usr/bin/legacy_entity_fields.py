@@ -38,6 +38,7 @@ INVERTER_ENTITY_FIELDS: dict[str, str] = {
     "power_losses_entity": "power_losses",
     "grid_charge_switch_entity": "grid_charge_enable",
     "inverter_charge_current_entity": "battery_charge_limit",
+    "inverter_grid_charge_current_entity": "battery_grid_charge_limit",
     "battery_discharging_current_entity": "battery_discharge_limit",
 }
 

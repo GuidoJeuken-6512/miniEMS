@@ -189,6 +189,14 @@ classes:
         accepts_unit: [W, A, "%"]
         hints: [battery_max_charging_current, charge_power_limit]
 
+      battery_grid_charge_limit:
+        required_if: battery_control_enabled
+        kind: actuator
+        quantity: power
+        domain: [number]
+        accepts_unit: [W, A, "%"]
+        hints: [battery_grid_charging_current, grid_charge_current]
+
       battery_discharge_limit:
         required_if: battery_control_enabled
         kind: actuator

@@ -514,6 +514,10 @@ class EMSController:
             result["discharge_current_limit_a"] = self._inverter.discharge_current_limit_a
             result["charge_current_target_a"] = self._inverter.charge_current_target_a
             result["discharge_current_target_a"] = self._inverter.discharge_current_target_a
+            result["grid_charge_current_target_a"] = getattr(
+                self._inverter, "grid_charge_current_target_a", None)
+            result["grid_charge_current_limit_a"] = getattr(
+                self._inverter, "grid_charge_current_limit_a", None)
             result["inverter_write_errors"] = self._inverter.write_errors
             result["inverter_write_unconfirmed"] = self._inverter.write_unconfirmed
             result["inverter_write_stuck_channels"] = self._inverter.stuck_channel_labels

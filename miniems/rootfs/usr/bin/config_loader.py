@@ -65,6 +65,11 @@ class Config:
     battery_control_simulation: bool = True
     # Battery limits are CURRENT (A) on the Deye, not power (W) – see const.BATTERY_MAX_CURRENT_A
     inverter_charge_current_entity: str = "number.deye8k_battery_max_charging_current"
+    # The Deye's own limit for charging from the grid ("Battery Grid Charging
+    # Current"). While grid charging the smaller of it and the charge current
+    # above applies, so miniEMS writes the same value to both. Empty = not
+    # written (only for inverters without such a limit).
+    inverter_grid_charge_current_entity: str = "number.deye8k_battery_grid_charging_current"
     battery_max_charge_current_a: int = 185
     battery_max_discharge_current_a: int = 185
     # Forecast / Prediction (Phase 5)
@@ -434,6 +439,7 @@ class Config:
         control = [
             e for e in [
                 self.inverter_charge_current_entity,
+                self.inverter_grid_charge_current_entity,
                 self.battery_discharging_current_entity,
                 self.grid_charge_switch_entity,
                 self.grid_export_limit_entity,
