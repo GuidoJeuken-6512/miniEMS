@@ -57,3 +57,26 @@ def inverter_overrides(config: object, defaults: object) -> dict[str, str]:
         if value and value != default:
             overrides[f"inverter.{role}"] = value
     return overrides
+
+
+# D1: heat-pump config fields -> roles of the "heat_pump" class.
+HEAT_PUMP_ENTITY_FIELDS: dict[str, str] = {
+    "boil_temp_entity": "hot_water_temperature",
+    "hw_target_entity": "hot_water_setpoint",
+    "hw_compressor_entity": "compressor_state",
+    "heating_offset_entity": "flow_line_offset",
+    "heating_surplus_entity": "pv_surplus_input",
+    "heating_room_temp_entity": "room_temperature",
+    "hw_thermal_energy_entity": "thermal_energy_hot_water",
+}
+
+
+def heat_pump_overrides(config: object, defaults: object) -> dict[str, str]:
+    """`entity_overrides["heat_pump.<role>"]` – same rule as inverter_overrides()."""
+    overrides: dict[str, str] = {}
+    for field_name, role in HEAT_PUMP_ENTITY_FIELDS.items():
+        value = getattr(config, field_name, "") or ""
+        default = getattr(defaults, field_name, "") or ""
+        if value and value != default:
+            overrides[f"heat_pump.{role}"] = value
+    return overrides

@@ -378,6 +378,92 @@ class Config:
     hw_hygiene_temp_c: float = 60.0
     hw_hygiene_interval_days: int = 7
 
+    # ── Phase B (v4.1.0, docs/roadmap/gesamtplan.md) ─────────────────────
+    # Every switch below is off by default: with all of them off, every
+    # decision is identical to v4.0.0.
+    # B1 – main-fuse guard: throttles grid charging and the wallbox when a
+    # phase gets close to the fuse. Needs the rated current and three phase
+    # current sensors (A); phase powers (W, + = import) mark exporting phases.
+    fuse_guard_enabled: bool = False
+    fuse_rated_a: float = 0.0
+    fuse_work_limit_pct: float = 90.0
+    phase_current_entities: str = ("sensor.deye8k_external_ct1_current,"
+                                   "sensor.deye8k_external_ct2_current,"
+                                   "sensor.deye8k_external_ct3_current")
+    phase_power_entities: str = ("sensor.deye8k_grid_l1_power,sensor.deye8k_grid_l2_power,"
+                                 "sensor.deye8k_grid_l3_power")
+    phase_voltage_v: float = 230.0
+    # Phase readings older than this count as missing (s).
+    fuse_stale_sec: int = 60
+    # Fast check of the phase currents while a large load runs (s).
+    fuse_poll_sec: int = 10
+    # §14a EnWG: binary_sensor of the control box (on = dimmed) and the
+    # guaranteed minimum power for all controllable loads together (W).
+    grid_dimming_entity: str = ""
+    grid_dimming_limit_w: int = 4200
+    # B2 – who gets the PV surplus first: "battery" (up to
+    # battery_priority_soc_pct, then the EV) or "ev".
+    charge_priority: str = "battery"
+    battery_priority_soc_pct: int = 50
+    # While the EV charges: "block" = the battery does not discharge
+    # (it would feed the car), "allow" = leave the battery alone.
+    ev_battery_mode: str = "block"
+    # B3 – EV / wallbox. Read-only as soon as a power or plug entity is set.
+    ev_control_enabled: bool = False
+    ev_control_simulation: bool = True
+    ev_charge_power_entity: str = ""
+    ev_plugged_entity: str = ""
+    ev_status_entity: str = ""
+    # Status texts meaning "waiting for the car to start" (charge hangs).
+    ev_status_waiting_states: str = "waiting,waiting_for_vehicle,ready"
+    ev_enable_entity: str = ""
+    ev_current_entity: str = ""
+    ev_phases_entity: str = ""
+    ev_soc_entity: str = ""
+    # Override helper (input_select): Auto / Jetzt / Nur PV / Stopp.
+    ev_mode_entity: str = ""
+    ev_target_soc_entity: str = ""
+    ev_departure_entity: str = ""
+    ev_target_soc_pct: float = 80.0
+    ev_departure_time: str = "07:00"
+    ev_capacity_kwh: float = 50.0
+    ev_max_charge_kw: float = 11.0
+    ev_max_current_a: float = 16.0
+    ev_min_current_a: float = 6.0
+    ev_phases_max: int = 3
+    # Pause: "zero_current" (0 A, session stays) or "switch" (enable off).
+    ev_pause_mode: str = "zero_current"
+    # B4 – morning sub-target (0 = none).
+    ev_morning_soc_pct: float = 50.0
+    ev_morning_time: str = "06:00"
+    # B6 – heating via the flow-line offset (D1 capability).
+    heating_control_enabled: bool = False
+    heating_control_simulation: bool = True
+    heating_offset_entity: str = "number.eu08l_hc1_flow_line_offset_temperature"
+    heating_offset_up_k: float = 2.0
+    heating_offset_down_k: float = 2.0
+    # Optional: report the PV surplus to the heat pump (number, W). Only
+    # with the heat pump's own surplus option switched off – two regulators
+    # on one heat pump fight each other.
+    heating_surplus_entity: str = ""
+    # Electrical power of the compressor alone (W, 0 = unknown); far above
+    # it the heating rod runs.
+    heating_compressor_max_w: float = 0.0
+    # COP loss per K higher flow temperature (%).
+    heating_cop_drop_pct_per_k: float = 2.5
+    # PV forecast (kWh, next hours) above which pre-loading is halved.
+    heating_sun_kwh: float = 10.0
+    # B7 – room temperature and pre-heat planner.
+    heating_room_temp_entity: str = "sensor.eu08l_hc1_room_device_temperature"
+    heating_room_control_enabled: bool = False
+    heating_comfort_min_c: float = 0.0
+    heating_room_setpoint_c: float = 21.0
+    # D1 – hot-water setpoint as a number entity instead of the service
+    # template hw_write_service/hw_write_data (empty = service template).
+    hw_setpoint_entity: str = ""
+    # B8 – start advice: "Name:kWh:hours, …" (empty = none).
+    flex_devices: str = ""
+
     @property
     def heat_pump_entities(self) -> list[str]:
         """heat_pump_power_entity split on commas, blanks dropped."""
@@ -447,6 +533,22 @@ class Config:
             if e
         ]
         tariff = [e for e in [self.feed_in_price_entity] if e]
+        phase_b = [
+            e for e in [
+                *(_split(self.phase_current_entities) if self.fuse_guard_enabled else []),
+                *(_split(self.phase_power_entities) if self.fuse_guard_enabled else []),
+                self.grid_dimming_entity,
+                self.ev_charge_power_entity, self.ev_plugged_entity, self.ev_status_entity,
+                self.ev_enable_entity, self.ev_current_entity, self.ev_phases_entity,
+                self.ev_soc_entity, self.ev_mode_entity, self.ev_target_soc_entity,
+                self.ev_departure_entity,
+                self.heating_offset_entity if self.heating_control_enabled else "",
+                self.heating_surplus_entity,
+                self.heating_room_temp_entity if self.heating_control_enabled else "",
+                self.hw_setpoint_entity,
+            ]
+            if e
+        ]
         forecast = [
             e for e in [*self.heat_pump_entities, self.outdoor_temp_entity] if e
         ]
@@ -465,8 +567,18 @@ class Config:
         ]
         # sun.sun: is it dark? Silences the PV-power staleness warning at night.
         context = [SUN_ENTITY]
-        return (base + solcast + optional + scenario2 + control + tariff + forecast
-                + heat_pump + context)
+        seen: set[str] = set()
+        out: list[str] = []
+        for e in (base + solcast + optional + scenario2 + control + tariff + forecast
+                  + heat_pump + phase_b + context):
+            if e not in seen:
+                seen.add(e)
+                out.append(e)
+        return out
+
+
+def _split(raw: str) -> list[str]:
+    return [e.strip() for e in (raw or "").split(",") if e.strip()]
 
 
 def _defaults() -> dict:
@@ -495,6 +607,8 @@ _HW_SHUTOFF_MIN_GAP_K = 2.0
 CONTROL_MODE_KEYS: frozenset[str] = frozenset({
     "battery_control_enabled", "battery_control_simulation",
     "hw_control_enabled", "hw_control_simulation",
+    "ev_control_enabled", "ev_control_simulation",
+    "heating_control_enabled", "heating_control_simulation",
 })
 
 _OPTIONS_RENAMES: dict[str, str] = {
@@ -585,6 +699,27 @@ def _validate(cfg: "Config") -> None:
         ("battery_full_charge_days", 0, 90),
         ("hw_hygiene_temp_c", 50.0, 70.0),
         ("hw_hygiene_interval_days", 1, 30),
+        ("fuse_rated_a", 0.0, 250.0),
+        ("fuse_work_limit_pct", 50.0, 100.0),
+        ("phase_voltage_v", 100.0, 260.0),
+        ("fuse_stale_sec", 10, 600),
+        ("fuse_poll_sec", 5, 60),
+        ("grid_dimming_limit_w", 0, 100000),
+        ("battery_priority_soc_pct", 0, 100),
+        ("ev_target_soc_pct", 10.0, 100.0),
+        ("ev_capacity_kwh", 5.0, 250.0),
+        ("ev_max_charge_kw", 1.0, 50.0),
+        ("ev_max_current_a", 6.0, 64.0),
+        ("ev_min_current_a", 1.0, 32.0),
+        ("ev_phases_max", 1, 3),
+        ("ev_morning_soc_pct", 0.0, 100.0),
+        ("heating_offset_up_k", 0.0, 10.0),
+        ("heating_offset_down_k", 0.0, 10.0),
+        ("heating_compressor_max_w", 0.0, 30000.0),
+        ("heating_cop_drop_pct_per_k", 0.0, 10.0),
+        ("heating_sun_kwh", 0.0, 200.0),
+        ("heating_comfort_min_c", 0.0, 25.0),
+        ("heating_room_setpoint_c", 15.0, 26.0),
     )
     for name, lo, hi in clamps:
         value = getattr(cfg, name)
@@ -608,6 +743,22 @@ def _validate(cfg: "Config") -> None:
         _LOGGER.warning("battery_plan_style = %r is unknown – using 'careful'",
                         cfg.battery_plan_style)
         cfg.battery_plan_style = "careful"
+    for name, allowed, fallback in (
+        ("charge_priority", ("battery", "ev"), "battery"),
+        ("ev_battery_mode", ("block", "allow"), "block"),
+        ("ev_pause_mode", ("zero_current", "switch"), "zero_current"),
+    ):
+        if getattr(cfg, name) not in allowed:
+            _LOGGER.warning("%s = %r is unknown – using %r", name, getattr(cfg, name), fallback)
+            setattr(cfg, name, fallback)
+    if cfg.ev_min_current_a > cfg.ev_max_current_a:
+        cfg.ev_min_current_a = cfg.ev_max_current_a
+    for name, fallback in (("ev_departure_time", "07:00"), ("ev_morning_time", "06:00")):
+        if parse_hhmm(getattr(cfg, name)) is None:
+            _LOGGER.warning("%s = %r is not HH:MM – using %r", name, getattr(cfg, name), fallback)
+            setattr(cfg, name, fallback)
+    if cfg.fuse_guard_enabled and cfg.fuse_rated_a <= 0:
+        _LOGGER.warning("fuse_guard_enabled but fuse_rated_a is 0 – the fuse guard stays off")
     if cfg.price_hysteresis_max_eur < cfg.price_hysteresis_min_eur:
         cfg.price_hysteresis_max_eur = cfg.price_hysteresis_min_eur
 
