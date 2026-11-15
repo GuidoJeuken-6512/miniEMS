@@ -124,6 +124,8 @@ To create one: **HA → Profile → Long-Lived Access Tokens → Create Token**.
 | `battery_control_enabled` | `false` | Master switch for inverter control |
 | `battery_control_simulation` | `true` | Log commands but do not send them |
 | `inverter_charge_current_entity` | `number.deye8k_battery_max_charging_current` | Entity for setting the charge current limit (A) |
+| `inverter_grid_charge_current_entity` | `number.deye8k_battery_grid_charging_current` | The Deye's own limit for charging from the grid (A). While grid charging the smaller of it and the charge current applies, so in *Grid Charging* mode miniEMS writes the same value to both (at most `battery_max_grid_charge_current_a`) and confirms it. Empty = not written. |
+| `battery_max_grid_charge_current_a` | `185` | Value of the grid-charge limit in every other mode, on shutdown and in the failsafe, and the ceiling while grid charging. The limit is never left at 0 A. |
 | `grid_charge_switch_entity` | `switch.deye8k_battery_grid_charging` | Switch entity that enables/disables grid charging |
 | `battery_discharging_current_entity` | `number.deye8k_battery_max_discharging_current` | Entity for setting the discharge current limit (A) |
 | `battery_max_charge_current_a` | `185` | Maximum charge current (A). Automatically clamped to 0–350 A. |
@@ -287,6 +289,149 @@ Phase A of the [overall plan](../../roadmap/gesamtplan.md) (German). **Every bui
 | `hw_hygiene_enabled` | `false` | **A11** – hygiene charge, in the cheapest slot of the next 24 h. |
 | `hw_hygiene_temp_c` | `60.0` | Target of the hygiene charge. 50–70. |
 | `hw_hygiene_interval_days` | `7` | Due when the boiler has not reached the temperature for this long. |
+
+---
+
+## Several Consumers (since v4.1.0)
+
+Phase B of the [overall plan](../../roadmap/gesamtplan.md) (German): main fuse, EV, heating.
+**Every switch is off**: with the defaults miniEMS decides exactly like v4.0.0. EV
+and heating each have a control switch and a simulation switch, like battery and
+hot water. The "Simulation" switch at the top of the settings page sets all four.
+What a block decides is in the log and in `/api/status` (`fuse`, `ev`,
+`surplus_share`, `heating`, `best_start`), and in the sensors
+`sensor.miniems_fuse_headroom`, `sensor.miniems_ev_mode`,
+`sensor.miniems_ev_plan_kwh`, `sensor.miniems_heating_offset` and
+`sensor.miniems_best_start_<device>`.
+
+!!! warning "Order of going live"
+    No EV live without the fuse guard (B1) and a measured rated current. Check the
+    phase assignment of the current sensors by measurement first: switch on a known
+    single-phase load and see which phase rises.
+
+### Main fuse and §14a (B1)
+
+| Setting | Default | Description |
+|---|---|---|
+| `fuse_guard_enabled` | `false` | Throttles grid charging and the wallbox when a phase gets close to the fuse. The guard only reduces, it never starts anything. |
+| `fuse_rated_a` | `0` | Rated current of the main fuse in A. 0 = unknown, the guard stays off (warning). |
+| `fuse_work_limit_pct` | `90` | Working limit in % of the rated current. Throttles as soon as the thermally filtered current (I², τ = 60 s) exceeds it. A single reading above 1.2 × rated throttles at once. No increase for 20 s after a throttle. |
+| `phase_current_entities` | Deye grid CTs | Three current sensors L1, L2, L3 in A, comma-separated. Defaults to `sensor.deye8k_external_ct1..3_current`. |
+| `phase_power_entities` | Deye grid power per phase | Three power sensors in W (+ = import). Recognises exporting phases, which never cause a throttle. Optional. |
+| `phase_voltage_v` | `230` | Phase voltage for A ↔ W. |
+| `fuse_stale_sec` | `60` | Older phase readings count as missing. The guard then assumes the learned base current of the phase plus 6 A, never 0 A. |
+| `fuse_poll_sec` | `10` | Check interval while grid charging or the wallbox runs. |
+| `grid_dimming_entity` | empty | `binary_sensor` of the §14a EnWG control box (on = dimmed). |
+| `grid_dimming_limit_w` | `4200` | Guaranteed minimum power for all controllable loads together while dimmed. With several devices, enter the value from the Federal Network Agency's ruling or your grid operator. |
+
+When grid charging and the EV compete for the reserve, the task with the tightest
+deadline comes first. A deficit is taken from the load with the latest deadline.
+
+### Several consumers (B2)
+
+| Setting | Default | Description |
+|---|---|---|
+| `charge_priority` | `battery` | Who gets the PV surplus first: `battery` (battery up to `battery_priority_soc_pct`, then EV, hot water, rest of the battery, export) or `ev`. |
+| `battery_priority_soc_pct` | `50` | Below this SoC the battery charges before the EV. Above it, it yields its PV charge to the car. |
+| `ev_battery_mode` | `block` | While the car charges: `block` = the battery does not discharge (it would feed the car, as the Deye covers every load behind its grid CT). Mode *Hold for Peak*, reason "ev charging". `allow` = no coupling. Only with `ev_control_enabled`. |
+
+The EV's planned charge power is load in the battery day plan (A6) and the
+bridging plan.
+
+### EV and wallbox (B3–B5)
+
+The wallbox is addressed through HA entities, not a fixed vendor. miniEMS reads as
+soon as `ev_charge_power_entity` or `ev_plugged_entity` is set. With
+`ev_control_enabled` it decides; in simulation it only logs.
+
+| Setting | Default | Description |
+|---|---|---|
+| `ev_control_enabled` | `false` | Control the EV. Off = read and plan only. |
+| `ev_control_simulation` | `true` | Log only (`[SIM]`), write nothing. |
+| `ev_charge_power_entity` | empty | Charge power (W or kW). |
+| `ev_plugged_entity` | empty | Plugged in (`binary_sensor` or text such as `connected`, `charging`). Without it, "plugged" means power flows. |
+| `ev_status_entity` | empty | Wallbox status. If it shows a value from `ev_status_waiting_states` for more than 2 min although charging is enabled, miniEMS tries `switch.turn_on` once every 10 min ("charge hangs"). |
+| `ev_status_waiting_states` | `waiting,waiting_for_vehicle,ready` | Texts meaning "waiting for the car". |
+| `ev_enable_entity` | empty | Charge enable switch. |
+| `ev_current_entity` | empty | Charge current limit (`number`, A). |
+| `ev_phases_entity` | empty | Phase switch (`select` with options `1`/`3`, or `number`). Empty = no switching. |
+| `ev_soc_entity` | empty | The car's SoC. Without it, planning assumes 20 % and subtracts the energy charged in this session. |
+| `ev_mode_entity` | empty | Override as `input_select` with the options **Auto / Jetzt / Nur PV / Stopp** (English words work too). Empty = Auto. |
+| `ev_target_soc_entity` | empty | Target SoC as `input_number`. |
+| `ev_departure_entity` | empty | Departure as `input_datetime` (date and time, or time only). |
+| `ev_target_soc_pct` | `80` | Target SoC without a helper. |
+| `ev_departure_time` | `07:00` | Departure without a helper. With a 100 % target miniEMS plans one hour earlier. |
+| `ev_morning_soc_pct` | `50` | Minimum SoC by the morning time (sub-target before the rest). 0 = none. |
+| `ev_morning_time` | `06:00` | Time of the sub-target. |
+| `ev_capacity_kwh` | `50` | The car's battery capacity. Need = (target − now) × capacity × 1.12. |
+| `ev_max_charge_kw` | `11` | The car's charge power at full current. W per A is derived from it, so a car with a two-phase on-board charger is planned correctly. |
+| `ev_max_current_a` / `ev_min_current_a` | `16` / `6` | Current range of the wallbox. |
+| `ev_phases_max` | `3` | 1 or 3. |
+| `ev_pause_mode` | `zero_current` | Pause at 0 A (the session stays) or `switch` (enable off) if the wallbox does not accept 0 A. |
+
+**Modes:**
+
+- **Auto:** planning (B4) puts the need into the cheapest slots before the
+  deadline, within the power the fuse leaves after the forecast base load. Low
+  currents get a surcharge (€0.10 × (P_max ÷ P − 1)) because they charge less
+  efficiently. If time runs short, "target not reachable" shows in the warning
+  banner. When the PV surplus allows more, the car charges from PV.
+- **Jetzt (now):** full current, limited only by the fuse and §14a.
+- **Nur PV (PV only):** PV surplus in real time (B5). Starts single-phase at the
+  minimum current, three-phase from a computed 18 A, back below 5.5 A, then a
+  15 min lock. Readjusts every 5 min, every minute while the car buys expensive
+  grid power. Runs at least 30 min, then pauses.
+- **Stopp (stop):** enable off.
+
+On shutdown, when leaving LIVE and via the failsafe (A10) the wallbox is enabled
+at full current: that may cost money but never leaves the car uncharged.
+
+### Heating (B6, B7)
+
+Only the heat pump's **flow-line offset** is controlled (Lambda: HC register 50,
+−10 … +10 K). miniEMS sets it to 0 K at start, at shutdown and at handover.
+
+| Setting | Default | Description |
+|---|---|---|
+| `heating_control_enabled` | `false` | Control the heating. |
+| `heating_control_simulation` | `true` | Log only. |
+| `heating_offset_entity` | Lambda HC1 | `number` of the flow-line offset. |
+| `heating_offset_up_k` / `heating_offset_down_k` | `2` / `2` | Raise in cheap, lower in expensive hours (price classes from A1, with hysteresis). Before an expensive hour within 6 h at least +1 K (pre-load). |
+| `heating_cop_drop_pct_per_k` | `2.5` | COP loss per K higher flow temperature. Raised only when `price now ÷ COP_raised < peak price ÷ COP_normal`. |
+| `heating_sun_kwh` | `10` | From this PV forecast over the next 12 h, pre-loading is halved. |
+| `heating_compressor_max_w` | `0` | Electrical power of the compressor alone. If the heat pump draws more than 1.3 × for 10 min, the heating rod probably runs: warning, lowering halved for the day. Needs `heat_pump_power_entity`. 0 = off. |
+| `heating_surplus_entity` | empty | Optional: report the PV surplus to the heat pump ourselves (`number`, W; Lambda register 102). **Only with the Lambda's own `pv_surplus` option switched off**, otherwise two regulators fight over one heat pump. |
+| `heating_room_temp_entity` | Lambda HC1 room temperature | Indoor temperature. |
+| `heating_comfort_min_c` | `0` | Lower bound of the room temperature. Close to it (0.3 K) no lowering; 30 min in a row below it: raise. 0 = no room rules. |
+| `heating_room_setpoint_c` | `21` | Room temperature the heating curve holds (for the planner). |
+| `heating_room_control_enabled` | `false` | **B7** – the pre-heat planner decides instead of the price class. Only with a room model that passes the look-back (below). |
+
+**Protection rules, always on:** no offset above the heating limit
+(`heating_limit_temp_c`). At most 3 h lowered in a row, then 1 h normal. Below
+−5 °C outdoors at most 1 K lowering, below −15 °C none. After every change a lock
+of 60 min (raise) or 45 min (lower); the lock survives a restart.
+
+**Room model (B7):** recorded per hour: room temperature, share of heating and
+offset (`hourly_stats`). Learned: cooling rate `a · (T_in − T_out) − b · PV_3h` and
+heating rate `c + d · T_out`, from 48 cooling and 24 heating hours. Before use,
+miniEMS predicts every other hour (look-back); the model is ready only below
+0.3 K/h mean error. Status and error are in `/api/status` under `heating.model`.
+
+### Start advice (B8)
+
+| Setting | Default | Description |
+|---|---|---|
+| `flex_devices` | empty | Appliances as `Name:kWh:hours`, comma-separated, e.g. `Waschmaschine:1.2:2, Spülmaschine:1.0:3`. Decimal point, no comma. |
+
+Each appliance gets `sensor.miniems_best_start_<name>` (timestamp) with end, cost,
+cost if started now and saving as attributes. PV surplus counts at the feed-in
+tariff. The sensor steers nothing.
+
+### Hot-water setpoint as an entity (D1)
+
+| Setting | Default | Description |
+|---|---|---|
+| `hw_setpoint_entity` | empty | Boiler setpoint as a `number` entity instead of `hw_write_service`/`hw_write_data`, for heat pumps whose integration offers the setpoint directly. Empty = service template as before (Lambda). |
 
 ---
 

@@ -34,6 +34,7 @@ def make_ctrl(make_config, ws, simulation=True, **overrides):
         battery_control_enabled=True, battery_control_simulation=simulation,
         grid_charge_switch_entity="switch.grid_charge",
         inverter_charge_current_entity="number.charge_current",
+        inverter_grid_charge_current_entity="number.grid_charge_current",
         battery_discharging_current_entity="number.discharge_current",
         battery_max_charge_current_a=185, battery_max_discharge_current_a=185,
         export_hold_charge_current_a=0,
@@ -206,6 +207,7 @@ class TestWriteConfirmation:
     async def test_confirmed_once_ha_state_matches(self, make_config, ws):
         ctrl = make_ctrl(make_config, ws, simulation=False)
         ws.values["number.charge_current"] = 185.0
+        ws.values["number.grid_charge_current"] = 185.0
         ws.values["number.discharge_current"] = 0.0
         ws.state_cache["switch.grid_charge"] = {"state": "on"}
         with aioresponses() as m:
@@ -338,3 +340,74 @@ class TestRestoreSafeDefaults:
             await ctrl.restore_safe_defaults()
         events = ctrl.pop_write_events()
         assert any(e["outcome"] == "unconfirmed_at_shutdown" for e in events)
+
+
+
+class TestGridChargeCurrent:
+    """Bugfix: the Deye's separate grid-charge limit (Battery Grid Charging
+    Current) stayed at 0 A, so GRID_CHARGING charged nothing – the smaller of
+    it and the general charge current applies."""
+
+    @pytest.mark.asyncio
+    async def test_grid_charging_writes_the_grid_limit(self, make_config, ws):
+        ctrl = make_ctrl(make_config, ws, simulation=False)
+        ws.values["number.charge_current"] = 185.0
+        ws.values["number.discharge_current"] = 0.0
+        ws.values["number.grid_charge_current"] = 0.0          # the stuck state
+        ws.state_cache["switch.grid_charge"] = {"state": "on"}
+        with aioresponses() as m:
+            m.post(f"{HA_SERVICES_URL}/number/set_value", status=200, repeat=True)
+            await ctrl.apply_mode(EMSMode.GRID_CHARGING)
+            sent = [kw["json"] for (method, url), calls in m.requests.items()
+                    for kw in [c.kwargs for c in calls]]
+        assert {"entity_id": "number.grid_charge_current", "value": 185} in sent
+        assert ctrl.grid_charge_current_target_a == 185
+        assert ctrl.grid_charge_current_limit_a is None        # not confirmed yet
+        assert "Grid charge current (number.grid_charge_current)" in ctrl.stuck_channel_labels
+
+    @pytest.mark.asyncio
+    async def test_stretched_power_goes_to_both_limits(self, make_config, ws):
+        ctrl = make_ctrl(make_config, ws, simulation=True)
+        ws.values["sensor.deye8k_battery_voltage"] = 50.0
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=2500)
+        assert ctrl.charge_current_target_a == 50
+        assert ctrl.grid_charge_current_target_a == 50
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("mode", [EMSMode.IDLE, EMSMode.PV_CHARGING, EMSMode.EXPORT_SURPLUS,
+                                      EMSMode.HOLD_FOR_PEAK, EMSMode.PROTECT_BATTERY])
+    async def test_other_modes_set_the_resting_value(self, make_config, ws, mode):
+        ctrl = make_ctrl(make_config, ws, simulation=True)
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=1000)
+        await ctrl.apply_mode(mode)
+        assert ctrl.grid_charge_current_target_a == 185
+
+    @pytest.mark.asyncio
+    async def test_grid_charging_ceiling(self, make_config, ws):
+        ctrl = make_ctrl(make_config, ws, simulation=True, battery_max_grid_charge_current_a=100)
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING)
+        assert ctrl.charge_current_target_a == 185
+        assert ctrl.grid_charge_current_target_a == 100
+
+    @pytest.mark.asyncio
+    async def test_restore_and_failsafe_set_185(self, make_config, ws):
+        ctrl = make_ctrl(make_config, ws, simulation=False)
+        actions = ctrl.failsafe_actions()
+        assert {"service": "number.set_value",
+                "data": {"entity_id": "number.grid_charge_current", "value": 185}} in actions
+        sim = make_ctrl(make_config, ws, simulation=True)
+        await sim.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=1000)
+        await sim.restore_safe_defaults()
+        assert sim.grid_charge_current_target_a == 185
+
+    @pytest.mark.asyncio
+    async def test_empty_entity_writes_nothing(self, make_config, ws):
+        ctrl = make_ctrl(make_config, ws, simulation=True, inverter_grid_charge_current_entity="")
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING)
+        assert ctrl.grid_charge_current_target_a is None
+
+    def test_default_points_at_the_deye_entity(self, make_config):
+        cfg = make_config()
+        assert cfg.inverter_grid_charge_current_entity == "number.deye8k_battery_grid_charging_current"
+        assert cfg.battery_max_grid_charge_current_a == 185
+        assert cfg.inverter_grid_charge_current_entity in cfg.monitored_entities

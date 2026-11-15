@@ -426,6 +426,25 @@ class TestControlMode:
         assert inv2.restored_while_live == [True]
         assert cfg2.battery_control_enabled is False
 
+    def test_ev_and_heating_follow_the_simulation_switch(self, _isolated_files):
+        cfg = Config(ev_control_enabled=True, ev_control_simulation=False,
+                     heating_control_enabled=True, heating_control_simulation=False)
+        ev = _FakeDevice(cfg, "ev_control_enabled", "ev_control_simulation")
+        heat = _FakeDevice(cfg, "heating_control_enabled", "heating_control_simulation")
+        c = TestClient(create_app({}, cfg, supervisor_token="t", store=None, ev=ev, heating=heat))
+        m = c.get("/api/control_mode").json()
+        assert m["ev_live"] and m["heating_live"] and m["simulation_mixed"]
+        m = c.post("/api/control_mode", json={"simulation": True}).json()
+        assert not m["ev_live"] and not m["heating_live"]
+        assert ev.restored_while_live == [True] and heat.restored_while_live == [True]
+        m = c.post("/api/control_mode", json={"ev_control": False}).json()
+        assert m["ev_control"] is False
+
+    def test_ev_and_heating_off_do_not_count_as_simulating(self):
+        c, *_ = self._app(battery_control_simulation=False, hw_control_simulation=False)
+        m = c.get("/api/control_mode").json()
+        assert m["simulation"] is False and m["simulation_mixed"] is False
+
     def test_empty_request_rejected(self, _isolated_files):
         c, *_ = self._app()
         assert c.post("/api/control_mode", json={}).status_code == 400
@@ -487,3 +506,11 @@ class TestHeatPumpTab:
 
     def test_history_without_store(self, client):
         assert client.get("/api/hot_water/history").json() == {"hours": [], "segments": [], "draws": []}
+
+
+def test_coerce_falls_back_to_the_config_default_type():
+    from web_server import _coerce
+    assert _coerce("fuse_rated_a", "35") == 35.0
+    assert _coerce("ev_phases_max", "1") == 1
+    assert _coerce("heating_room_control_enabled", "on") is True
+    assert _coerce("flex_devices", "WM:1:2") == "WM:1:2"

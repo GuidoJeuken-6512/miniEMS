@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>miniEMS System</title>
+  <link rel="icon" type="image/png" href="static/icon.png">
+  <link rel="stylesheet" href="static/style.css">
+  <script src="static/pages.js"></script>
+</head>
+<body>
+  <header>
+    <img src="static/icon.png" alt="miniEMS" style="height:2.2rem;width:2.2rem;vertical-align:middle;">
+    <h1>miniEMS – {{ translations.tab_system or 'System' }}</h1>
+    <span class="version-badge">v{{ version }}</span>
+  </header>
+  {% set active = 'system' %}{% set sub = 'system' %}{% include '_nav.html' %}
+  <p class="refresh-hint">{{ translations.refresh_hint or 'Auto-refreshes every 5 seconds' }}</p>
+  <div id="page">Loading…</div>
+  <footer>{{ translations.footer or 'miniEMS v' }}{{ version }} &middot; Home Assistant Add-on</footer>
+  <script>
+
+    const P = MiniEMSPages, de = P.de;
+    P.loop((d) => {
+      const cm = d.control_mode || {};
+      const badge = (on, live) => !on ? 'OFF' : (live ? 'LIVE' : 'SIM');
+      document.getElementById('page').innerHTML = `
+        <p class="section-title">${de ? 'Steuerung' : 'Control'}</p>
+        <dl class="kv">
+          <dt>${de ? 'Akku' : 'Battery'}</dt><dd>${badge(cm.battery_control, cm.battery_live)}</dd>
+          <dt>${de ? 'Warmwasser' : 'Hot water'}</dt><dd>${badge(cm.hw_control, cm.hw_live)}</dd>
+          <dt>${de ? 'E-Auto' : 'EV'}</dt><dd>${badge(cm.ev_control, cm.ev_live)}</dd>
+          <dt>${de ? 'Heizung' : 'Heating'}</dt><dd>${badge(cm.heating_control, cm.heating_live)}</dd>
+          <dt>${de ? 'Vorrang PV' : 'PV priority'}</dt><dd>${P.esc(cm.charge_priority || '–')}</dd>
+        </dl>
+        ${(d.alerts || []).length ? `<p class="section-title">${de ? 'Meldungen' : 'Alerts'}</p>
+          ${d.alerts.map((a) => `<div class="warn-item">${P.esc(a.type)} (${P.esc(a.device)}): ${P.esc(a.message)}</div>`).join('')}` : ''}
+        ${(d.warnings || []).length ? `<p class="section-title">${de ? 'Warnungen' : 'Warnings'}</p>
+          ${d.warnings.map((w) => `<div class="warn-item">${P.esc(w)}</div>`).join('')}` : ''}
+        <p class="section-title">${de ? 'Seiten' : 'Pages'}</p>
+        <div class="sys-links">
+          <a href="settings">${de ? 'Einstellungen' : 'Settings'}</a><a href="log">${de ? 'Protokoll' : 'Log'}</a>
+          <a href="database">${de ? 'Datenbank' : 'Database'}</a><a href="devices">${de ? 'Geräteerkennung' : 'Device detection'}</a>
+          <a href="config-json">config.json</a><a href="options-json">options.json</a>
+        </div>
+      `;
+    });
+  </script>
+</body>
+</html>

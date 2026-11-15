@@ -8,11 +8,11 @@
 # English words a device-profile author or the generic heuristic matches
 # against an entity's translation_key/entity_id.
 #
-# Five classes are declared here; only `inverter` and `battery` are wired
-# into a resolver so far (device_resolver.py). `ev`/`energy_meter`/
-# `load_actor` exist as a role vocabulary now so the abstraction doesn't have
-# to be broken open again at the first real device in those classes – see
-# docs/roadmap/gesamtplan.md (B3) for what's still open there.
+# Six classes are declared here; `inverter` and `energy_meter` are resolved
+# in the /devices preview (device_resolver.py). `ev` and `heat_pump` are
+# driven through config fields named after these roles (ev_*_entity,
+# heating_*_entity, hw_*_entity – docs/roadmap/gesamtplan.md, B3 and D1);
+# `load_actor` is vocabulary only.
 version: 1
 
 classes:
@@ -189,6 +189,14 @@ classes:
         accepts_unit: [W, A, "%"]
         hints: [battery_max_charging_current, charge_power_limit]
 
+      battery_grid_charge_limit:
+        required_if: battery_control_enabled
+        kind: actuator
+        quantity: power
+        domain: [number]
+        accepts_unit: [W, A, "%"]
+        hints: [battery_grid_charging_current, grid_charge_current]
+
       battery_discharge_limit:
         required_if: battery_control_enabled
         kind: actuator
@@ -301,7 +309,7 @@ classes:
         domain: [sensor]
         hints: [cycle_times, cycle_count, battery_life_cycles]
 
-  # --- roadmap only, not implemented – see docs/roadmap/gesamtplan.md (B3) ---
+  # --- B3–B5: config fields ev_*_entity follow these roles (gesamtplan.md) ---
   ev:
     roles:
       soc:
@@ -359,6 +367,96 @@ classes:
         quantity: timestamp
         domain: [datetime, time]
         hints: [departure_time]
+
+      phases:
+        required: false
+        kind: actuator
+        quantity: enum
+        domain: [select, number]
+        hints: [phase_switch, phases, charging_phases]
+
+      status:
+        required: false
+        kind: measurement
+        quantity: enum
+        domain: [sensor]
+        hints: [charging_status, charger_status, status]
+
+      override_mode:
+        required: false
+        kind: actuator
+        quantity: enum
+        domain: [input_select, select]
+        hints: [charge_mode, ev_mode]
+
+  # --- D1: heat pump as a device class (heat_pump_device.py) ---------
+  heat_pump:
+    roles:
+      hot_water_temperature:
+        required: false
+        kind: measurement
+        quantity: temperature
+        domain: [sensor]
+        unit: ["°C"]
+        hints: [actual_high_temperature, hot_water_temperature, dhw_temperature]
+
+      hot_water_setpoint:
+        required: false
+        kind: actuator
+        quantity: temperature
+        domain: [number, sensor]
+        unit: ["°C"]
+        hints: [target_high_temperature, dhw_setpoint]
+
+      compressor_state:
+        required: false
+        kind: measurement
+        quantity: enum
+        domain: [sensor]
+        hints: [compressor_unit_rating, operating_state, compressor]
+
+      flow_line_offset:
+        required: false
+        kind: actuator
+        quantity: temperature
+        domain: [number]
+        unit: ["°C", K]
+        hints: [flow_line_offset_temperature, flow_offset]
+
+      pv_surplus_input:
+        required: false
+        kind: actuator
+        quantity: power
+        domain: [number]
+        accepts_unit: [W]
+        hints: [pv_surplus, surplus_power]
+
+      room_temperature:
+        required: false
+        kind: measurement
+        quantity: temperature
+        domain: [sensor]
+        unit: ["°C"]
+        hints: [room_device_temperature, room_temperature]
+
+      thermal_energy_hot_water:
+        required: false
+        kind: measurement
+        quantity: energy_lifetime
+        domain: [sensor]
+        device_class: energy
+        unit: [kWh]
+        hints: [hot_water_thermal_energy]
+
+      electrical_power:
+        required: false
+        kind: measurement
+        quantity: power
+        domain: [sensor]
+        device_class: power
+        unit: [W, kW]
+        sign: {mode: unsigned}
+        hints: [power, electrical_power]
 
   energy_meter:
     roles:

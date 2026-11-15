@@ -94,7 +94,35 @@
       },
       "energy_plan_deficit": { "name": "Energy Plan Deficit" },
       "hot_water_mode": { "name": "Hot Water Mode" },
-      "hot_water_plan": { "name": "Hot Water Plan" }
+      "hot_water_plan": { "name": "Hot Water Plan" },
+      "ev_mode": { "name": "EV Charging" },
+      "ev_plan": { "name": "EV Plan" },
+      "heating_offset": { "name": "Heating Offset" },
+      "fuse_headroom": { "name": "Fuse Headroom" },
+      "best_start": { "name": "Best Start {device}" },
+      "next_action": { "name": "Next Action" },
+      "savings_week": { "name": "Savings 7 Days" },
+      "savings_month": { "name": "Savings Month" },
+      "plan_fidelity": { "name": "Plan Fidelity" }
+    },
+    "switch": {
+      "simulation": { "name": "Simulation" },
+      "battery_control": { "name": "Battery Control" },
+      "hot_water_control": { "name": "Hot Water Control" },
+      "ev_control": { "name": "EV Control" },
+      "heating_control": { "name": "Heating Control" },
+      "ev_priority": { "name": "PV Surplus to EV First" }
+    },
+    "select": {
+      "battery_override": { "name": "Battery Override", "state": { "auto": "Auto", "grid_charge": "Grid charge", "hold": "Hold", "no_grid_charge": "No grid charge" } },
+      "ev_override": { "name": "EV Override", "state": { "auto": "Auto", "now": "Now", "pv": "PV only", "stop": "Stop" } }
+    },
+    "number": {
+      "override_minutes": { "name": "Override Duration" }
+    },
+    "button": {
+      "hot_water_now": { "name": "Hot Water Now" },
+      "end_overrides": { "name": "End Overrides" }
     }
   }
 }

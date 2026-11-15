@@ -13,16 +13,7 @@
     <h1>{{ translations.ui_settings or 'miniEMS Settings' }}</h1>
     <span class="version-badge">v{{ version }}</span>
   </header>
-  <nav class="tab-nav">
-    <a href="." class="tab-link">{{ translations.tab_dashboard or 'Dashboard' }}</a>
-    <a href="heatpump" class="tab-link">{{ translations.tab_heatpump or 'Heat Pump' }}</a>
-    <a href="settings" class="tab-link active">{{ translations.tab_settings or 'Settings' }}</a>
-    <a href="log" class="tab-link">{{ translations.tab_log or 'Log' }}</a>
-    <a href="config-json" class="tab-link">{{ translations.tab_config_json or 'config.json' }}</a>
-    <a href="options-json" class="tab-link">{{ translations.tab_options_json or 'options.json' }}</a>
-    <a href="database" class="tab-link">{{ translations.tab_database or 'Database' }}</a>
-    <a href="devices" class="tab-link">{{ translations.tab_devices or 'Devices' }}</a>
-  </nav>
+  {% set active = 'system' %}{% set sub = 'settings' %}{% include '_nav.html' %}
 
   <div id="settings-form">Loading…</div>
 
@@ -34,11 +25,14 @@
       'price_classes_enabled', 'load_profile_enabled', 'soc_aware_gate_enabled',
       'discharge_hold_enabled', 'negative_price_enabled', 'price_is_spot',
       'battery_plan_enabled', 'battery_learned_values_enabled', 'pv_correction_enabled',
-      'plan_feedback_enabled', 'hw_start_cost_enabled', 'day_ahead_enabled', 'hw_hygiene_enabled'
+      'plan_feedback_enabled', 'hw_start_cost_enabled', 'day_ahead_enabled', 'hw_hygiene_enabled',
+      'fuse_guard_enabled', 'ev_control_enabled', 'ev_control_simulation',
+      'heating_control_enabled', 'heating_control_simulation', 'heating_room_control_enabled'
     ]);
     const INT_FIELDS = new Set([
       'battery_min_soc', 'battery_max_soc', 'pv_surplus_threshold_w',
       'update_interval_sec', 'battery_max_charge_current_a', 'battery_max_discharge_current_a',
+      'battery_max_grid_charge_current_a',
       'event_log_retention_days',
       'pv_export_min_soc_pct', 'pv_charge_backstop_hour', 'export_hold_charge_current_a',
       'mode_dwell_sec', 'battery_soc_hysteresis_pct',
@@ -48,7 +42,9 @@
       'hp_mode_hot_water_code', 'hp_request_hot_water_code', 'hp_cop_settle_sec',
       'hw_write_scale', 'hw_pv_min_export_w', 'hw_min_off_sec',
       'feed_in_limit_w', 'grid_export_limit_normal_w', 'failsafe_timeout_min',
-      'write_budget_per_hour', 'battery_full_charge_days', 'hw_hygiene_interval_days'
+      'write_budget_per_hour', 'battery_full_charge_days', 'hw_hygiene_interval_days',
+      'fuse_stale_sec', 'fuse_poll_sec', 'grid_dimming_limit_w', 'battery_priority_soc_pct',
+      'ev_phases_max'
     ]);
     const FLOAT_FIELDS = new Set([
       'battery_capacity_kwh', 'cheap_rate_threshold_eur', 'medium_rate_threshold_eur',
@@ -65,6 +61,12 @@
       'price_cheap_hours', 'price_hysteresis_min_eur', 'price_hysteresis_max_eur',
       'price_flat_spread_eur', 'battery_wear_cost_eur_kwh', 'discharge_hold_min_spread_eur',
       'price_fee_eur_kwh', 'price_vat_pct', 'battery_plan_switch_cost_eur', 'hw_hygiene_temp_c',
+      'fuse_rated_a', 'fuse_work_limit_pct', 'phase_voltage_v',
+      'ev_target_soc_pct', 'ev_capacity_kwh', 'ev_max_charge_kw', 'ev_max_current_a',
+      'ev_min_current_a', 'ev_morning_soc_pct',
+      'heating_offset_up_k', 'heating_offset_down_k', 'heating_compressor_max_w',
+      'heating_cop_drop_pct_per_k', 'heating_sun_kwh', 'heating_comfort_min_c',
+      'heating_room_setpoint_c',
     ]);
 
     const SECTIONS = [
@@ -122,6 +124,8 @@
         fields: [
           { key: 'battery_control_enabled',          label: 'Enable Battery Control' },
           { key: 'battery_control_simulation',       label: 'Simulation Mode (log only)' },
+          { key: 'inverter_grid_charge_current_entity', label: 'Grid charge current limit (number, A – Deye: Battery Grid Charging Current)' },
+          { key: 'battery_max_grid_charge_current_a', label: 'Grid charge current limit: ceiling while grid charging, value in all other modes (A)' },
           { key: 'inverter_charge_current_entity',     label: 'Max Charging Current Entity' },
           { key: 'grid_charge_switch_entity',          label: 'Grid Charge Switch Entity' },
           { key: 'battery_discharging_current_entity', label: 'Max Discharging Current Entity' },
@@ -200,6 +204,81 @@
         ]
       },
       {
+        title: 'Main Fuse and §14a (B1)',
+        fields: [
+          { key: 'fuse_guard_enabled',      label: 'Main-fuse guard: throttle grid charging and the wallbox near the fuse' },
+          { key: 'fuse_rated_a',            label: 'Rated current of the main fuse (A, 0 = unknown → guard off)' },
+          { key: 'fuse_work_limit_pct',     label: 'Working limit (% of the rated current)' },
+          { key: 'phase_current_entities',  label: 'Phase current sensors L1,L2,L3 (A, comma-separated)' },
+          { key: 'phase_power_entities',    label: 'Phase power sensors L1,L2,L3 (W, + = import, optional)' },
+          { key: 'phase_voltage_v',         label: 'Phase voltage (V)' },
+          { key: 'fuse_stale_sec',          label: 'Phase readings older than this count as missing (s)' },
+          { key: 'fuse_poll_sec',           label: 'Fast check while a large load runs (s)' },
+          { key: 'grid_dimming_entity',     label: '§14a dimming signal (binary_sensor, on = dimmed, optional)' },
+          { key: 'grid_dimming_limit_w',    label: '§14a guaranteed minimum power for all controllable loads (W)' },
+        ]
+      },
+      {
+        title: 'Several Consumers (B2)',
+        fields: [
+          { key: 'charge_priority',          label: 'PV surplus first to: battery | ev' },
+          { key: 'battery_priority_soc_pct', label: 'Battery first below this SoC (%)' },
+          { key: 'ev_battery_mode',          label: 'While the EV charges: block (no battery discharge) | allow' },
+        ]
+      },
+      {
+        title: 'EV / Wallbox (B3–B5)',
+        fields: [
+          { key: 'ev_control_enabled',       label: 'Enable EV control (off = read and plan only)' },
+          { key: 'ev_control_simulation',    label: 'Simulation mode (log only, nothing written)' },
+          { key: 'ev_charge_power_entity',   label: 'Charge power sensor (W)' },
+          { key: 'ev_plugged_entity',        label: 'Plugged-in sensor' },
+          { key: 'ev_status_entity',         label: 'Status sensor (optional, detects a hanging charge)' },
+          { key: 'ev_status_waiting_states', label: 'Status texts meaning "waiting for the car" (comma-separated)' },
+          { key: 'ev_enable_entity',         label: 'Charge enable switch' },
+          { key: 'ev_current_entity',        label: 'Charge current limit (number, A)' },
+          { key: 'ev_phases_entity',         label: 'Phase switch (select/number, optional)' },
+          { key: 'ev_soc_entity',            label: 'Car SoC sensor (%, optional)' },
+          { key: 'ev_mode_entity',           label: 'Override helper (input_select: Auto / Jetzt / Nur PV / Stopp)' },
+          { key: 'ev_target_soc_entity',     label: 'Target SoC helper (input_number, optional)' },
+          { key: 'ev_departure_entity',      label: 'Departure helper (input_datetime, optional)' },
+          { key: 'ev_target_soc_pct',        label: 'Target SoC without helper (%)' },
+          { key: 'ev_departure_time',        label: 'Departure without helper (HH:MM)' },
+          { key: 'ev_morning_soc_pct',       label: 'Morning minimum SoC (%, 0 = none)' },
+          { key: 'ev_morning_time',          label: 'Morning minimum by (HH:MM)' },
+          { key: 'ev_capacity_kwh',          label: 'Car battery capacity (kWh)' },
+          { key: 'ev_max_charge_kw',         label: 'Max. charge power of the car at full current (kW)' },
+          { key: 'ev_max_current_a',         label: 'Max. charge current (A)' },
+          { key: 'ev_min_current_a',         label: 'Min. charge current (A)' },
+          { key: 'ev_phases_max',            label: 'Phases (1 or 3)' },
+          { key: 'ev_pause_mode',            label: 'Pause by: zero_current | switch' },
+        ]
+      },
+      {
+        title: 'Heating (B6/B7)',
+        fields: [
+          { key: 'heating_control_enabled',     label: 'Enable heating control via the flow-line offset' },
+          { key: 'heating_control_simulation',  label: 'Simulation mode (log only, nothing written)' },
+          { key: 'heating_offset_entity',       label: 'Flow-line offset (number, K)' },
+          { key: 'heating_offset_up_k',         label: 'Raise in cheap hours (K)' },
+          { key: 'heating_offset_down_k',       label: 'Lower in expensive hours (K)' },
+          { key: 'heating_surplus_entity',      label: 'Report PV surplus to the heat pump (number, W, optional)' },
+          { key: 'heating_compressor_max_w',    label: 'Electrical power of the compressor alone (W, 0 = unknown)' },
+          { key: 'heating_cop_drop_pct_per_k',  label: 'COP loss per K higher flow temperature (%)' },
+          { key: 'heating_sun_kwh',             label: 'Pre-load halved above this PV forecast (kWh)' },
+          { key: 'heating_room_temp_entity',    label: 'Room temperature sensor (°C)' },
+          { key: 'heating_comfort_min_c',       label: 'Comfort minimum room temperature (°C, 0 = no room rules)' },
+          { key: 'heating_room_setpoint_c',     label: 'Room setpoint of the heating curve (°C)' },
+          { key: 'heating_room_control_enabled', label: 'Pre-heat planner decides (B7, only with a validated room model)' },
+        ]
+      },
+      {
+        title: 'Start Advice (B8)',
+        fields: [
+          { key: 'flex_devices', label: 'Appliances "Name:kWh:hours, …" (e.g. Waschmaschine:1.2:2)' },
+        ]
+      },
+      {
         title: 'Safety (A10)',
         fields: [
           { key: 'failsafe_timeout_min',         label: 'HA integration resets the actuators after this many minutes without status (0 = off)' },
@@ -229,6 +308,7 @@
           { key: 'hw_write_data',         label: 'Service data JSON ({value} = °C × scale)' },
           { key: 'hw_write_scale',        label: 'Setpoint scale (Lambda: 10)' },
           { key: 'hw_target_entity',      label: 'Setpoint read-back entity (confirmation)' },
+          { key: 'hw_setpoint_entity',    label: 'Setpoint as number entity instead of the service (D1, optional)' },
           { key: 'hw_volume_l',           label: 'Boiler volume (l)' },
           { key: 'hw_day_target_c',       label: 'Day target (°C, at least the minimum)' },
           { key: 'hw_morning_target_c',   label: 'Shut-off temperature of every charge = workday morning target (°C)' },
@@ -290,12 +370,31 @@
           </div>`;
       }
       const inputType = f.type || 'text';
+      // C7: entity fields get a picker filtered by domain and unit.
+      const isEntity = /_entit(y|ies)$/.test(key);
       return `
         <div class="field-row">
           <label class="field-label" for="${key}">${f.label}</label>
           <input class="field-input" type="${inputType}" id="${key}" name="${key}"
+                 ${isEntity ? `list="dl_${key}" onfocus="loadEntities('${key}')" autocomplete="off"` : ''}
                  value="${String(value ?? '').replace(/"/g, '&quot;')}">
+          ${isEntity ? `<datalist id="dl_${key}"></datalist>` : ''}
         </div>`;
+    }
+
+    // C7: matching HA entities for one field, fetched on first focus.
+    const entityLoaded = new Set();
+    async function loadEntities(key) {
+      if (entityLoaded.has(key)) return;
+      entityLoaded.add(key);
+      try {
+        const r = await fetch('api/entities?field=' + encodeURIComponent(key));
+        const data = await r.json();
+        const dl = document.getElementById('dl_' + key);
+        if (!dl || !data.entities) return;
+        dl.innerHTML = data.entities.map(e =>
+          `<option value="${e.entity_id}">${(e.name || '') + (e.unit ? ' [' + e.unit + ']' : '')}</option>`).join('');
+      } catch (e) { entityLoaded.delete(key); }
     }
 
     // ── Control mode (top section): applied at once, no save/restart ──
@@ -303,9 +402,12 @@
     // kept in sync so "Save & Restart" never writes a stale value back.
     const MODE_SWITCHES = [
       { id: 'simulation',      label: 'Simulation (everything is only simulated, nothing is written)',
-        fields: ['battery_control_simulation', 'hw_control_simulation'] },
+        fields: ['battery_control_simulation', 'hw_control_simulation',
+                 'ev_control_simulation', 'heating_control_simulation'] },
       { id: 'battery_control', label: 'Battery control on/off', fields: ['battery_control_enabled'] },
       { id: 'hw_control',      label: 'Heat pump (hot water) control on/off', fields: ['hw_control_enabled'] },
+      { id: 'ev_control',      label: 'EV / wallbox control on/off', fields: ['ev_control_enabled'] },
+      { id: 'heating_control', label: 'Heating (flow-line offset) control on/off', fields: ['heating_control_enabled'] },
       { id: 'history_backfill', label: 'Fill missing history (last 60 days) from HA statistics – runs now and at every start',
         fields: ['history_backfill_enabled'] },
     ];
@@ -332,11 +434,13 @@
         <div class="mode-status">
           <span>Battery ${modeBadge(m.battery_control, m.battery_live)}</span>
           <span>Heat pump ${modeBadge(m.hw_control, m.hw_live)}</span>
-          ${m.simulation_mixed ? '<span class="save-msg err">simulation differed between battery and heat pump – the switch sets both</span>' : ''}
+          <span>EV ${modeBadge(m.ev_control, m.ev_live)}</span>
+          <span>Heating ${modeBadge(m.heating_control, m.heating_live)}</span>
+          ${m.simulation_mixed ? '<span class="save-msg err">simulation differed between the parts – the switch sets all</span>' : ''}
         </div>
         ${rows}
         <div class="muted mode-hint">Takes effect immediately, no restart. Leaving LIVE first
-          restores the safe inverter / boiler state.
+          restores the safe inverter / boiler / wallbox / heating state.
           <span id="mode-msg" class="save-msg"></span></div>`;
     }
 
@@ -424,7 +528,7 @@
       return result;
     }
 
-    async function saveSettings() {
+    async function saveSettings(force = false) {
       const btn = document.getElementById('save-btn');
       const msg = document.getElementById('save-msg');
       btn.disabled = true;
@@ -432,6 +536,7 @@
       msg.className = 'save-msg';
       try {
         const payload = collectValues();
+        if (force) payload._force = true;
         const r = await fetch('api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -442,6 +547,13 @@
           msg.textContent = '✓ Saved – addon is restarting…';
           msg.className = 'save-msg ok';
           setTimeout(() => { window.location.href = '.'; }, 6000);
+        } else if (r.status === 422 && data.problems) {
+          // C7: entities that do not exist or have the wrong domain/unit.
+          msg.innerHTML = 'Not saved – please check: ' + data.problems.map(p =>
+            `<br><b>${p.field}</b>: ${p.entity_id} – ${p.problem}`).join('') +
+            '<br><button class="btn-secondary" onclick="saveSettings(true)">Save anyway</button>';
+          msg.className = 'save-msg err';
+          btn.disabled = false;
         } else {
           msg.textContent = 'Error: ' + (data.error || 'Unknown');
           msg.className = 'save-msg err';

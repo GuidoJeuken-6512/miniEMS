@@ -62,7 +62,7 @@ class InverterController:
         self._cfg = config
         self._writer = ConfirmedWriter(HAServiceCaller(supervisor_token, long_lived_token))
         self._ws = ws_client
-        self._channels = WriteChannelSet(["charge", "discharge", "grid", "export"])
+        self._channels = WriteChannelSet(["charge", "discharge", "grid", "export", "grid_current"])
         # A10: target changes per channel – timestamps of the last hour (the
         # write budget) and a per-day count (diagnostics).
         self._changes: dict[str, deque[float]] = {}
@@ -80,6 +80,11 @@ class InverterController:
         self.discharge_current_limit_a: int | None = None    # confirmed
         self.charge_current_target_a: int | None = None      # intended
         self.discharge_current_target_a: int | None = None   # intended
+        # The Deye's separate limit for charging FROM THE GRID. While grid
+        # charging, the smaller of this and the general charge current applies –
+        # left at 0 A, grid charging does nothing at all.
+        self.grid_charge_current_target_a: int | None = None
+        self.grid_charge_current_limit_a: int | None = None
 
     @property
     def simulation(self) -> bool:
@@ -167,6 +172,8 @@ class InverterController:
                     # hourly budget is used, keep the current value.
                     charge_a = previous
                 await self._set_charge_current(charge_a, sim)
+                await self._set_grid_charge_current(
+                    min(charge_a, cfg.battery_max_grid_charge_current_a), sim)
                 await self._set_discharge_current(self._resolve_discharge_current_a(0), sim)
 
             case EMSMode.PV_CHARGING:
@@ -175,6 +182,7 @@ class InverterController:
                     self._resolve_charge_current_a(cfg.battery_max_charge_current_a), sim)
                 await self._set_discharge_current(
                     self._resolve_discharge_current_a(cfg.battery_max_discharge_current_a), sim)
+                await self._set_grid_charge_current(cfg.battery_max_grid_charge_current_a, sim)
 
             case EMSMode.EXPORT_SURPLUS:
                 # Grid-friendly hold: block charging so the surplus goes to the
@@ -185,6 +193,7 @@ class InverterController:
                     self._resolve_charge_current_a(cfg.export_hold_charge_current_a), sim)
                 await self._set_discharge_current(
                     self._resolve_discharge_current_a(cfg.battery_max_discharge_current_a), sim)
+                await self._set_grid_charge_current(cfg.battery_max_grid_charge_current_a, sim)
 
             case EMSMode.PROTECT_BATTERY | EMSMode.HOLD_FOR_PEAK:
                 # SoC below minimum, or energy kept for a dearer hour (A4):
@@ -193,6 +202,7 @@ class InverterController:
                 await self._set_charge_current(
                     self._resolve_charge_current_a(cfg.battery_max_charge_current_a), sim)
                 await self._set_discharge_current(self._resolve_discharge_current_a(0), sim)
+                await self._set_grid_charge_current(cfg.battery_max_grid_charge_current_a, sim)
 
             case EMSMode.IDLE:
                 # Normal self-use operation
@@ -201,6 +211,7 @@ class InverterController:
                     self._resolve_charge_current_a(cfg.battery_max_charge_current_a), sim)
                 await self._set_discharge_current(
                     self._resolve_discharge_current_a(cfg.battery_max_discharge_current_a), sim)
+                await self._set_grid_charge_current(cfg.battery_max_grid_charge_current_a, sim)
 
     def _resolve_grid_charge_current_a(self, grid_charge_power_w: float | None) -> int:
         """V1: the Watt target from EMSController._grid_charge_power_w(),
@@ -319,6 +330,7 @@ class InverterController:
         await self._set_grid_charge(False, sim)
         await self._set_charge_current(cfg.battery_max_charge_current_a, sim)
         await self._set_discharge_current(cfg.battery_max_discharge_current_a, sim)
+        await self._set_grid_charge_current(cfg.battery_max_grid_charge_current_a, sim)
         await self.apply_export_limit(False)
 
     def failsafe_actions(self) -> list[dict[str, Any]]:
@@ -337,6 +349,8 @@ class InverterController:
             actions.append({"service": "switch.turn_off",
                             "data": {"entity_id": cfg.grid_charge_switch_entity}})
         for entity, value in ((cfg.inverter_charge_current_entity, cfg.battery_max_charge_current_a),
+                              (cfg.inverter_grid_charge_current_entity,
+                               cfg.battery_max_grid_charge_current_a),
                               (cfg.battery_discharging_current_entity,
                                cfg.battery_max_discharge_current_a)):
             if entity:
@@ -437,6 +451,31 @@ class InverterController:
             f"Charge current ({entity})",
         )
         self.charge_current_limit_a = value_a if self._channels["charge"].confirmed else None
+
+    async def _set_grid_charge_current(self, value_a: int, sim: bool) -> None:
+        """The grid-charge current limit.
+
+        While grid charging: the same current as the charge limit (at most
+        battery_max_grid_charge_current_a). In every other mode, on shutdown
+        and in the failsafe: battery_max_grid_charge_current_a (185 A), so
+        the limit is never left at 0 A.
+        """
+        entity = self._cfg.inverter_grid_charge_current_entity
+        if not entity:
+            return
+        self.grid_charge_current_target_a = value_a
+        self._note_change("grid_current", value_a)
+        actual = self._ws.get_state_value(entity) if self._ws else None
+        spec = WriteSpec(
+            domain="number", service="set_value",
+            entity_id=entity, payload={"entity_id": entity, "value": value_a}, expected=value_a,
+        )
+        await self._write_confirmed(
+            self._channels["grid_current"], spec, matches(actual, spec), sim,
+            f"Grid charge current ({entity})",
+        )
+        self.grid_charge_current_limit_a = (
+            value_a if self._channels["grid_current"].confirmed else None)
 
     async def _set_discharge_current(self, value_a: int, sim: bool) -> None:
         entity = self._cfg.battery_discharging_current_entity

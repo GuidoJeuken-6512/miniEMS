@@ -19,11 +19,16 @@ from load_forecast import HourlyLoadRecorder, LoadForecaster
 from cost_optimizer import CostOptimizer
 from ems_controller import EMSController
 from event_log import EventLog
+from ev_controller import EVController
 from ha_service import HAServiceCaller
 from ha_state_client import HAStateClient
+from ha_entities import EntityCache
+from heating_controller import HeatingController
 from hot_water_controller import HotWaterController
 from integration_installer import install_integration
 from inverter_controller import InverterController
+from overrides import OverrideStore
+from resources import ResourceCoordinator
 from solcast_client import SolcastClient
 from store import EnergyStore
 from weather_client import WeatherClient
@@ -55,6 +60,18 @@ async def ems_loop(
         except Exception as exc:
             _LOGGER.error("EMS loop error: %s", exc, exc_info=True)
         await asyncio.sleep(interval)
+
+
+async def fuse_loop(controller: EMSController, interval: int) -> None:
+    """B1: check the phase currents every few seconds while a large load runs."""
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            await asyncio.wait_for(controller.fast_tick(), timeout=max(5, interval))
+        except asyncio.TimeoutError:
+            _LOGGER.error("Fuse check timed out")
+        except Exception as exc:
+            _LOGGER.error("Fuse check error: %s", exc, exc_info=True)
 
 
 async def _sync_version_from_supervisor(token: str) -> None:
@@ -120,6 +137,29 @@ async def main() -> None:
             "off (decisions shown only)" if not cfg.hw_control_enabled
             else "SIMULATION" if cfg.hw_control_simulation else "LIVE"))
 
+    # Phase B (v4.1.0): fuse guard / §14a, EV, heating.
+    resources = ResourceCoordinator(cfg, ws_client)
+    ev = EVController(cfg, ws_client, HAServiceCaller(supervisor_token, cfg.long_lived_token))
+    heating = HeatingController(cfg, ws_client, store,
+                                HAServiceCaller(supervisor_token, cfg.long_lived_token))
+    for label, flag, sim, configured in (
+        ("EV control", cfg.ev_control_enabled, cfg.ev_control_simulation, ev.configured),
+        ("Heating control", cfg.heating_control_enabled, cfg.heating_control_simulation,
+         heating.configured),
+    ):
+        if flag:
+            _LOGGER.info("%s: %s", label, ("not configured" if not configured
+                                           else "SIMULATION" if sim else "LIVE"))
+    if resources.guard is not None:
+        _LOGGER.info("Fuse guard active: %.0f A, working limit %.0f %%",
+                     cfg.fuse_rated_a, cfg.fuse_work_limit_pct)
+
+    # Phase C (v4.2.0): overrides with an expiry (shared by the EMS, the
+    # ingress page and the HA entities), entity list for the settings page.
+    overrides = OverrideStore(store)
+    await overrides.load()
+    entity_cache = EntityCache(supervisor_token)
+
     controller = EMSController(
         cfg, ws_client, cost_optimizer, inverter, consumption_model,
         solcast=solcast_client,
@@ -130,9 +170,15 @@ async def main() -> None:
         weather=weather_client if weather_client.enabled else None,
         heat_pump_recorder=HeatPumpRecorder(store, cfg, cfg.update_interval_sec),
         hot_water=hot_water,
+        ev=ev,
+        heating=heating,
+        resources=resources,
+        store=store,
+        overrides=overrides,
     )
     app = create_app(status_store, cfg, supervisor_token, store,
-                     hot_water=hot_water, inverter=inverter)
+                     hot_water=hot_water, inverter=inverter, ev=ev, heating=heating,
+                     overrides=overrides, entities=entity_cache)
 
     await install_integration()
     await backfill_daily_stats(cfg, store)
@@ -160,6 +206,8 @@ async def main() -> None:
         asyncio.create_task(_ems_task(), name="ems_loop"),
         asyncio.create_task(uvi_server.serve(), name="web_server"),
     ]
+    if resources.guard is not None:
+        tasks.append(asyncio.create_task(fuse_loop(controller, cfg.fuse_poll_sec), name="fuse_loop"))
 
     loop = asyncio.get_running_loop()
 
@@ -187,6 +235,11 @@ async def main() -> None:
             await asyncio.wait_for(hot_water.restore_safe_defaults(), timeout=5)
         except Exception as exc:
             _LOGGER.error("Hot-water restore on shutdown failed: %s", exc)
+        for label, ctrl in (("EV", ev), ("Heating", heating)):
+            try:
+                await asyncio.wait_for(ctrl.restore_safe_defaults(), timeout=5)
+            except Exception as exc:
+                _LOGGER.error("%s restore on shutdown failed: %s", label, exc)
         await store.close()
         _LOGGER.info("miniEMS stopped")
 

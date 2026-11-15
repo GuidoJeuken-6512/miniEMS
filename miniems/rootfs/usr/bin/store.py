@@ -2,8 +2,9 @@
 
 Data survives addon restarts and updates.  All I/O is async via aiosqlite.
 """
+import json
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import aiosqlite
@@ -140,6 +141,16 @@ CREATE TABLE IF NOT EXISTS hot_water_charges (
 )
 """
 
+# B6/B7: small persistent state that must survive a restart (compressor
+# lock of the heating offset, ...). value is JSON.
+_CREATE_KV_TABLE = """
+CREATE TABLE IF NOT EXISTS kv_state (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+)
+"""
+
 
 class EnergyStore:
     """Async SQLite wrapper for daily energy statistics."""
@@ -187,6 +198,9 @@ class EnergyStore:
             "soc_last_pct REAL",
             "dis_eff_load_kwh REAL",
             "dis_eff_bat_kwh REAL",
+            # C4: plan fidelity – minutes observed / kept per day.
+            "plan_minutes INTEGER",
+            "plan_kept_minutes INTEGER",
         ):
             try:
                 await self._db.execute(f"ALTER TABLE daily_stats ADD COLUMN {col_def}")
@@ -194,12 +208,18 @@ class EnergyStore:
                 pass   # column already exists – ignore
         await self._db.execute(_CREATE_HOURLY_TABLE)
         # A7b/c: measured PV and what was forecast for the hour – plan vs. result.
-        for col_def in ("pv_kwh REAL", "pv_fc_kwh REAL", "load_pred_kwh REAL"):
+        for col_def in ("pv_kwh REAL", "pv_fc_kwh REAL", "load_pred_kwh REAL",
+                        # B7: room temperature, share of the hour the heat pump
+                        # heated, mean flow-line offset.
+                        "room_temp_c REAL", "heating_frac REAL", "flow_offset_k REAL",
+                        # C5: mean price of the hour, for the savings baseline.
+                        "price_eur_kwh REAL"):
             try:
                 await self._db.execute(f"ALTER TABLE hourly_stats ADD COLUMN {col_def}")
             except Exception:
                 pass   # column already exists – ignore
         await self._db.execute(_CREATE_HP_HOURLY_TABLE)
+        await self._db.execute(_CREATE_KV_TABLE)
         await self._db.execute(_CREATE_HW_LOSS_TABLE)
         await self._db.execute(_CREATE_HW_DRAWS_TABLE)
         await self._db.execute(_CREATE_HW_CHARGES_TABLE)
@@ -261,6 +281,30 @@ class EnergyStore:
         )
         await self._db.execute(sql, [hour_start, *fields.values()])
         await self._db.commit()
+
+    async def set_state(self, key: str, value: Any) -> None:
+        """B6: persist a small JSON value under ``key``."""
+        if not self._db:
+            return
+        await self._db.execute(
+            "INSERT INTO kv_state (key, value, updated_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            [key, json.dumps(value), datetime.now(timezone.utc).isoformat(timespec="seconds")],
+        )
+        await self._db.commit()
+
+    async def get_state(self, key: str) -> Any:
+        """B6: the JSON value stored under ``key``, or None."""
+        if not self._db:
+            return None
+        async with self._db.execute("SELECT value FROM kv_state WHERE key = ?", [key]) as cur:
+            row = await cur.fetchone()
+        if row is None:
+            return None
+        try:
+            return json.loads(row["value"])
+        except (ValueError, TypeError):
+            return None
 
     async def query_hours_since(self, since_date: date) -> list[dict[str, Any]]:
         """Every hourly_stats row with date >= since_date, oldest first."""

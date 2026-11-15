@@ -250,6 +250,51 @@ ROI = 1,99 − 1,51 = +0,48 € ✅
 
 ---
 
+## Bedienung, Klartext und Plan (seit v4.2.0)
+
+| Entität | Inhalt |
+|---|---|
+| `sensor.miniems_mode` | Attribute `reason` (Grund-Code) und `reason_text` (ein Satz mit Zahlen, in der Sprache von HA) |
+| `sensor.miniems_next_action` | Ein Satz zur nächsten geplanten Aktion, z. B. „Netzladen: 02:00–05:00 (4,2 kWh)“. Attribute `device`, `action`, `start`, `end`, `energy_kwh`, außerdem `timeline` für die Plan-Karte (nicht im Recorder) |
+| `sensor.miniems_savings_week_eur` / `_month_eur` | Ersparnis gegen einen Haushalt ohne PV und Akku, siehe [Kosten](costs.md#ersparnis-gegen-einen-haushalt-ohne-anlage-seit-v420) |
+| `sensor.miniems_plan_fidelity` | Anteil der Minuten heute, in denen die Geräte den Sollwert gemeldet haben (%), nur mit live geschalteter Steuerung. Attribute je Kanal und offene Abweichungen |
+| `switch.miniems_simulation` | Simulation für alle Teile |
+| `switch.miniems_battery_control` / `_hot_water_control` / `_ev_control` / `_heating_control` | Steuerung an/aus |
+| `switch.miniems_ev_priority` | An = PV-Überschuss zuerst ans E-Auto (`charge_priority = ev`) |
+| `select.miniems_battery_override` | Auto / Netzladen / Halten / Kein Netzladen, mit Ablaufzeit |
+| `select.miniems_ev_override` | Auto / Jetzt / Nur PV / Stopp, mit Ablaufzeit; hat Vorrang vor dem `input_select`-Helfer aus `ev_mode_entity` |
+| `number.miniems_override_minutes` | Dauer einer neuen Übersteuerung (15–360 min) |
+| `button.miniems_hot_water_now` | Warmwasser jetzt laden |
+| `button.miniems_end_overrides` | Alle Übersteuerungen beenden |
+
+Die Schalter wirken sofort, ohne Neustart, und werden in `config.json` gespeichert.
+Übersteuerungen überstehen einen Neustart bis zu ihrer Ablaufzeit. Harte Grenzen
+(SoC unter Minimum, fehlende Daten) gelten immer, auch während einer Übersteuerung.
+
+### Ereignis `miniems_alert`
+
+Die Integration feuert `miniems_alert`, wenn eine dieser Bedingungen neu auftritt:
+
+| `type` | Bedeutung |
+|---|---|
+| `target_unreachable` | Das E-Auto- oder Warmwasser-Ziel ist bis zur Frist nicht erreichbar (`device`: `ev`, `hot_water`) |
+| `write_unconfirmed` | Ein Schreibvorgang an den Wechselrichter ist länger unbestätigt (Schreibstatus `error`) |
+| `plan_infeasible` | Der Energiefahrplan ist nicht umsetzbar |
+| `failsafe` / `failsafe_cleared` | Notabschaltung ausgelöst bzw. das Add-on meldet sich wieder (A10) |
+
+```yaml
+automation:
+  - alias: miniEMS Meldung aufs Handy
+    trigger:
+      - platform: event
+        event_type: miniems_alert
+    action:
+      - service: notify.mobile_app_telefon
+        data:
+          title: "miniEMS: {{ trigger.event.data.type }}"
+          message: "{{ trigger.event.data.message }}"
+```
+
 ## Sensoren in HA verwenden
 
 ### Beispiel Lovelace-Karte

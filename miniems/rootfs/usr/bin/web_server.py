@@ -8,7 +8,7 @@ import json
 import logging
 import os
 from dataclasses import fields as dc_fields
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -22,13 +22,15 @@ from fastapi.templating import Jinja2Templates
 import const
 import ha_ws_api
 from history_backfill import backfill_daily_stats
-from config_loader import Config
+from config_loader import Config, _coerce_to_default_type
 from const import CONFIG_FILE, OPTIONS_FILE, SUPERVISOR_RESTART_URL
 from device_profile import load_profiles
 from device_registry import RegistrySnapshot
 from device_resolver import profile_status, resolve_class
 from energy_dashboard import parse_energy_prefs
-from legacy_entity_fields import inverter_overrides
+from ha_entities import candidates as entity_candidates, entity_fields, validate as validate_entities
+from legacy_entity_fields import heat_pump_overrides, inverter_overrides
+from overrides import OverrideError
 from role_catalog import load_role_catalog
 
 _LOGGER = logging.getLogger(__name__)
@@ -98,6 +100,7 @@ _DICT_FIELDS = {"entity_overrides"}
 _INT_FIELDS = {
     "battery_min_soc", "battery_max_soc", "pv_surplus_threshold_w",
     "update_interval_sec", "battery_max_charge_current_a", "battery_max_discharge_current_a",
+    "battery_max_grid_charge_current_a",
     "event_log_retention_days",
     "pv_export_min_soc_pct", "pv_charge_backstop_hour", "export_hold_charge_current_a",
     "mode_dwell_sec", "battery_soc_hysteresis_pct",
@@ -130,6 +133,9 @@ _FLOAT_FIELDS = {
 }
 
 
+_CONFIG_DEFAULTS: dict[str, Any] = {f.name: getattr(Config(), f.name) for f in dc_fields(Config)}
+
+
 def _coerce(key: str, value: Any) -> Any:
     """Convert a form/JSON value to the correct Python type for the config key."""
     if key in _BOOL_FIELDS:
@@ -148,6 +154,11 @@ def _coerce(key: str, value: Any) -> Any:
             return 0.0
     if key in _DICT_FIELDS:
         return value if isinstance(value, dict) else {}
+    # Any other field: the type of its Config default (a new numeric field
+    # can then never be persisted as a string by mistake).
+    default = _CONFIG_DEFAULTS.get(key)
+    if default is not None and not isinstance(default, str):
+        return _coerce_to_default_type(key, value, default)
     return str(value) if value is not None else ""
 
 
@@ -200,6 +211,10 @@ def create_app(
     store: Any = None,           # EnergyStore instance
     hot_water: Any = None,       # HotWaterController instance
     inverter: Any = None,        # InverterController instance
+    ev: Any = None,              # EVController instance (B3)
+    heating: Any = None,         # HeatingController instance (B6)
+    overrides: Any = None,       # OverrideStore (C2)
+    entities: Any = None,        # ha_entities.EntityCache (C7)
 ) -> FastAPI:
     """Create FastAPI app; status_store is the shared dict updated by EMS loop."""
     app = FastAPI(title="miniEMS", docs_url=None, redoc_url=None)
@@ -219,11 +234,81 @@ def create_app(
 
     @app.get("/api/status")
     async def api_status() -> dict[str, Any]:
-        # status_store is only refreshed per EMS tick; the hot-water part is
-        # read live so a button press shows up at once.
+        # status_store is only refreshed per EMS tick; the hot-water part,
+        # the control mode and the overrides are read live so a button press
+        # or a switch in HA shows up at once.
+        data = dict(status_store)
         if hot_water is not None and hot_water.enabled and "hot_water" in status_store:
-            return {**status_store, "hot_water": hot_water.status()}
-        return status_store
+            data["hot_water"] = hot_water.status()
+        if config is not None:
+            data["control_mode"] = _control_mode()
+        if overrides is not None:
+            data["overrides"] = overrides.status(datetime.now().astimezone())
+        return data
+
+    # ── Phase C pages (C6 navigation: Jetzt / Plan / Geräte / Kosten / System) ──
+
+    def _page(name: str):
+        async def handler(request: Request) -> HTMLResponse:
+            lang = await get_ha_language(request)
+            return _TEMPLATES.TemplateResponse(
+                request, f"{name}.html",
+                {"version": const.VERSION, "translations": load_translations(lang), "lang": lang})
+        return handler
+
+    for _route, _name in (("/plan", "plan"), ("/costs", "costs"), ("/consumers", "consumers"),
+                          ("/system", "system")):
+        app.add_api_route(_route, _page(_name), methods=["GET"], response_class=HTMLResponse)
+
+    # ── C2: overrides with an expiry ────────────────────────────────────
+
+    @app.get("/api/override")
+    async def api_override_get() -> JSONResponse:
+        if overrides is None:
+            return JSONResponse({"error": "overrides not available"}, status_code=409)
+        return JSONResponse(overrides.status(datetime.now().astimezone()))
+
+    @app.post("/api/override")
+    async def api_override_post(request: Request) -> JSONResponse:
+        """{"device": "battery"|"ev", "value": ..., "minutes": 15–360} starts an
+        override ("auto" ends it); {"minutes": n} alone sets the default
+        duration; {"clear": "battery"|"ev"|"all"} ends overrides."""
+        if overrides is None:
+            return JSONResponse({"error": "overrides not available"}, status_code=409)
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+        if not isinstance(body, dict) or not body:
+            return JSONResponse({"error": "nothing to change"}, status_code=400)
+        now = datetime.now().astimezone()
+        try:
+            if "clear" in body:
+                target = body["clear"]
+                await overrides.clear(None if target == "all" else str(target))
+            elif "device" in body:
+                minutes = body.get("minutes")
+                await overrides.set(str(body["device"]), str(body.get("value", "")), now,
+                                    None if minutes is None else int(minutes),
+                                    source=str(body.get("source", "api")))
+            elif "minutes" in body:
+                await overrides.set_minutes(int(body["minutes"]))
+            else:
+                return JSONResponse({"error": "expected device, minutes or clear"}, status_code=400)
+        except (OverrideError, TypeError, ValueError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        _LOGGER.info("Override: %s", body)
+        return JSONResponse(overrides.status(now))
+
+    # ── C7: entity picker ──────────────────────────────────────────────
+
+    @app.get("/api/entities")
+    async def api_entities(field: str = "") -> JSONResponse:
+        states = await entities.states() if entities is not None else None
+        if states is None:
+            return JSONResponse({"error": "entity list unavailable", "entities": []}, status_code=503)
+        return JSONResponse({"field": field, "entities": entity_candidates(field, states),
+                             "fields": entity_fields()})
 
     # ── Settings ───────────────────────────────────────────────────────
 
@@ -364,7 +449,9 @@ def create_app(
         # deliberate signal of the two. resolve_class() only ever reads the
         # keys prefixed for the class it was called with, so one merged dict
         # can be reused across every class's call.
-        overrides = {**inverter_overrides(live_config, Config()), **(live_config.entity_overrides or {})}
+        overrides = {**inverter_overrides(live_config, Config()),
+                     **heat_pump_overrides(live_config, Config()),
+                     **(live_config.entity_overrides or {})}
         catalog = load_role_catalog()
         profiles = load_profiles()
         resolutions = {
@@ -372,7 +459,7 @@ def create_app(
                 class_name, catalog=catalog, overrides=overrides, energy_map=energy_map,
                 registry=snapshot, profiles=profiles, live_config=live_config,
             )
-            for class_name in ("inverter", "energy_meter")
+            for class_name in ("inverter", "energy_meter", "heat_pump")
         }
 
         return JSONResponse({
@@ -422,6 +509,16 @@ def create_app(
             except Exception as exc:
                 _LOGGER.warning("Failed to read existing config for merge: %s", exc)
 
+        # C7: refuse entities that do not exist or have the wrong domain/unit.
+        # "_force": true saves anyway (e.g. an integration not loaded yet).
+        if entities is not None and not body.get("_force"):
+            states = await entities.states()
+            if states is not None:
+                problems = validate_entities(body, states)
+                if problems:
+                    return JSONResponse({"error": "invalid entities", "problems": problems},
+                                        status_code=422)
+
         # Merge and coerce types
         for key, value in body.items():
             if not key.startswith("_"):
@@ -457,15 +554,27 @@ def create_app(
 
     def _control_mode() -> dict[str, Any]:
         c = config
+        # EV and heating count only while switched on – their simulation flag
+        # is meaningless otherwise.
+        sims = [c.battery_control_simulation, c.hw_control_simulation]
+        if c.ev_control_enabled:
+            sims.append(c.ev_control_simulation)
+        if c.heating_control_enabled:
+            sims.append(c.heating_control_simulation)
         return {
-            # One switch for both: on as soon as either part simulates (the safe reading).
-            "simulation": bool(c.battery_control_simulation or c.hw_control_simulation),
-            "simulation_mixed": c.battery_control_simulation != c.hw_control_simulation,
+            # One switch for all: on as soon as any part simulates (the safe reading).
+            "simulation": any(sims),
+            "simulation_mixed": len(set(sims)) > 1,
             "battery_control": bool(c.battery_control_enabled),
             "hw_control": bool(c.hw_control_enabled),
+            "ev_control": bool(c.ev_control_enabled),
+            "heating_control": bool(c.heating_control_enabled),
             "battery_live": bool(c.battery_control_enabled and not c.battery_control_simulation),
             "hw_live": bool(c.hw_control_enabled and not c.hw_control_simulation),
+            "ev_live": bool(c.ev_control_enabled and not c.ev_control_simulation),
+            "heating_live": bool(c.heating_control_enabled and not c.heating_control_simulation),
             "history_backfill": bool(c.history_backfill_enabled),
+            "charge_priority": c.charge_priority,
         }
 
     @app.get("/api/control_mode")
@@ -491,15 +600,27 @@ def create_app(
         if not isinstance(body, dict):
             return JSONResponse({"error": "Invalid JSON"}, status_code=400)
 
-        updates: dict[str, bool] = {}
+        updates: dict[str, Any] = {}
         if "simulation" in body:
             sim = _coerce("battery_control_simulation", body["simulation"])
             updates["battery_control_simulation"] = sim
             updates["hw_control_simulation"] = sim
+            updates["ev_control_simulation"] = sim
+            updates["heating_control_simulation"] = sim
         if "battery_control" in body:
             updates["battery_control_enabled"] = _coerce("battery_control_enabled", body["battery_control"])
         if "hw_control" in body:
             updates["hw_control_enabled"] = _coerce("hw_control_enabled", body["hw_control"])
+        if "ev_control" in body:
+            updates["ev_control_enabled"] = _coerce("ev_control_enabled", body["ev_control"])
+        if "heating_control" in body:
+            updates["heating_control_enabled"] = _coerce("heating_control_enabled",
+                                                         body["heating_control"])
+        if "charge_priority" in body:
+            if body["charge_priority"] not in ("battery", "ev"):
+                return JSONResponse({"error": "charge_priority must be battery or ev"},
+                                    status_code=400)
+            updates["charge_priority"] = body["charge_priority"]
         if "history_backfill" in body:
             updates["history_backfill_enabled"] = _coerce(
                 "history_backfill_enabled", body["history_backfill"])
@@ -525,13 +646,22 @@ def create_app(
                     await asyncio.wait_for(hot_water.restore_safe_defaults(), timeout=10)
                 except Exception as exc:
                     _LOGGER.error("Hot-water restore on mode switch failed: %s", exc)
+            for key, ctrl in (("ev", ev), ("heating", heating)):
+                new_live = (updates.get(f"{key}_control_enabled", getattr(config, f"{key}_control_enabled"))
+                            and not updates.get(f"{key}_control_simulation",
+                                                getattr(config, f"{key}_control_simulation")))
+                if before[f"{key}_live"] and not new_live and ctrl is not None:
+                    try:
+                        await asyncio.wait_for(ctrl.restore_safe_defaults(), timeout=10)
+                    except Exception as exc:
+                        _LOGGER.error("%s restore on mode switch failed: %s", key, exc)
 
             backfill_switched_on = (updates.get("history_backfill_enabled")
                                     and not config.history_backfill_enabled)
             for key, value in updates.items():
                 setattr(config, key, value)
             # Simulated writes count as confirmed without being sent – start fresh.
-            for ctrl in (inverter, hot_water):
+            for ctrl in (inverter, hot_water, ev, heating):
                 if ctrl is not None:
                     ctrl.reset_write_state()
 

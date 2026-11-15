@@ -6,6 +6,7 @@
   <title>miniEMS Dashboard</title>
   <link rel="icon" type="image/png" href="static/icon.png">
   <link rel="stylesheet" href="static/style.css">
+  <script src="static/pages.js"></script>
 </head>
 <body>
   <header>
@@ -13,16 +14,7 @@
     <h1>{{ translations.ui_title or 'miniEMS Dashboard' }}</h1>
     <span class="version-badge">v{{ version }}</span>
   </header>
-  <nav class="tab-nav">
-    <a href="." class="tab-link active">{{ translations.tab_dashboard or 'Dashboard' }}</a>
-    <a href="heatpump" class="tab-link">{{ translations.tab_heatpump or 'Heat Pump' }}</a>
-    <a href="settings" class="tab-link">{{ translations.tab_settings or 'Settings' }}</a>
-    <a href="log" class="tab-link">{{ translations.tab_log or 'Log' }}</a>
-    <a href="config-json" class="tab-link">{{ translations.tab_config_json or 'config.json' }}</a>
-    <a href="options-json" class="tab-link">{{ translations.tab_options_json or 'options.json' }}</a>
-    <a href="database" class="tab-link">{{ translations.tab_database or 'Database' }}</a>
-    <a href="devices" class="tab-link">{{ translations.tab_devices or 'Devices' }}</a>
-  </nav>
+  {% set active = 'now' %}{% set sub = '' %}{% include '_nav.html' %}
   <p class="refresh-hint">{{ translations.refresh_hint or 'Auto-refreshes every 5 seconds' }}</p>
   <div id="dashboard">Loading…</div>
   <footer>{{ translations.footer or 'miniEMS v' }}{{ version }} &middot; Home Assistant Add-on</footer>
@@ -69,9 +61,23 @@
         ? `<div class="warnings-banner">${d.warnings.map(w => `<div class="warn-item">&#9888; ${w}</div>`).join('')}</div>`
         : '';
 
+      // C6: short status of every consumer, one line each.
+      const P = window.MiniEMSPages;
+      const de = P && P.de;
+      const say = (key) => d.explain && d.explain[key] && P ? P.esc(d.explain[key][P.LANG]) : '';
+      const consumers = [
+        d.hot_water ? `${de ? 'Warmwasser' : 'Hot water'} ${fmt(d.hot_water.boil_temp_c, 0)} °C · ${d.hot_water.mode}` : '',
+        d.ev ? `${de ? 'E-Auto' : 'EV'}: ${say('ev') || d.ev.mode}` : '',
+        d.heating ? `${de ? 'Heizung' : 'Heating'} ${fmt(d.heating.offset_k, 1)} K · ${say('heating')}` : '',
+        d.fuse ? `${de ? 'Sicherung' : 'Fuse'}: ${fmt(d.fuse.headroom_a, 1)} A ${de ? 'Reserve' : 'headroom'}` : '',
+      ].filter(Boolean);
+
       return `
         ${warnHtml}
+        ${P ? P.banner(d) : ''}
         <div class="mode-badge ${fmtMode(d.mode)}">${d.mode || 'Unknown'}${simBadge}</div>
+        ${consumers.length ? `<p class="section-title"><a href="consumers">${de ? 'Verbraucher' : 'Consumers'} →</a></p>
+          <div class="savings-grid">${consumers.map(c => `<div class="savings-card"><div class="muted">${c}</div></div>`).join('')}</div>` : ''}
 
         <div class="grid">
           <div class="card">

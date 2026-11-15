@@ -8,16 +8,26 @@ Das miniEMS-Dashboard ist ein Ingress-Panel, das direkt über die HA-Seitenleist
 
 ## Navigation
 
-Sechs Tabs stehen zur Verfügung:
+Seit v4.2.0 gibt es fünf Hauptreiter. Darunter liegen die bisherigen Seiten:
 
-| Tab | Pfad | Zweck |
+| Reiter | Pfad | Inhalt |
 |---|---|---|
-| **Dashboard** | `/` | Live-Status, Kosten, Batterie, Solcast, Vorhersage |
-| **Einstellungen** | `/settings` | Konfigurationsformular |
-| **Log** | `/log` | Einheitliches Ereignislog (Moduswechsel + Preisänderungen) |
-| **config.json** | `/config-json` | Raw-Editor für `/data/config.json` |
-| **options.json** | `/options-json` | Raw-Editor für `/data/options.json` |
-| **Datenbank** | `/database` | Alle Zeilen in `daily_stats` durchsuchen |
+| **Jetzt** | `/` | Live-Status mit Klartext-Satz zur aktuellen Entscheidung, nächste Aktion, Kurzstatus der Verbraucher, Kosten, Batterie, Solcast |
+| **Plan** | `/plan` | Alle Pläne auf einer Zeitachse (Akku, Netzladen, Warmwasser, E-Auto, Heizung, mit Preis und PV im Hintergrund), Grundlage der Pläne, Übersteuerung mit Ablaufzeit, Plan-Treue |
+| **Geräte** | `/consumers` | Warmwasser, Heizung, E-Auto, Hauptsicherung, Startempfehlungen. Unterseite **Wärmepumpe** (`/heatpump`) |
+| **Kosten** | `/costs` | Ersparnis gegen einen Haushalt ohne PV und Akku (7 Tage, Monat, je Tag), Tageswerte |
+| **System** | `/system` | Steuerungszustand, Meldungen, Warnungen. Unterseiten **Einstellungen**, **Protokoll**, **Datenbank**, **Geräteerkennung**, **config.json**, **options.json** |
+
+Auf der Plan-Seite lässt sich der Akku (Auto / Netzladen / Halten / Kein Netzladen) und
+das E-Auto (Auto / Jetzt / Nur PV / Stopp) von Hand übersteuern, immer mit Ablaufzeit
+(15 min bis 6 h). Danach gilt wieder Auto. Dieselbe Übersteuerung steht in Home Assistant
+als `select`-Entität bereit; es gilt der zuletzt geschriebene Wert.
+
+Auf der Einstellungsseite bietet jedes Entitätsfeld beim Anklicken die passenden
+HA-Entitäten an, gefiltert nach Domain und Einheit. Beim Speichern prüft miniEMS jede
+eingetragene Entität. Existiert sie nicht oder passen Domain bzw. Einheit nicht, wird
+nicht gespeichert, und die Seite nennt Feld und Grund. „Save anyway“ speichert trotzdem,
+zum Beispiel wenn eine Integration gerade nicht geladen ist.
 
 ---
 

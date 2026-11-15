@@ -266,6 +266,41 @@ ROI               = 1,99 − 1,51       = +0,48 €  ✅
 
 ---
 
+## Ersparnis gegen einen Haushalt ohne Anlage (seit v4.2.0)
+
+Die Kachel „Ersparnis“ auf der Seite **Kosten** und die Sensoren
+`sensor.miniems_savings_week_eur` und `_month_eur` vergleichen mit einem Haushalt ohne PV,
+Akku und miniEMS, der dasselbe verbraucht:
+
+```text
+Vergleich je Tag = Tagesverbrauch × Σ_h (w_h × Preis_h) ÷ Σ_h w_h
+Tatsächlich      = Netzkosten − Einspeisevergütung
+Ersparnis        = Vergleich − Tatsächlich
+```
+
+- **Tagesverbrauch:** die gemessene Last des Tages (`load_total_kwh`).
+- **w_h:** Gewicht der Stunde nach einem Standard-Haushaltsprofil. miniEMS nutzt eine
+  **Näherung der Tagesform** des BDEW-Standardlastprofils für Haushalte (H0, ab 2025
+  H25): eine Werktagsform, normiert. Es ist nicht die offizielle Viertelstundentabelle;
+  sie lässt sich in `savings.py` (`PROFILE_WEIGHTS`) ersetzen, ohne dass sich sonst
+  etwas ändert.
+- **Preis_h:** der tatsächliche mittlere Preis der Stunde. miniEMS zeichnet ihn seit
+  v4.2.0 je Stunde auf (`hourly_stats.price_eur_kwh`). Ein Tag zählt erst, wenn für
+  mindestens 75 % des Profilgewichts ein Preis vorliegt. Die Kachel füllt sich also
+  ab dem ersten vollständigen Tag nach dem Update.
+- **Negative Werte bleiben negativ.** Ein Tag, an dem die Anlage teurer war als der
+  Vergleich, wird so angezeigt.
+
+Beispiel: 10 kWh Verbrauch, Octopus mit 27,4 ct (NIEDRIG 02–06 und 12–16), 34,4 ct
+(STANDARD) und 40 ct (HOCH 18–21). Das Profil legt rund 20 % des Verbrauchs in die
+Abendspitze, der Vergleich kostet damit 3,37 €. Hat die Anlage tatsächlich 1,20 €
+Netzkosten bei 0,30 € Einspeisevergütung, beträgt die Ersparnis 3,37 − 0,90 = 2,47 €.
+
+Daneben zeigt die Kachel **„Plan spart heute“**: die Ersparnis des Akku-Tagesplans (A6)
+gegen reinen Eigenverbrauch mit gleich bewertetem Endstand.
+
+---
+
 ## Wo die Werte angezeigt werden
 
 - **Dashboard** (`/`) — die wichtigsten Tageswerte als Karten, siehe

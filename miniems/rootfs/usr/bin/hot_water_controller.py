@@ -17,7 +17,6 @@ is guarded by the protection rule).
 """
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -36,6 +35,7 @@ from const import (
 )
 from event_log import LogEntry
 from ha_service import ConfirmedWriter
+from heat_pump_device import HeatPumpDevice
 from hot_water_model import HotWaterModelLoader, is_workday
 from hot_water_planner import HotWaterPlan, HWRequirement, HWSlot, plan_hot_water
 from hw_start_loss import StartLosses, learn_start_losses
@@ -62,9 +62,6 @@ _PSEUDO_MARGIN_K = 2.0
 # survive even one slot of standby loss.
 _MORNING_SLACK_K = 1.0
 _CHARGING_MODES = (HWMode.CHARGING, HWMode.PV, HWMode.PROTECT, HWMode.MANUAL)
-# Text states of hw_compressor_entity that mean "the compressor runs" (Lambda
-# operating state: central heating, hot water, cooling, defrost).
-_COMPRESSOR_RUNNING_STATES = frozenset({"CH", "DHW", "CC", "DEFROST"})
 
 
 @dataclass
@@ -139,7 +136,8 @@ class HotWaterController:
         self._setpoint_c: float | None = None
         self._boil_c: float | None = None
         self._outdoor_c: float | None = None
-        self._warned_no_service = False
+        # D1: the heat pump's capabilities (setpoint write, compressor state).
+        self._device = HeatPumpDevice(cfg, ws)
 
     # ------------------------------------------------------------------
     # Public API
@@ -358,7 +356,7 @@ class HotWaterController:
             "reason": self._reason,
             "control_enabled": cfg.hw_control_enabled,
             "simulation": cfg.hw_control_simulation,
-            "write_service": cfg.hw_write_service,
+            "write_service": self._device.hw_write_label,
             "boil_temp_c": self._boil_c,
             "outdoor_temp_c": self._outdoor_c,
             "min_temp_c": cfg.hot_water_min_temp_c,
@@ -379,7 +377,7 @@ class HotWaterController:
             },
             "setpoint": {
                 "target_c": self._setpoint_c,
-                "raw_value": (round(self._setpoint_c * cfg.hw_write_scale)
+                "raw_value": (self._device.hw_setpoint_raw(self._setpoint_c)
                               if self._setpoint_c is not None else None),
                 "read_back_c": self._value(cfg.hw_target_entity),
                 "confirmed": self._channel.confirmed,
@@ -502,14 +500,12 @@ class HotWaterController:
         """
         cfg = self._cfg
         if (not self.enabled or not cfg.hw_control_enabled or cfg.hw_control_simulation
-                or "." not in cfg.hw_write_service):
+                or not self._device.hw_setpoint_writable):
             return []
-        raw = round(self._floor_c() * cfg.hw_write_scale)
-        try:
-            data = json.loads(cfg.hw_write_data.replace("{value}", str(raw)))
-        except (json.JSONDecodeError, TypeError):
+        call = self._device.hw_setpoint_call(self._floor_c())
+        if call is None:
             return []
-        return [{"service": cfg.hw_write_service, "data": data}]
+        return [{"service": call.name, "data": call.data}]
 
     async def restore_safe_defaults(self) -> None:
         """Hand the boiler back to the heat pump's own control on shutdown."""
@@ -690,23 +686,13 @@ class HotWaterController:
 
     async def _write(self, setpoint_c: float) -> None:
         cfg = self._cfg
-        raw = round(setpoint_c * cfg.hw_write_scale)
-        try:
-            data = json.loads(cfg.hw_write_data.replace("{value}", str(raw)))
-        except (json.JSONDecodeError, TypeError) as exc:
-            _LOGGER.error("hw_write_data is not valid JSON after inserting the value: %s", exc)
+        call = self._device.hw_setpoint_call(setpoint_c, simulation=cfg.hw_control_simulation)
+        if call is None:
             return
-        if "." in cfg.hw_write_service:
-            domain, service = cfg.hw_write_service.split(".", 1)
-        elif cfg.hw_control_simulation:
-            domain, service = "<hw_write_service unset>", "write"
-        else:
-            if not self._warned_no_service:
-                _LOGGER.warning("hw_control_enabled but hw_write_service is not set – nothing written")
-                self._warned_no_service = True
-            return
-        actual = self._value(cfg.hw_target_entity)
-        spec = WriteSpec(domain=domain, service=service, entity_id=cfg.hw_target_entity,
+        domain, service, data = call.domain, call.service, call.data
+        readback = cfg.hw_target_entity or cfg.hw_setpoint_entity
+        actual = self._value(readback)
+        spec = WriteSpec(domain=domain, service=service, entity_id=readback,
                          payload=data, expected=round(setpoint_c, 1))
         matched = actual is not None and abs(actual - setpoint_c) < 0.5
         if self._writer is None:
@@ -722,7 +708,7 @@ class HotWaterController:
                             "– writing again", actual, setpoint_c)
             self._channel = WriteChannel()
         await self._writer.write(self._channel, spec, matched, cfg.hw_control_simulation,
-                                 f"Boiler setpoint ({cfg.hw_target_entity})")
+                                 f"Boiler setpoint ({readback})")
 
     # ------------------------------------------------------------------
     # Helpers
@@ -755,21 +741,8 @@ class HotWaterController:
         return self._ws.get_state_value(entity) if entity else None
 
     def _compressor_running(self) -> bool | None:
-        """Does the compressor run right now? None = unknown (treated as off).
-
-        Numeric sensor: > 0 = running (Lambda compressor rating in %). Text
-        sensor: one of _COMPRESSOR_RUNNING_STATES (Lambda operating state).
-        """
-        entity = self._cfg.hw_compressor_entity
-        if not entity:
-            return None
-        numeric = self._ws.get_state_value(entity)
-        if numeric is not None:
-            return numeric > 0
-        raw = self._ws.get_state_raw(entity)
-        if raw is None or raw in ("unavailable", "unknown", ""):
-            return None
-        return str(raw).strip().upper() in _COMPRESSOR_RUNNING_STATES
+        """Does the compressor run right now? None = unknown (treated as off)."""
+        return self._device.compressor_running()
 
     def _is_workday(self, day, today) -> bool:
         entity = self._cfg.hw_workday_entity

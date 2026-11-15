@@ -1,5 +1,149 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 4.2.0
+
+Phase C des [Gesamtplans](../docs/roadmap/gesamtplan.md): Integration und Oberfläche.
+Mit Ausnahme der Übersteuerung (C2) ändert nichts davon eine Entscheidung.
+
+### Added
+
+- **C1 – Entscheidung im Klartext:** Jeder Grund-Code wird zu einem Satz mit Zahlen
+  (Deutsch und Englisch), z. B. „Netzladen: 3,2 kWh bis 05:00, weil später bis 31 ct
+  statt jetzt 18 ct“. Als `reason_text` an `sensor.miniems_mode`, als Banner auf der
+  Seite „Jetzt“ und je Gerät (E-Auto, Heizung). `/api/status` → `explain`.
+- **C2 – Bedienung aus HA:** neue Plattformen `switch` (Simulation, Akku-, Warmwasser-,
+  E-Auto-, Heizungssteuerung, Vorrang E-Auto), `select` (Übersteuerung Akku und E-Auto),
+  `number` (Dauer 15–360 min), `button` (Warmwasser jetzt, Übersteuerung beenden). Jede
+  Übersteuerung hat eine Ablaufzeit, danach gilt wieder Auto. Sie beginnt und endet
+  sofort, ohne Verweildauer, und harte Grenzen gelten weiter. Gespeichert über einen
+  Neustart hinweg. Endpunkte `GET/POST /api/override`, `/api/control_mode` kennt
+  `charge_priority`.
+- **C3 – Plan-Ansicht:** `sensor.miniems_next_action` (ein Satz als Zustand, Gerät,
+  Start und Ende als Attribute), neue Karte `custom:miniems-timeline-card` mit allen
+  Plänen auf einer Zeitachse (Preis und PV im Hintergrund) im Plan-Reiter des
+  generierten Dashboards, dazu die Grundlage der Pläne (Preise bis, PV-Quelle,
+  Lastmodell).
+- **C4 – Plan-Treue:** Soll gegen Ist je Kanal und Minute (Lade-, Entlade- und
+  Netzladestrom, Boiler-Sollwert, Wallbox-Strom, Vorlauf-Offset), Tagesquote und
+  Abweichungen mit Erklärung. `sensor.miniems_plan_fidelity`. In der Simulation wird
+  nichts gezählt.
+- **C5 – Ersparnis-Kachel:** 7 Tage und Monat gegen einen Haushalt ohne PV und Akku
+  mit gleichem Verbrauch nach Standardprofil zum tatsächlichen Stundenpreis;
+  `sensor.miniems_savings_week_eur`, `_month_eur`. Methode in der Kosten-Doku.
+- **C6 – Navigation:** Jetzt / Plan / Geräte / Kosten / System, mit Unterseiten. Die
+  Flow-Karte zeigt rechts eine Verbraucher-Spalte (Warmwasser, E-Auto, Heizung,
+  nächste Aktion).
+- **C7 – Einrichtung und Diagnose:** Entitätsauswahl je Feld, gefiltert nach Domain
+  und Einheit (`/api/entities`), Prüfung beim Speichern (422 mit Feld und Grund,
+  „Save anyway“). Ereignis `miniems_alert` für „Ziel nicht erreichbar“,
+  „Schreibvorgang unbestätigt“ und „Plan nicht umsetzbar“. Warnband: Überbrückungsplan
+  an, entscheidet aber nicht; Netzladeleistung reicht nicht für das Fenster.
+
+### Changed
+
+- Generiertes Dashboard: Layout 4 (Zeitachsen-Karte im Plan-Reiter).
+- Datenbank: `hourly_stats.price_eur_kwh`, `daily_stats.plan_minutes` und
+  `plan_kept_minutes`.
+- Der Reiter „Geräte“ (Geräteerkennung) heißt jetzt „Geräteerkennung“ und liegt unter
+  System.
+
+### Note
+
+- Neue Plattformen brauchen nach dem Update einen Neustart von Home Assistant; die
+  Integration selbst lädt sich wie bisher neu.
+
+
+## 4.1.0
+
+Phase B des [Gesamtplans](../docs/roadmap/gesamtplan.md): mehrere Verbraucher –
+Hauptsicherung, E-Auto und Heizung. **Alle neuen Schalter sind aus**: Nach dem
+Update entscheidet miniEMS genau wie 4.0.0. E-Auto und Heizung haben je einen
+Schalter für Steuerung und Simulation (Standard: Simulation); der Schalter
+„Simulation“ auf der Einstellungsseite setzt jetzt alle vier Teile.
+
+### Added
+
+- **B1 – Sicherungs-Wächter** (`fuse_guard_enabled`, `fuse_rated_a`): Strom je
+  Phase thermisch gefiltert (I², τ = 60 s), Drosseln über der Arbeitsgrenze
+  (`fuse_work_limit_pct`, 90 %), sofort bei einem Einzelwert über 1,2 ×
+  Nennstrom, danach 20 s keine Erhöhung. Einspeisende Phasen drosseln nie.
+  Fehlende Werte gelten nie als 0 A, sondern als gelernte Grundlast + 6 A. Wirkt
+  auf Netzladen und Wallbox; geprüft alle `fuse_poll_sec` (10 s), solange einer
+  davon läuft. Vorbelegt mit den Netz-CTs des Deye.
+  **§14a EnWG:** `grid_dimming_entity` (Steuerbox) und `grid_dimming_limit_w`
+  (4200 W) für alle steuerbaren Verbraucher zusammen.
+- **B2 – Ressourcen-Verteiler**: `EnergyTask` (Energie, Leistung, Frist, Art)
+  mit Planung in die günstigsten Slots vor der Frist, knappste Frist zuerst,
+  innerhalb der Sicherung. PV-Überschuss nach fester Reihenfolge: Akku bis
+  `battery_priority_soc_pct` → E-Auto → Warmwasser → Rest-Akku → Einspeisung
+  (`charge_priority`). Kopplungsregel `ev_battery_mode = block`: Solange das
+  Auto lädt, entlädt der Akku nicht (Modus *Hold for Peak*). Der Akku-Tagesplan
+  sieht die geplante Ladeleistung des Autos als Last.
+- **B3 – E-Auto-Anbindung**: Wallbox über HA-Entities (Leistung, gesteckt,
+  Status, Freigabe, Stromgrenze, Phasen, SoC des Autos). Übersteuerung über
+  einen `input_select` **Auto / Jetzt / Nur PV / Stopp**, Ziel-SoC und Abfahrt
+  über `input_number` / `input_datetime`. Umrechnung kW ↔ A über
+  `ev_max_charge_kw / ev_max_current_a`. Erkennung „Ladung hängt“ mit
+  `turn_on`-Versuch. Ohne `ev_control_enabled` wird nur gelesen und geplant.
+- **B4 – E-Auto-Planung**: Bedarf × 1,12, Frist eine Stunde früher bei 100 %,
+  Teilziel am Morgen (`ev_morning_soc_pct`, `ev_morning_time`), Aufschlag für
+  niedrige Ströme, Leistung je Slot = Sicherung − vorhergesagte Grundlast, zwei
+  Durchläufe (mit und ohne Reserve). Warnung „target not reachable“.
+- **B5 – E-Auto mit PV-Überschuss**: Start einphasig, dreiphasig ab 18 A,
+  zurück unter 5,5 A, 15 min Sperre nach jeder Umschaltung, Nachregeln alle
+  5 min (jede Minute bei teurem Netzbezug), 30 min Mindestlaufzeit, Pause mit
+  0 A (`ev_pause_mode`).
+- **D1 – Wärmepumpe als Geräteklasse**: Klasse `heat_pump` im Rollenkatalog,
+  Profil `lambda_eu08l` (live geprüft), Vorschau unter `/devices`. Warmwasser
+  und Heizung sprechen über `heat_pump_device.py` mit Fähigkeiten, nicht mit
+  Lambda-Registern. Neu `hw_setpoint_entity` für Wärmepumpen mit Sollwert als
+  `number`. Der Lambda-Schreibweg ist unverändert.
+- **B6 – Heizung über den Vorlauf-Offset** (`heating_control_enabled`):
+  Preisklassen → Offset (`heating_offset_up_k` / `_down_k`, ±2 K), Vorladen vor
+  teuren Stunden, COP-Prüfung vor jedem Anheben, höchstens 3 h Absenkung am
+  Stück, Grenzen bei Kälte (−5 / −15 °C), keine Heizung über der Heizgrenze,
+  Heizstab-Erkennung (`heating_compressor_max_w`), Verdichtersperre 60/45 min,
+  die einen Neustart übersteht. Offset 0 K bei Start, Beenden und Übergabe.
+  Optional meldet miniEMS den PV-Überschuss selbst (`heating_surplus_entity`).
+- **B7 – Raumtemperatur und Vorheizplaner**: Aufzeichnung von Raumtemperatur,
+  Heizanteil und Offset je Stunde, gelernte Auskühl- und Aufheizrate, Rückblick
+  auf jede zweite Stunde (Modell erst bei < 0,3 K/h Fehler bereit), gieriger
+  Vorheizplaner. Raumregeln mit `heating_comfort_min_c`; der Planer entscheidet
+  nur mit `heating_room_control_enabled`.
+- **B8 – Startempfehlung** (`flex_devices`): `sensor.miniems_best_start_<gerät>`
+  mit dem günstigsten Start aus Preis und PV-Prognose. Steuert nichts.
+- Neue HA-Sensoren: `sensor.miniems_fuse_headroom`, `sensor.miniems_ev_mode`,
+  `sensor.miniems_ev_plan_kwh`, `sensor.miniems_heating_offset`.
+- Notabschaltung (A10) und Beenden setzen auch Wallbox (frei, voller Strom) und
+  Vorlauf-Offset (0 K) zurück.
+
+### Changed
+
+- `/api/control_mode` kennt `ev_control` und `heating_control`; die
+  Einstellungsseite zeigt dafür eigene Schalter und Abschnitte.
+- Einstellungen ohne Eintrag in den Typlisten werden nach dem Typ ihres
+  Standardwerts gespeichert (vorher als Text).
+- Datenbank: Tabelle `kv_state`, Spalten `room_temp_c`, `heating_frac`,
+  `flow_offset_k` in `hourly_stats`.
+
+### Fixed
+
+- **Netzladen lud nicht:** Der Deye hat für das Laden aus dem Netz einen eigenen
+  Grenzwert, `number.deye8k_battery_grid_charging_current` (Battery Grid
+  Charging Current). Beim Netzladen gilt der kleinere von ihm und dem
+  allgemeinen Ladestrom. miniEMS setzte nur den allgemeinen Ladestrom; stand
+  der Netzlade-Grenzwert auf 0 A (in der Anlage mindestens seit dem 10.11.),
+  lud *Grid Charging* nichts. Neu `inverter_grid_charge_current_entity`: Im
+  Modus *Grid Charging* schreibt miniEMS denselben Strom (auch den gestreckten
+  aus V1 und die Kappung durch B1) in beide Grenzwerte und bestätigt ihn wie
+  die anderen Kanäle. Ein unbestätigter Wert erscheint im Schreibstatus. In
+  allen anderen Modi, beim Beenden und in der Notabschaltung setzt miniEMS ihn
+  auf `battery_max_grid_charge_current_a` (185 A), damit er nie auf 0 A stehen
+  bleibt; beim Netzladen ist das die Obergrenze. Rolle
+  `battery_grid_charge_limit` im Deye-Profil.
+- Das Stundenmodell (A2) wurde je Tick zweimal neu geladen.
+
+
 ## 4.0.0
 
 Phase A des [Gesamtplans](../docs/roadmap/gesamtplan.md): die Logik für Akku

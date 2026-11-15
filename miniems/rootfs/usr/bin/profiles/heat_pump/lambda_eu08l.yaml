@@ -1,0 +1,57 @@
+# Lambda Eureka EU08L heat pump, via the lambda_heat_pumps integration.
+#
+# Live-verified against the production installation on 2026-11-15 (entity
+# registry read over HA MCP): platform lambda_heat_pumps, manufacturer
+# "Lambda", and the translation_key / unique_id of every role below.
+#
+# Two things this integration forces:
+#
+# 1. `model` is a firmware version ("V0.0.9-3K"), not a model name – it
+#    changes with every update, so the profile matches on entity_hints only.
+# 2. One heat pump, several registry devices: the integration registers one
+#    device per module (HP1, Boiler1, HC1, …) under the same config entry,
+#    without parent links. group_by_config_entry pools them.
+#
+# Not bound (not verified): the thermal hot-water counter and the
+# electrical power – the installation measures the heat pump with a separate
+# Shelly 3EM (heat_pump_power_entity).
+schema: 1
+id: lambda_eu08l
+class: heat_pump
+verified: true
+derived_from: "none – authored from a live registry capture of the lambda_heat_pumps integration"
+
+match:
+  manufacturer: Lambda
+  integration: lambda_heat_pumps
+  entity_hints: [flow_line_offset_temperature, target_high_temperature]
+  group_by_config_entry: true
+
+roles:
+  hot_water_temperature: {translation_key: [actual_high_temperature]}
+  hot_water_setpoint:    {translation_key: [target_high_temperature]}
+  compressor_state:      {translation_key: [compressor_unit_rating]}
+  flow_line_offset:      {translation_key: [flow_line_offset_temperature]}
+  room_temperature:      {translation_key: [room_device_temperature]}
+
+control:
+  hot_water_setpoint:
+    # Written through the integration's Modbus service, not the sensor:
+    # config hw_write_service = lambda_heat_pumps.write_modbus_register,
+    # hw_write_data = {"register_address": 2050, "value": {value}},
+    # hw_write_scale = 10 (register in 0.1 °C). Read back on the sensor.
+    quantity: temperature
+    domain: sensor
+  flow_line_offset:
+    quantity: temperature
+    domain: number
+    limits_from: entity_attributes
+    fallback_limits: {min: -10, max: 10, step: 0.1}
+
+caveats:
+  - "Die Lambda kann selbst einen PV-Überschuss an die Wärmepumpe melden
+     (Option pv_surplus, Register 102). Ist sie aktiv, regeln zwei Regler
+     dieselbe Wärmepumpe. Für B6 entweder die Option aus lassen oder
+     heating_surplus_entity setzen, dann liefert miniEMS den Wert."
+  - "Vorlauf-Offset: Register 50 des Heizkreises, −10 … +10 K, Schritt 0,1 K."
+  - "model ist die Firmware-Version und taugt nicht zum Abgleich."

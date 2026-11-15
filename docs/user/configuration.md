@@ -126,6 +126,8 @@ Zum Erstellen: **HA → Profil → Langlebige Zugriffstoken → Token erstellen*
 | `battery_control_enabled` | `false` | Hauptschalter für die Wechselrichtersteuerung |
 | `battery_control_simulation` | `true` | Befehle protokollieren, aber nicht senden |
 | `inverter_charge_current_entity` | `number.deye8k_battery_max_charging_current` | Entität zum Setzen des Ladestrom-Limits (A) |
+| `inverter_grid_charge_current_entity` | `number.deye8k_battery_grid_charging_current` | Eigener Grenzwert des Deye für das Laden aus dem Netz (A). Beim Netzladen gilt der kleinere von diesem und dem Ladestrom, deshalb schreibt miniEMS im Modus *Grid Charging* denselben Wert in beide (höchstens `battery_max_grid_charge_current_a`) und bestätigt ihn. Leer = nicht schreiben. |
+| `battery_max_grid_charge_current_a` | `185` | Wert des Netzlade-Grenzwerts in allen anderen Modi, beim Beenden und in der Notabschaltung, und Obergrenze beim Netzladen. So bleibt der Grenzwert nie auf 0 A stehen. |
 | `grid_charge_switch_entity` | `switch.deye8k_battery_grid_charging` | Schalter-Entität zum Aktivieren/Deaktivieren des Netzladens |
 | `battery_discharging_current_entity` | `number.deye8k_battery_max_discharging_current` | Entität zum Setzen des Entladestrom-Limits (A) |
 | `battery_max_charge_current_a` | `185` | Maximaler Ladestrom (A). Automatisch auf 0–350 A begrenzt. |
@@ -306,6 +308,155 @@ beobachten, dann live. Was ein Baustein entscheidet, steht im Protokoll und in
 | `hw_hygiene_enabled` | `false` | **A11** – Hygieneladung, im günstigsten Slot der nächsten 24 h. Für ein Einfamilienhaus keine Pflicht; prüfen, ob die Wärmepumpe ein eigenes Programm fährt. |
 | `hw_hygiene_temp_c` | `60.0` | Zieltemperatur der Hygieneladung. 50–70. |
 | `hw_hygiene_interval_days` | `7` | Fällig, wenn der Boiler so lange nicht auf der Temperatur war. |
+
+---
+
+## Mehrere Verbraucher (seit v4.1.0)
+
+Phase B des [Gesamtplans](../roadmap/gesamtplan.md): Sicherung, E-Auto, Heizung.
+**Alle Schalter stehen auf aus**: Mit den Standardwerten entscheidet miniEMS genau
+wie v4.0.0. E-Auto und Heizung haben, wie Akku und Warmwasser, je einen Schalter
+für die Steuerung und einen für die Simulation. Der Schalter „Simulation“ oben auf
+der Einstellungsseite setzt alle vier. Was ein Baustein entscheidet, steht im
+Protokoll und in `/api/status` (`fuse`, `ev`, `surplus_share`, `heating`,
+`best_start`) sowie in den Sensoren `sensor.miniems_fuse_headroom`,
+`sensor.miniems_ev_mode`, `sensor.miniems_ev_plan_kwh`,
+`sensor.miniems_heating_offset` und `sensor.miniems_best_start_<gerät>`.
+
+!!! warning "Reihenfolge der Live-Schaltung"
+    Ohne Sicherungs-Wächter (B1) mit gemessenem Nennstrom kein E-Auto live. Die
+    Phasenzuordnung der Stromsensoren vorher per Messung prüfen: einen bekannten
+    einphasigen Verbraucher einschalten und nachsehen, welche Phase steigt.
+
+### Hauptsicherung und §14a (B1)
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `fuse_guard_enabled` | `false` | Drosselt Netzladen und Wallbox, wenn eine Phase der Sicherung nahekommt. Der Wächter reduziert nur, er startet nie etwas. |
+| `fuse_rated_a` | `0` | Nennstrom der Hauptsicherung in A. 0 = unbekannt, der Wächter bleibt aus (Warnband). |
+| `fuse_work_limit_pct` | `90` | Arbeitsgrenze in % des Nennstroms. Darüber wird gedrosselt, sobald der thermisch gefilterte Strom (I², τ = 60 s) sie überschreitet. Ein einzelner Messwert über 1,2 × Nennstrom drosselt sofort. Nach dem Drosseln 20 s keine Erhöhung. |
+| `phase_current_entities` | Deye-Netz-CTs | Drei Stromsensoren L1, L2, L3 in A, durch Komma getrennt. Vorbelegt mit `sensor.deye8k_external_ct1..3_current`. |
+| `phase_power_entities` | Deye-Netzleistung je Phase | Drei Leistungssensoren in W (+ = Bezug). Erkennt einspeisende Phasen, die nie der Grund einer Drosselung sind. Optional. |
+| `phase_voltage_v` | `230` | Phasenspannung für die Umrechnung A ↔ W. |
+| `fuse_stale_sec` | `60` | Ältere Phasenwerte gelten als fehlend. Dann rechnet der Wächter mit der gelernten Grundlast je Phase plus 6 A, nie mit 0 A. |
+| `fuse_poll_sec` | `10` | Prüfabstand, solange Netzladen oder Wallbox läuft. |
+| `grid_dimming_entity` | leer | `binary_sensor` der Steuerbox nach §14a EnWG (an = gedimmt). |
+| `grid_dimming_limit_w` | `4200` | Zugesicherte Mindestleistung für alle steuerbaren Verbraucher zusammen, solange gedimmt wird. Bei mehreren Geräten den Wert aus der Festlegung der Bundesnetzagentur bzw. vom Netzbetreiber eintragen. |
+
+Konkurrieren Netzladen und E-Auto um die Reserve, bekommt die Aufgabe mit der
+knappsten Frist den Vorrang. Fehlt Leistung, wird zuerst beim Verbraucher mit der
+spätesten Frist gekürzt.
+
+### Mehrere Verbraucher (B2)
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `charge_priority` | `battery` | Wer den PV-Überschuss zuerst bekommt: `battery` (Akku bis `battery_priority_soc_pct`, dann E-Auto, Warmwasser, Rest-Akku, Einspeisung) oder `ev`. |
+| `battery_priority_soc_pct` | `50` | Unter diesem SoC lädt der Akku vor dem E-Auto. Darüber gibt er seine PV-Ladung an das Auto ab. |
+| `ev_battery_mode` | `block` | Während das Auto lädt: `block` = der Akku entlädt nicht (er würde sonst das Auto speisen, denn der Deye deckt jede Last hinter seinem Netz-Messwandler). Modus *Hold for Peak*, Grund „ev charging“. `allow` = keine Kopplung. Nur mit `ev_control_enabled`. |
+
+Die geplante Ladeleistung des Autos geht als Last in den Akku-Tagesplan (A6) und
+in den Überbrückungsplan ein.
+
+### E-Auto und Wallbox (B3–B5)
+
+Die Wallbox wird über HA-Entities angesprochen, nicht über einen festen
+Hersteller. Lesend arbeitet miniEMS, sobald `ev_charge_power_entity` oder
+`ev_plugged_entity` gesetzt ist. Mit `ev_control_enabled` wird entschieden, in der
+Simulation nur protokolliert.
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `ev_control_enabled` | `false` | E-Auto steuern. Aus = nur lesen und planen. |
+| `ev_control_simulation` | `true` | Nur protokollieren (`[SIM]`), nichts schreiben. |
+| `ev_charge_power_entity` | leer | Ladeleistung (W oder kW). |
+| `ev_plugged_entity` | leer | Gesteckt (`binary_sensor` oder Text wie `connected`, `charging`). Ohne ihn gilt „gesteckt“, solange Leistung fließt. |
+| `ev_status_entity` | leer | Status der Wallbox. Steht er trotz Freigabe länger als 2 min auf einem Wert aus `ev_status_waiting_states`, versucht miniEMS einmal je 10 min `switch.turn_on` („Ladung hängt“). |
+| `ev_status_waiting_states` | `waiting,waiting_for_vehicle,ready` | Texte für „wartet auf das Auto“. |
+| `ev_enable_entity` | leer | Schalter für die Ladefreigabe. |
+| `ev_current_entity` | leer | Ladestromgrenze (`number`, A). |
+| `ev_phases_entity` | leer | Phasenumschaltung (`select` mit Optionen `1`/`3` oder `number`). Leer = keine Umschaltung. |
+| `ev_soc_entity` | leer | SoC des Autos. Ohne ihn rechnet die Planung mit 20 % und zieht die in dieser Sitzung geladene Energie ab. |
+| `ev_mode_entity` | leer | Übersteuerung als `input_select` mit den Optionen **Auto / Jetzt / Nur PV / Stopp**. Leer = Auto. |
+| `ev_target_soc_entity` | leer | Ziel-SoC als `input_number`. |
+| `ev_departure_entity` | leer | Abfahrt als `input_datetime` (Datum und Uhrzeit oder nur Uhrzeit). |
+| `ev_target_soc_pct` | `80` | Ziel-SoC ohne Helfer. |
+| `ev_departure_time` | `07:00` | Abfahrt ohne Helfer. Bei 100 % Ziel plant miniEMS eine Stunde früher. |
+| `ev_morning_soc_pct` | `50` | Mindest-SoC zur Morgenzeit (Teilziel vor dem Rest). 0 = keins. |
+| `ev_morning_time` | `06:00` | Uhrzeit des Teilziels. |
+| `ev_capacity_kwh` | `50` | Akkukapazität des Autos. Bedarf = (Ziel − Ist) × Kapazität × 1,12. |
+| `ev_max_charge_kw` | `11` | Ladeleistung des Autos bei vollem Strom. Daraus wird W je A bestimmt, damit ein Auto mit zweiphasigem Bordlader richtig geplant wird. |
+| `ev_max_current_a` / `ev_min_current_a` | `16` / `6` | Strombereich der Wallbox. |
+| `ev_phases_max` | `3` | 1 oder 3. |
+| `ev_pause_mode` | `zero_current` | Pause mit 0 A (Sitzung bleibt bestehen) oder `switch` (Freigabe aus), falls die Wallbox 0 A nicht annimmt. |
+
+**Modi:**
+
+- **Auto:** Die Planung (B4) legt den Bedarf in die günstigsten Slots vor der
+  Frist, innerhalb der Leistung, die die Sicherung nach der vorhergesagten
+  Grundlast übrig lässt. Niedrige Ströme bekommen einen Aufschlag
+  (0,10 € × (P_max ÷ P − 1)), weil sie schlechter laden. Reicht die Zeit nicht,
+  steht „target not reachable“ im Warnband. Reicht der PV-Überschuss für mehr,
+  lädt das Auto mit PV.
+- **Jetzt:** voller Strom, nur durch Sicherung und §14a begrenzt.
+- **Nur PV:** PV-Überschuss in Echtzeit (B5). Start einphasig ab dem
+  Mindeststrom, dreiphasig ab rechnerisch 18 A, zurück unter 5,5 A, danach
+  15 min Sperre. Nachregeln alle 5 min, jede Minute, wenn das Auto teuren
+  Netzstrom kauft. Mindestens 30 min Laufzeit, danach Pause.
+- **Stopp:** Freigabe aus.
+
+Beim Beenden, beim Verlassen von LIVE und über die Notabschaltung (A10) wird die
+Wallbox freigegeben und auf vollen Strom gesetzt: Das kostet im Zweifel Geld,
+lässt das Auto aber nie ungeladen.
+
+### Heizung (B6, B7)
+
+Gesteuert wird nur der **Vorlauf-Offset** der Wärmepumpe (Lambda: HC-Register 50,
+−10 … +10 K). miniEMS setzt ihn beim Start, beim Beenden und bei der Übergabe auf
+0 K.
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `heating_control_enabled` | `false` | Heizung steuern. |
+| `heating_control_simulation` | `true` | Nur protokollieren. |
+| `heating_offset_entity` | Lambda HC1 | `number` des Vorlauf-Offsets. |
+| `heating_offset_up_k` / `heating_offset_down_k` | `2` / `2` | Anheben in günstigen, Absenken in teuren Stunden (Preisklassen aus A1, mit Hysterese). Vor einer teuren Stunde in den nächsten 6 h mindestens +1 K (Vorladen). |
+| `heating_cop_drop_pct_per_k` | `2.5` | COP-Verlust je K höherer Vorlauftemperatur. Angehoben wird nur, wenn `Preis jetzt ÷ COP_erhöht < Preis Spitze ÷ COP_normal`. |
+| `heating_sun_kwh` | `10` | Ab so viel PV-Prognose in den nächsten 12 h wird das Vorladen halbiert. |
+| `heating_compressor_max_w` | `0` | Elektrische Leistung des Verdichters allein. Liegt die Wärmepumpe 10 min lang über dem 1,3-fachen, läuft vermutlich der Heizstab: Warnung, Absenkung für den Tag halbiert. Braucht `heat_pump_power_entity`. 0 = aus. |
+| `heating_surplus_entity` | leer | Optional: PV-Überschuss selbst an die Wärmepumpe melden (`number`, W; Lambda Register 102). **Nur bei ausgeschalteter Lambda-Option `pv_surplus`**, sonst regeln zwei Regler dieselbe Wärmepumpe. |
+| `heating_room_temp_entity` | Lambda HC1 Raumtemperatur | Innentemperatur. |
+| `heating_comfort_min_c` | `0` | Untergrenze der Raumtemperatur. Nahe daran (0,3 K) keine Absenkung; 30 min am Stück darunter: Anheben. 0 = keine Raumregeln. |
+| `heating_room_setpoint_c` | `21` | Raumtemperatur, die die Heizkurve hält (für den Planer). |
+| `heating_room_control_enabled` | `false` | **B7** – Der Vorheizplaner entscheidet statt der Preisklasse. Nur mit einem Raummodell, das den Rückblick besteht (siehe unten). |
+
+**Schutzregeln, immer aktiv:** Über der Heizgrenze (`heating_limit_temp_c`) kein
+Offset. Höchstens 3 h am Stück abgesenkt, danach 1 h normal. Unter −5 °C außen
+höchstens 1 K Absenkung, unter −15 °C keine. Nach jeder Änderung 60 min (Anheben)
+bzw. 45 min (Absenken) Sperre; die Sperre übersteht einen Neustart.
+
+**Raummodell (B7):** Aufgezeichnet werden je Stunde Raumtemperatur, Heizanteil und
+Offset (`hourly_stats`). Gelernt werden Auskühlrate `a · (T_innen − T_außen) − b · PV_3h`
+und Aufheizrate `c + d · T_außen`, ab 48 Auskühl- und 24 Heizstunden. Vor dem
+Einsatz rechnet miniEMS jede zweite Stunde nach (Rückblick); erst unter 0,3 K/h
+mittlerem Fehler ist das Modell bereit. Stand und Fehler stehen in
+`/api/status` unter `heating.model`.
+
+### Startempfehlung (B8)
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `flex_devices` | leer | Geräte als `Name:kWh:Stunden`, durch Komma getrennt, z. B. `Waschmaschine:1.2:2, Spülmaschine:1.0:3`. Dezimalpunkt, kein Komma. |
+
+Je Gerät gibt es `sensor.miniems_best_start_<name>` (Zeitstempel) mit Ende,
+Kosten, Kosten bei Start jetzt und Ersparnis als Attribute. PV-Überschuss zählt mit
+der Einspeisevergütung. Der Sensor steuert nichts.
+
+### Warmwasser-Sollwert als Entity (D1)
+
+| Einstellung | Standard | Beschreibung |
+|---|---|---|
+| `hw_setpoint_entity` | leer | Boiler-Sollwert als `number`-Entity statt über `hw_write_service`/`hw_write_data`. Für Wärmepumpen, deren Integration den Sollwert direkt anbietet. Leer = Dienst-Vorlage wie bisher (Lambda). |
 
 ---
 

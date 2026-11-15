@@ -49,11 +49,13 @@
     de: { solar: "Solar", home: "Haus", grid: "Netz", battery: "Batterie",
           today: "heute", import: "Netzbezug", export: "Einspeisung",
           charging: "Laden", discharging: "Entladen", idle: "Bereit",
-          forecast: "Prognose", inverter: "Wechselrichter" },
+          forecast: "Prognose", inverter: "Wechselrichter",
+          consumers: "Verbraucher", hw: "Warmwasser", ev: "E-Auto", heating: "Heizung", next: "Als Nächstes" },
     en: { solar: "Solar", home: "Home", grid: "Grid", battery: "Battery",
           today: "today", import: "Import", export: "Export",
           charging: "Charging", discharging: "Discharging", idle: "Idle",
-          forecast: "Forecast", inverter: "Inverter" },
+          forecast: "Forecast", inverter: "Inverter",
+          consumers: "Consumers", hw: "Hot water", ev: "EV", heating: "Heating", next: "Next" },
   };
 
   // node centres in the 480×430 viewBox
@@ -67,6 +69,16 @@
   // sun arc (quadratic bezier) – leaves room above the nodes
   const ARC = { p0: [34, 78], p1: [240, -34], p2: [446, 78] };
 
+  // C6: consumer column next to the flow – one short line per device,
+  // read from the miniEMS sensors (hidden with consumers: false).
+  const CONSUMER_CSS = `
+    .wrap { display: flex; gap: 10px; align-items: stretch; }
+    .wrap svg { flex: 1 1 auto; min-width: 0; }
+    .cons { flex: 0 0 150px; display: flex; flex-direction: column; gap: 8px; padding: 6px 10px 10px 0; font-size: 12px; }
+    .cons h4 { margin: 4px 0 0; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; opacity: .65; }
+    .cons div { line-height: 1.35; } .cons b { display: block; font-size: 11px; opacity: .75; font-weight: 600; }
+    @media (max-width: 520px) { .wrap { flex-direction: column; } .cons { flex-basis: auto; padding: 0 14px 12px; } }
+  `;
   const CARD_CSS = `
     :host { display: block; }
     ha-card {
@@ -315,7 +327,7 @@
       const sig = JSON.stringify([
         lang, c.title, pv, load, grid, batt, soc, pvToday, loadToday, impToday,
         expToday, chgToday, disToday, forecast, sun.frac === null ? null : Math.round(sun.frac * 200),
-        sun.rise?.getTime(), sun.set?.getTime(),
+        sun.rise?.getTime(), sun.set?.getTime(), c.consumers === false ? null : this._consumers(t),
       ]);
       if (sig === this._sig) return;
       this._sig = sig;
@@ -370,11 +382,14 @@
         ? `+${fmtKwh(chgToday)} / -${fmtKwh(disToday)} kWh` : "";
 
       const title = c.title ? `<p class="title">${esc(c.title)}</p>` : "";
+      const consumers = c.consumers === false ? [] : this._consumers(t);
 
       this.shadowRoot.innerHTML = `
         <ha-card>
           <style>${CARD_CSS}</style>
           ${title}
+          <style>${CONSUMER_CSS}</style>
+          <div class="wrap">
           <svg viewBox="0 -22 480 462" xmlns="http://www.w3.org/2000/svg" role="img"
                aria-label="${esc(c.title || "Power flow")}">
             <defs>
@@ -401,8 +416,32 @@
             ${node("grid", gridColor, iconGrid(gridColor), gridName, `${gridArrow} ${fmtPower(gridDir === "reverse" ? gridExport : gridImport)}`.trim(), subGrid)}
             ${node("battery", battColor, iconBattery(soc, battColor), t.battery, `${battArrow} ${fmtPower(battDir === "forward" ? battCharge : battDischarge)}`.trim(), battState, subBatt)}
           </svg>
+          ${consumers.length ? `<div class="cons"><h4>${esc(t.consumers)}</h4>${consumers.map(([k, v]) => `<div><b>${esc(k)}</b>${esc(v)}</div>`).join("")}</div>` : ""}
+          </div>
         </ha-card>
       `;
+    }
+
+    _consumers(t) {
+      const st = (id) => this._hass && this._hass.states ? this._hass.states[id] : undefined;
+      const out = [];
+      const hw = st("sensor.miniems_hot_water_mode");
+      if (hw && hw.state !== "unavailable") {
+        const temp = hw.attributes && hw.attributes.boil_temp_c;
+        out.push([t.hw, `${temp !== undefined && temp !== null ? Math.round(temp) + " °C · " : ""}${hw.state}`]);
+      }
+      const ev = st("sensor.miniems_ev_mode");
+      if (ev && ev.state !== "unavailable") {
+        const a = ev.attributes || {};
+        out.push([t.ev, a.plugged === false ? "–" : `${ev.state}${a.power_w ? " · " + (a.power_w / 1000).toFixed(1) + " kW" : ""}`]);
+      }
+      const heat = st("sensor.miniems_heating_offset");
+      if (heat && heat.state !== "unavailable" && heat.state !== "unknown") {
+        out.push([t.heating, `${heat.state} K`]);
+      }
+      const na = st("sensor.miniems_next_action");
+      if (na && na.state && na.state !== "unknown" && na.state !== "unavailable") out.push([t.next, na.state]);
+      return out;
     }
   }
 

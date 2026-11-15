@@ -144,9 +144,9 @@ class TestRealRolesYaml:
         catalog = load_role_catalog(_REAL_ROLES_YAML)
         assert catalog.classes != {}
 
-    def test_all_five_classes_present(self):
+    def test_all_six_classes_present(self):
         catalog = load_role_catalog(_REAL_ROLES_YAML)
-        assert set(catalog.classes.keys()) == {"inverter", "battery", "ev", "energy_meter", "load_actor"}
+        assert set(catalog.classes.keys()) == {"inverter", "battery", "ev", "energy_meter", "load_actor", "heat_pump"}
 
     def test_inverter_required_roles_match_the_base_sensors(self):
         catalog = load_role_catalog(_REAL_ROLES_YAML)
