@@ -13,16 +13,7 @@
     <h1>{{ translations.ui_settings or 'miniEMS Settings' }}</h1>
     <span class="version-badge">v{{ version }}</span>
   </header>
-  <nav class="tab-nav">
-    <a href="." class="tab-link">{{ translations.tab_dashboard or 'Dashboard' }}</a>
-    <a href="heatpump" class="tab-link">{{ translations.tab_heatpump or 'Heat Pump' }}</a>
-    <a href="settings" class="tab-link active">{{ translations.tab_settings or 'Settings' }}</a>
-    <a href="log" class="tab-link">{{ translations.tab_log or 'Log' }}</a>
-    <a href="config-json" class="tab-link">{{ translations.tab_config_json or 'config.json' }}</a>
-    <a href="options-json" class="tab-link">{{ translations.tab_options_json or 'options.json' }}</a>
-    <a href="database" class="tab-link">{{ translations.tab_database or 'Database' }}</a>
-    <a href="devices" class="tab-link">{{ translations.tab_devices or 'Devices' }}</a>
-  </nav>
+  {% set active = 'system' %}{% set sub = 'settings' %}{% include '_nav.html' %}
 
   <div id="settings-form">Loading…</div>
 
@@ -379,12 +370,31 @@
           </div>`;
       }
       const inputType = f.type || 'text';
+      // C7: entity fields get a picker filtered by domain and unit.
+      const isEntity = /_entit(y|ies)$/.test(key);
       return `
         <div class="field-row">
           <label class="field-label" for="${key}">${f.label}</label>
           <input class="field-input" type="${inputType}" id="${key}" name="${key}"
+                 ${isEntity ? `list="dl_${key}" onfocus="loadEntities('${key}')" autocomplete="off"` : ''}
                  value="${String(value ?? '').replace(/"/g, '&quot;')}">
+          ${isEntity ? `<datalist id="dl_${key}"></datalist>` : ''}
         </div>`;
+    }
+
+    // C7: matching HA entities for one field, fetched on first focus.
+    const entityLoaded = new Set();
+    async function loadEntities(key) {
+      if (entityLoaded.has(key)) return;
+      entityLoaded.add(key);
+      try {
+        const r = await fetch('api/entities?field=' + encodeURIComponent(key));
+        const data = await r.json();
+        const dl = document.getElementById('dl_' + key);
+        if (!dl || !data.entities) return;
+        dl.innerHTML = data.entities.map(e =>
+          `<option value="${e.entity_id}">${(e.name || '') + (e.unit ? ' [' + e.unit + ']' : '')}</option>`).join('');
+      } catch (e) { entityLoaded.delete(key); }
     }
 
     // ── Control mode (top section): applied at once, no save/restart ──
@@ -518,7 +528,7 @@
       return result;
     }
 
-    async function saveSettings() {
+    async function saveSettings(force = false) {
       const btn = document.getElementById('save-btn');
       const msg = document.getElementById('save-msg');
       btn.disabled = true;
@@ -526,6 +536,7 @@
       msg.className = 'save-msg';
       try {
         const payload = collectValues();
+        if (force) payload._force = true;
         const r = await fetch('api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -536,6 +547,13 @@
           msg.textContent = '✓ Saved – addon is restarting…';
           msg.className = 'save-msg ok';
           setTimeout(() => { window.location.href = '.'; }, 6000);
+        } else if (r.status === 422 && data.problems) {
+          // C7: entities that do not exist or have the wrong domain/unit.
+          msg.innerHTML = 'Not saved – please check: ' + data.problems.map(p =>
+            `<br><b>${p.field}</b>: ${p.entity_id} – ${p.problem}`).join('') +
+            '<br><button class="btn-secondary" onclick="saveSettings(true)">Save anyway</button>';
+          msg.className = 'save-msg err';
+          btn.disabled = false;
         } else {
           msg.textContent = 'Error: ' + (data.error || 'Unknown');
           msg.className = 'save-msg err';

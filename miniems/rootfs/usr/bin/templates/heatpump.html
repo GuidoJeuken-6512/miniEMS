@@ -13,16 +13,7 @@
     <h1>{{ translations.ui_heatpump or 'Heat Pump – Hot Water' }}</h1>
     <span class="version-badge">v{{ version }}</span>
   </header>
-  <nav class="tab-nav">
-    <a href="." class="tab-link">{{ translations.tab_dashboard or 'Dashboard' }}</a>
-    <a href="heatpump" class="tab-link active">{{ translations.tab_heatpump or 'Heat Pump' }}</a>
-    <a href="settings" class="tab-link">{{ translations.tab_settings or 'Settings' }}</a>
-    <a href="log" class="tab-link">{{ translations.tab_log or 'Log' }}</a>
-    <a href="config-json" class="tab-link">{{ translations.tab_config_json or 'config.json' }}</a>
-    <a href="options-json" class="tab-link">{{ translations.tab_options_json or 'options.json' }}</a>
-    <a href="database" class="tab-link">{{ translations.tab_database or 'Database' }}</a>
-    <a href="devices" class="tab-link">{{ translations.tab_devices or 'Devices' }}</a>
-  </nav>
+  {% set active = 'consumers' %}{% set sub = 'heatpump' %}{% include '_nav.html' %}
 
   <p class="raw-file-hint">{{ translations.hw_hint or '' }}</p>
 

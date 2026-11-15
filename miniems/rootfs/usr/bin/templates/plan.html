@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>miniEMS Plan</title>
+  <link rel="icon" type="image/png" href="static/icon.png">
+  <link rel="stylesheet" href="static/style.css">
+  <script src="static/pages.js"></script>
+</head>
+<body>
+  <header>
+    <img src="static/icon.png" alt="miniEMS" style="height:2.2rem;width:2.2rem;vertical-align:middle;">
+    <h1>miniEMS – {{ translations.tab_plan or 'Plan' }}</h1>
+    <span class="version-badge">v{{ version }}</span>
+  </header>
+  {% set active = 'plan' %}{% set sub = '' %}{% include '_nav.html' %}
+  <p class="refresh-hint">{{ translations.refresh_hint or 'Auto-refreshes every 5 seconds' }}</p>
+  <div id="page">Loading…</div>
+  <footer>{{ translations.footer or 'miniEMS v' }}{{ version }} &middot; Home Assistant Add-on</footer>
+  <script>
+
+    const P = MiniEMSPages, de = P.de;
+    P.loop((d) => {
+      const bp = (d.battery_plan || {}).plan;
+      const pf = d.plan_fidelity || {};
+      document.getElementById('page').innerHTML = `
+        ${P.banner(d)}
+        <p class="section-title">${de ? 'Zeitachse aller Pläne' : 'All plans on one time axis'}</p>
+        ${P.timeline(d.timeline)}
+        <p class="section-title">${de ? 'Grundlage der Pläne' : 'What the plans are based on'}</p>
+        ${P.inputs(d.plan_inputs)}
+        ${bp ? `<p class="section-title">${de ? 'Akku-Tagesplan' : 'Battery day plan'}</p>
+          <dl class="kv"><dt>${de ? 'Status' : 'Status'}</dt><dd>${P.esc(d.battery_plan.status)}</dd>
+          <dt>${de ? 'Plan spart' : 'Plan saves'}</dt><dd>${P.eur(bp.savings_eur)} ${de ? 'gegen Eigenverbrauch' : 'against self-use'}</dd></dl>` : ''}
+        <p class="section-title">${de ? 'Von Hand (mit Ablaufzeit)' : 'Manual override (with expiry)'}</p>
+        ${P.overrides(d.overrides)}
+        <p class="section-title">${de ? 'Plan-Treue heute' : 'Plan fidelity today'}</p>
+        ${pf.quota_pct === null || pf.quota_pct === undefined
+          ? `<p class="muted">${de ? 'Keine Daten – nur mit live geschalteter Steuerung.' : 'No data – only while a control is live.'}</p>`
+          : `<dl class="kv"><dt>${de ? 'Eingehalten' : 'Kept'}</dt><dd>${P.num(pf.quota_pct, 1)} %</dd>
+             ${Object.entries(pf.channels || {}).map(([k, c]) => `<dt>${P.esc(k)}</dt><dd>${P.num(c.quota_pct, 1)} % (${c.kept}/${c.minutes} min)</dd>`).join('')}</dl>
+             ${[...(pf.open || []), ...(pf.recent || [])].map((v) => `<div class="warn-item">${P.time(v.start)}–${P.time(v.end)} ${P.esc(v.label)}: ${P.esc(v.explanation)}</div>`).join('')}`}
+      `;
+    });
+  </script>
+</body>
+</html>

@@ -99,7 +99,30 @@
       "ev_plan": { "name": "E-Auto Plan" },
       "heating_offset": { "name": "Heizungs-Offset" },
       "fuse_headroom": { "name": "Sicherungsreserve" },
-      "best_start": { "name": "Bester Start {device}" }
+      "best_start": { "name": "Bester Start {device}" },
+      "next_action": { "name": "Nächste Aktion" },
+      "savings_week": { "name": "Ersparnis 7 Tage" },
+      "savings_month": { "name": "Ersparnis Monat" },
+      "plan_fidelity": { "name": "Plan-Treue" }
+    },
+    "switch": {
+      "simulation": { "name": "Simulation" },
+      "battery_control": { "name": "Akku-Steuerung" },
+      "hot_water_control": { "name": "Warmwasser-Steuerung" },
+      "ev_control": { "name": "E-Auto-Steuerung" },
+      "heating_control": { "name": "Heizungssteuerung" },
+      "ev_priority": { "name": "PV-Überschuss zuerst ans E-Auto" }
+    },
+    "select": {
+      "battery_override": { "name": "Akku von Hand", "state": { "auto": "Auto", "grid_charge": "Netzladen", "hold": "Halten", "no_grid_charge": "Kein Netzladen" } },
+      "ev_override": { "name": "E-Auto von Hand", "state": { "auto": "Auto", "now": "Jetzt", "pv": "Nur PV", "stop": "Stopp" } }
+    },
+    "number": {
+      "override_minutes": { "name": "Dauer der Übersteuerung" }
+    },
+    "button": {
+      "hot_water_now": { "name": "Warmwasser jetzt" },
+      "end_overrides": { "name": "Übersteuerung beenden" }
     }
   }
 }

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>miniEMS Kosten</title>
+  <link rel="icon" type="image/png" href="static/icon.png">
+  <link rel="stylesheet" href="static/style.css">
+  <script src="static/pages.js"></script>
+</head>
+<body>
+  <header>
+    <img src="static/icon.png" alt="miniEMS" style="height:2.2rem;width:2.2rem;vertical-align:middle;">
+    <h1>miniEMS – {{ translations.tab_costs or 'Kosten' }}</h1>
+    <span class="version-badge">v{{ version }}</span>
+  </header>
+  {% set active = 'costs' %}{% set sub = '' %}{% include '_nav.html' %}
+  <p class="refresh-hint">{{ translations.refresh_hint or 'Auto-refreshes every 5 seconds' }}</p>
+  <div id="page">Loading…</div>
+  <footer>{{ translations.footer or 'miniEMS v' }}{{ version }} &middot; Home Assistant Add-on</footer>
+  <script>
+
+    const P = MiniEMSPages, de = P.de;
+    P.loop((d) => {
+      const s = d.savings || {};
+      const tile = (label, b) => `<div class="savings-card"><div class="slabel">${label}</div>
+        <div class="svalue ${b && b.saving_eur < 0 ? 'negative' : ''}">${b && b.saving_eur !== null ? P.eur(b.saving_eur) : '–'}</div>
+        <div class="muted">${b && b.days ? `${b.days} ${de ? 'Tage' : 'days'}` : (de ? 'noch keine Tage' : 'no days yet')}</div></div>`;
+      document.getElementById('page').innerHTML = `
+        <p class="section-title">${de ? 'Ersparnis gegen einen Haushalt ohne PV und Akku' : 'Savings against a household without PV and battery'}</p>
+        <div class="savings-grid">
+          ${tile(de ? '7 Tage' : '7 days', s.week)}
+          ${tile(de ? 'Monat' : 'Month', s.month)}
+          <div class="savings-card"><div class="slabel">${de ? 'Plan spart heute' : 'Plan saves today'}</div>
+            <div class="svalue">${P.eur(s.plan_today_eur)}</div><div class="muted">${de ? 'Akku-Tagesplan' : 'battery day plan'}</div></div>
+        </div>
+        <p class="muted">${de ? 'Gleicher Verbrauch, verteilt wie ein Standard-Haushalt, zum tatsächlichen Stundenpreis. Negative Werte heißen: teurer als ohne Anlage.' : 'Same load, spread like a standard household, at the actual hourly price. Negative means: dearer than without the system.'}</p>
+        <p class="section-title">${de ? 'Heute' : 'Today'}</p>
+        <div class="savings-grid">
+          <div class="savings-card"><div class="slabel">${de ? 'Netzkosten' : 'Grid cost'}</div><div class="svalue">${P.eur(d.today_grid_cost_eur)}</div></div>
+          <div class="savings-card"><div class="slabel">${de ? 'PV-Ersparnis' : 'PV savings'}</div><div class="svalue">${P.eur(d.today_pv_savings_eur)}</div></div>
+          <div class="savings-card"><div class="slabel">${de ? 'Einspeisung' : 'Feed-in'}</div><div class="svalue">${P.eur(d.today_feed_in_revenue_eur)}</div></div>
+          <div class="savings-card"><div class="slabel">${de ? 'Verbrauch' : 'Load'}</div><div class="svalue">${P.num(d.today_load_total_kwh, 2)} kWh</div></div>
+        </div>
+        ${(s.daily || []).length ? `<p class="section-title">${de ? 'Je Tag' : 'Per day'}</p>
+        <table class="db-table"><tr><th>${de ? 'Tag' : 'Day'}</th><th>${de ? 'Ohne Anlage' : 'Without system'}</th><th>${de ? 'Tatsächlich' : 'Actual'}</th><th>${de ? 'Ersparnis' : 'Saving'}</th></tr>
+          ${s.daily.slice().reverse().map((r) => `<tr><td>${r.day}</td><td>${P.eur(r.baseline_eur)}</td><td>${P.eur(r.actual_eur)}</td><td class="${r.saving_eur < 0 ? 'negative' : ''}">${P.eur(r.saving_eur)}</td></tr>`).join('')}</table>` : ''}
+      `;
+    });
+  </script>
+</body>
+</html>

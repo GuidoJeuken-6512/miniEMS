@@ -1,0 +1,25 @@
+{#- C6 – main navigation: Jetzt / Plan / Geräte / Kosten / System.
+    Each page sets `active` (main tab) and optionally `sub` (sub page). -#}
+<nav class="tab-nav">
+  <a href="." class="tab-link{{ ' active' if active == 'now' }}">{{ translations.tab_now or 'Now' }}</a>
+  <a href="plan" class="tab-link{{ ' active' if active == 'plan' }}">{{ translations.tab_plan or 'Plan' }}</a>
+  <a href="consumers" class="tab-link{{ ' active' if active == 'consumers' }}">{{ translations.tab_consumers or 'Devices' }}</a>
+  <a href="costs" class="tab-link{{ ' active' if active == 'costs' }}">{{ translations.tab_costs or 'Costs' }}</a>
+  <a href="system" class="tab-link{{ ' active' if active == 'system' }}">{{ translations.tab_system or 'System' }}</a>
+</nav>
+{% if active == 'consumers' %}
+<nav class="tab-nav sub-nav">
+  <a href="consumers" class="tab-link{{ ' active' if sub == 'consumers' }}">{{ translations.tab_overview or 'Overview' }}</a>
+  <a href="heatpump" class="tab-link{{ ' active' if sub == 'heatpump' }}">{{ translations.tab_heatpump or 'Heat Pump' }}</a>
+</nav>
+{% elif active == 'system' %}
+<nav class="tab-nav sub-nav">
+  <a href="system" class="tab-link{{ ' active' if sub == 'system' }}">{{ translations.tab_overview or 'Overview' }}</a>
+  <a href="settings" class="tab-link{{ ' active' if sub == 'settings' }}">{{ translations.tab_settings or 'Settings' }}</a>
+  <a href="log" class="tab-link{{ ' active' if sub == 'log' }}">{{ translations.tab_log or 'Log' }}</a>
+  <a href="database" class="tab-link{{ ' active' if sub == 'database' }}">{{ translations.tab_database or 'Database' }}</a>
+  <a href="devices" class="tab-link{{ ' active' if sub == 'devices' }}">{{ translations.tab_devices or 'Device detection' }}</a>
+  <a href="config-json" class="tab-link{{ ' active' if sub == 'config_json' }}">{{ translations.tab_config_json or 'config.json' }}</a>
+  <a href="options-json" class="tab-link{{ ' active' if sub == 'options_json' }}">{{ translations.tab_options_json or 'options.json' }}</a>
+</nav>
+{% endif %}

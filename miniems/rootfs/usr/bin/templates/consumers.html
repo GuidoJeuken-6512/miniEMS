@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>miniEMS Geräte</title>
+  <link rel="icon" type="image/png" href="static/icon.png">
+  <link rel="stylesheet" href="static/style.css">
+  <script src="static/pages.js"></script>
+</head>
+<body>
+  <header>
+    <img src="static/icon.png" alt="miniEMS" style="height:2.2rem;width:2.2rem;vertical-align:middle;">
+    <h1>miniEMS – {{ translations.tab_consumers or 'Geräte' }}</h1>
+    <span class="version-badge">v{{ version }}</span>
+  </header>
+  {% set active = 'consumers' %}{% set sub = 'consumers' %}{% include '_nav.html' %}
+  <p class="refresh-hint">{{ translations.refresh_hint or 'Auto-refreshes every 5 seconds' }}</p>
+  <div id="page">Loading…</div>
+  <footer>{{ translations.footer or 'miniEMS v' }}{{ version }} &middot; Home Assistant Add-on</footer>
+  <script>
+
+    const P = MiniEMSPages, de = P.de;
+    const say = (d, key) => d.explain && d.explain[key] ? P.esc(d.explain[key][P.LANG]) : '';
+    P.loop((d) => {
+      const hw = d.hot_water, ev = d.ev, h = d.heating, f = d.fuse;
+      document.getElementById('page').innerHTML = `
+        ${P.banner(d)}
+        ${hw ? `<p class="section-title"><a href="heatpump">${de ? 'Warmwasser' : 'Hot water'} →</a></p>
+          <dl class="kv"><dt>${de ? 'Boiler' : 'Boiler'}</dt><dd>${P.num(hw.boil_temp_c, 1)} °C</dd>
+          <dt>${de ? 'Entscheidung' : 'Decision'}</dt><dd>${P.esc(hw.mode)} – ${P.esc(hw.reason)}</dd></dl>` : ''}
+        ${h ? `<p class="section-title">${de ? 'Heizung' : 'Heating'} (${P.esc(h.control)})</p>
+          <dl class="kv"><dt>Offset</dt><dd>${P.num(h.offset_k, 1)} K</dd>
+          <dt>${de ? 'Grund' : 'Reason'}</dt><dd>${say(d, 'heating') || P.esc(h.reason)}</dd>
+          <dt>${de ? 'Raum' : 'Room'}</dt><dd>${P.num(h.room_temp_c, 1)} °C</dd>
+          <dt>${de ? 'Raummodell' : 'Room model'}</dt><dd>${P.esc((h.model || {}).reason || '–')}</dd></dl>` : ''}
+        ${ev ? `<p class="section-title">${de ? 'E-Auto' : 'EV'} (${P.esc(ev.control)})</p>
+          <dl class="kv"><dt>${de ? 'Modus' : 'Mode'}</dt><dd>${P.esc(ev.mode)}${ev.plugged ? '' : (de ? ' – nicht eingesteckt' : ' – not plugged in')}</dd>
+          <dt>${de ? 'Leistung' : 'Power'}</dt><dd>${P.num(ev.power_w / 1000, 1)} kW</dd>
+          <dt>${de ? 'Grund' : 'Reason'}</dt><dd>${say(d, 'ev')}</dd>
+          ${ev.plan ? `<dt>Plan</dt><dd>${P.esc(ev.plan.reason)}</dd>` : ''}</dl>` : ''}
+        ${f ? `<p class="section-title">${de ? 'Hauptsicherung' : 'Main fuse'}</p>
+          <dl class="kv"><dt>${de ? 'Reserve' : 'Headroom'}</dt><dd>${P.num(f.headroom_a, 1)} A</dd>
+          <dt>${de ? 'Phasen' : 'Phases'}</dt><dd>${(f.phases_a || []).map((a) => P.num(a, 1)).join(' / ')} A</dd>
+          <dt>Status</dt><dd>${P.esc(f.reason)}${f.dimming ? ' · §14a' : ''}</dd></dl>` : ''}
+        ${d.best_start && d.best_start.length ? `<p class="section-title">${de ? 'Bester Start' : 'Best start'}</p>
+          <dl class="kv">${d.best_start.map((b) => `<dt>${P.esc(b.name)}</dt><dd>${b.start ? `${P.time(b.start)}–${P.time(b.end)} · ${P.eur(b.cost_eur)} (${de ? 'spart' : 'saves'} ${P.eur(b.saving_eur)})` : '–'}</dd>`).join('')}</dl>` : ''}
+        ${!hw && !h && !ev && !f ? `<p class="muted">${de ? 'Keine Verbraucher eingerichtet.' : 'No consumers configured.'}</p>` : ''}
+      `;
+    });
+  </script>
+</body>
+</html>

@@ -36,7 +36,10 @@ class MiniEMSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=timedelta(seconds=poll_interval),
             always_update=True,
         )
-        self._status_url = f"{base_url.rstrip('/')}/api/status"
+        self._base_url = base_url.rstrip('/')
+        self._status_url = f"{self._base_url}/api/status"
+        # C7: alert keys already announced as miniems_alert events.
+        self._alert_keys: set[str] | None = None
         self._session: aiohttp.ClientSession | None = None
         # A10: resets the add-on's actuators when it stops reporting.
         self.failsafe = FailsafeWatch()
@@ -67,7 +70,45 @@ class MiniEMSCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.info("miniEMS: addon reports again – failsafe cleared")
             ir.async_delete_issue(self.hass, DOMAIN, _ISSUE_FAILSAFE)
             self.hass.bus.async_fire(EVENT_ALERT, {"type": "failsafe_cleared"})
+        self._fire_alerts(data)
         return data
+
+    def _fire_alerts(self, data: dict[str, Any]) -> None:
+        """C7: one miniems_alert event per new condition (target not reachable,
+        write unconfirmed, plan not feasible). Nothing on the first poll after
+        a start – those conditions were already there."""
+        alerts = [a for a in (data.get("alerts") or []) if isinstance(a, dict) and a.get("key")]
+        keys = {a["key"] for a in alerts}
+        if self._alert_keys is not None:
+            for alert in alerts:
+                if alert["key"] not in self._alert_keys:
+                    self.hass.bus.async_fire(EVENT_ALERT, {
+                        "type": alert.get("type"), "device": alert.get("device"),
+                        "message": alert.get("message")})
+        self._alert_keys = keys
+
+    async def async_post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """C2: send a command to the add-on and refresh at once.
+
+        Raises HomeAssistantError with the add-on's message on failure, so a
+        rejected value shows up in the HA UI instead of silently doing nothing.
+        """
+        from homeassistant.exceptions import HomeAssistantError
+
+        if not self._session or self._session.closed:
+            self._session = aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(connect=5, total=10)
+            )
+        try:
+            async with self._session.post(f"{self._base_url}{path}", json=payload) as resp:
+                data = await resp.json(content_type=None)
+                if resp.status != 200:
+                    raise HomeAssistantError(
+                        f"miniEMS: {path} rejected: {(data or {}).get('error', resp.status)}")
+        except aiohttp.ClientError as err:
+            raise HomeAssistantError(f"miniEMS add-on not reachable: {err}") from err
+        await self.async_request_refresh()
+        return data or {}
 
     async def _run_failsafe(self, actions: list[dict[str, Any]], now: datetime) -> None:
         """Run the add-on's reset calls once; never raises."""

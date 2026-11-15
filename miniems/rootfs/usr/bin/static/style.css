@@ -690,3 +690,25 @@ footer        { font-size: 0.75rem; color: #8b949e; margin-top: 2rem; }
 .log-hw { font-size: .72rem; font-weight: 700; color: #58a6ff; white-space: nowrap; margin-right: .3rem; }
 .hw-draw { margin-top: .3rem; font-size: .8rem; font-weight: 600; color: #58a6ff; }
 .hw-draw-row td { color: #58a6ff; font-weight: 600; }
+
+/* C6 – sub navigation and Phase C pages */
+.sub-nav { margin-top: -0.4rem; font-size: 0.85rem; opacity: 0.9; }
+.explain-banner { margin: 0.6rem 0 1rem; padding: 0.7rem 1rem; border-radius: 10px;
+  background: rgba(90, 160, 255, 0.12); border-left: 4px solid #5aa0ff; }
+.explain-banner .next { margin-top: 0.3rem; font-size: 0.9rem; opacity: 0.85; }
+.tl { position: relative; margin: 0.4rem 0 0.2rem; }
+.tl-row { display: flex; align-items: center; gap: 0.6rem; margin: 0.25rem 0; }
+.tl-label { flex: 0 0 7.5rem; font-size: 0.85rem; opacity: 0.85; }
+.tl-track { position: relative; flex: 1; height: 22px; border-radius: 6px; background: rgba(127,127,127,0.12); overflow: hidden; }
+.tl-seg { position: absolute; top: 2px; bottom: 2px; border-radius: 4px; font-size: 0.7rem; color: #10151b;
+  display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; }
+.tl-bar { position: absolute; bottom: 0; width: 0.9%; border-radius: 2px 2px 0 0; }
+.tl-axis { display: flex; justify-content: space-between; margin-left: 8.1rem; font-size: 0.75rem; opacity: 0.7; }
+.seg-charge { background: #5aa0ff; } .seg-hold { background: #e0b04a; } .seg-export { background: #8dc892; }
+.seg-auto { background: rgba(127,127,127,0.35); } .seg-preheat { background: #ef6b63; } .seg-lower { background: #7fc3e8; }
+.ovr-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.4rem 0; }
+.ovr-row select, .ovr-row input { padding: 0.3rem 0.4rem; border-radius: 6px; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; font-size: 0.9rem; }
+.kv dt { opacity: 0.75; } .kv dd { margin: 0; }
+.sys-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.6rem; }
+.sys-links a { display: block; padding: 0.8rem 1rem; border-radius: 10px; background: rgba(127,127,127,0.12); text-decoration: none; }

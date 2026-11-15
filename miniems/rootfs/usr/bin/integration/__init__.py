@@ -22,7 +22,7 @@ from .coordinator import MiniEMSCoordinator
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "miniems"
-PLATFORMS = ["sensor"]
+PLATFORMS = ["sensor", "switch", "select", "number", "button"]
 CONF_BASE_URL = "base_url"
 CONF_POLL_INTERVAL = "poll_interval"
 CONF_GENERATE_DASHBOARD = "generate_dashboard"
@@ -46,6 +46,7 @@ _FRONTEND_CARDS = {
     "miniems-tab-header.js": f"/{DOMAIN}/miniems-tab-header.js",
     "miniems-flow-card.js": f"/{DOMAIN}/miniems-flow-card.js",
     "miniems-plan-card.js": f"/{DOMAIN}/miniems-plan-card.js",
+    "miniems-timeline-card.js": f"/{DOMAIN}/miniems-timeline-card.js",
     "miniems-status-card.js": f"/{DOMAIN}/miniems-status-card.js",
     "miniems-solar-card.js": f"/{DOMAIN}/miniems-solar-card.js",
     "miniems-costs-card.js": f"/{DOMAIN}/miniems-costs-card.js",
@@ -77,7 +78,7 @@ _HOT_WATER_ADHOC_SCHEMA = vol.Schema(
 # Bump when the generated dashboard's layout changes: an install that has the
 # dashboard option on then regenerates it once (tabs, new cards) instead of
 # keeping the stored old layout forever.
-_DASHBOARD_LAYOUT = 3
+_DASHBOARD_LAYOUT = 4
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -198,7 +199,8 @@ async def async_generate_dashboard(hass: HomeAssistant, entry: ConfigEntry) -> N
             ),
             _tab(
                 "Plan", "plan", "mdi:calendar-clock", "plan",
-                [{"type": "custom:miniems-plan-card",
+                [{"type": "custom:miniems-timeline-card"},
+                 {"type": "custom:miniems-plan-card",
                   "entity": "sensor.miniems_energy_plan_deficit_kwh"},
                  {"type": "custom:miniems-plan-card",
                   "entity": "sensor.miniems_hot_water_plan_kwh",

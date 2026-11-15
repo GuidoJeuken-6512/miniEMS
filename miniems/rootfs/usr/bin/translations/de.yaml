@@ -12,7 +12,13 @@ tab_log: Protokoll
 tab_config_json: config.json
 tab_options_json: options.json
 tab_database: Datenbank
-tab_devices: Geräte
+tab_devices: Geräteerkennung
+tab_now: Jetzt
+tab_plan: Plan
+tab_consumers: Geräte
+tab_costs: Kosten
+tab_system: System
+tab_overview: Übersicht
 refresh_hint: Automatische Aktualisierung alle 5 Sekunden
 footer: miniEMS v
 

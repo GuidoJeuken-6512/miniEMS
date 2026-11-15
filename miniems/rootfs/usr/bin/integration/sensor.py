@@ -497,6 +497,40 @@ NESTED_DESCRIPTIONS: tuple[MiniEMSNestedDescription, ...] = (
             "model": ("model",), "plan": ("plan",),
         },
     ),
+    # ── Phase C (v4.2.0) ──
+    MiniEMSNestedDescription(
+        key="miniems_savings_week_eur",
+        translation_key="savings_week",
+        status_key="savings",
+        value_path=("week", "saving_eur"),
+        native_unit_of_measurement=_EUR,
+        device_class=SensorDeviceClass.MONETARY,
+        icon="mdi:piggy-bank-outline",
+        attribute_paths={"days": ("week", "days"), "baseline_eur": ("week", "baseline_eur"),
+                         "actual_eur": ("week", "actual_eur"), "method": ("method",)},
+    ),
+    MiniEMSNestedDescription(
+        key="miniems_savings_month_eur",
+        translation_key="savings_month",
+        status_key="savings",
+        value_path=("month", "saving_eur"),
+        native_unit_of_measurement=_EUR,
+        device_class=SensorDeviceClass.MONETARY,
+        icon="mdi:piggy-bank",
+        attribute_paths={"days": ("month", "days"), "baseline_eur": ("month", "baseline_eur"),
+                         "actual_eur": ("month", "actual_eur"),
+                         "plan_today_eur": ("plan_today_eur",)},
+    ),
+    MiniEMSNestedDescription(
+        key="miniems_plan_fidelity",
+        translation_key="plan_fidelity",
+        status_key="plan_fidelity",
+        value_path=("quota_pct",),
+        native_unit_of_measurement="%",
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:check-decagram-outline",
+        attribute_paths={"channels": ("channels",), "open": ("open",), "recent": ("recent",)},
+    ),
     MiniEMSNestedDescription(
         key="miniems_fuse_headroom",
         translation_key="fuse_headroom",
@@ -698,6 +732,60 @@ class MiniEMSNestedSensor(MiniEMSSensor):
         return {name: _dig(block, path) for name, path in paths.items()}
 
 
+def _lang(hass) -> str:
+    return "de" if (getattr(hass.config, "language", "") or "").startswith("de") else "en"
+
+
+class MiniEMSModeSensor(MiniEMSSensor):
+    """C1: the mode plus why, as a raw code and as a sentence."""
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        data = self.coordinator.data or {}
+        text = ((data.get("explain") or {}).get("mode") or {}).get(_lang(self.hass))
+        return {"reason": data.get("mode_reason"), "reason_text": text}
+
+
+NEXT_ACTION_DESCRIPTION = MiniEMSSensorDescription(
+    key="miniems_next_action",
+    translation_key="next_action",
+    status_key="next_action",
+    icon="mdi:calendar-clock",
+)
+
+
+class MiniEMSNextActionSensor(MiniEMSSensor):
+    """C3: one sentence as the state (notifications, voice), details as attributes.
+
+    The whole timeline is attached for the timeline card but kept out of the
+    recorder (it is large and changes every tick).
+    """
+
+    _unrecorded_attributes = frozenset({"timeline"})
+
+    def _na(self) -> dict[str, Any]:
+        na = (self.coordinator.data or {}).get("next_action")
+        return na if isinstance(na, dict) else {}
+
+    @property
+    def native_value(self) -> Any:
+        text = self._na().get("text") or {}
+        value = text.get(_lang(self.hass))
+        return value[:255] if value else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        na = self._na()
+        data = self.coordinator.data or {}
+        return {"device": na.get("device"), "action": na.get("action"), "start": na.get("start"),
+                "end": na.get("end"), "energy_kwh": na.get("energy_kwh"),
+                "timeline": data.get("timeline")}
+
+    @property
+    def available(self) -> bool:
+        return super(MiniEMSSensor, self).available and self.coordinator.data is not None
+
+
 class MiniEMSBestStartSensor(MiniEMSSensor):
     """B8: one appliance's best start time (timestamp)."""
 
@@ -755,9 +843,11 @@ async def async_setup_entry(
 
     async_add_entities(
         [
-            MiniEMSSensor(coordinator, description, device_info)
+            (MiniEMSModeSensor if description.key == "miniems_mode" else MiniEMSSensor)(
+                coordinator, description, device_info)
             for description in SENSOR_DESCRIPTIONS
         ]
+        + [MiniEMSNextActionSensor(coordinator, NEXT_ACTION_DESCRIPTION, device_info)]
         + [MiniEMSEnergyPlanSensor(coordinator, ENERGY_PLAN_DESCRIPTION, device_info),
            MiniEMSHotWaterSensor(coordinator, HOT_WATER_DESCRIPTION, device_info),
            MiniEMSHotWaterPlanSensor(coordinator, HOT_WATER_PLAN_DESCRIPTION, device_info)]
