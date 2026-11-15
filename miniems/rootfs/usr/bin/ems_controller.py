@@ -506,6 +506,9 @@ class EMSController:
             result["temp_today_c"] = self._prediction.temp_today_c
             result["temp_tomorrow_c"] = self._prediction.temp_tomorrow_c
         result["remaining_load_kwh"] = self._remaining_load_kwh
+        result["failsafe"] = self._failsafe_spec()
+        if self._inverter is not None:
+            result["write_changes_today"] = self._inverter.target_changes_today
         result["bridge_plan"] = self._bridge_plan_dict()
         result["energy_value"] = self._energy_value_dict()
         if self._hp_recorder is not None and self._hp_recorder.enabled:
@@ -1197,6 +1200,24 @@ class EMSController:
                     f"{(value.rate_now + cfg.discharge_hold_min_spread_eur) * 100:.0f} ct, "
                     f"{value.available_kwh:.1f} kWh available"
                 ))
+
+    def _failsafe_spec(self) -> dict | None:
+        """A10: what the HA integration resets if this add-on goes quiet.
+
+        None when the timeout is off or nothing is live – the integration
+        then has nothing to do and drops any copy it held.
+        """
+        timeout = self._cfg.failsafe_timeout_min
+        if timeout <= 0:
+            return None
+        actions: list[dict] = []
+        if self._inverter is not None:
+            actions += self._inverter.failsafe_actions()
+        if self._hot_water is not None:
+            actions += self._hot_water.failsafe_actions()
+        if not actions:
+            return None
+        return {"timeout_min": timeout, "actions": actions}
 
     def _energy_value_dict(self) -> dict | None:
         if self._buy_value is None and self._hold_value is None:

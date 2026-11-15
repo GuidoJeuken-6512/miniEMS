@@ -32,6 +32,8 @@ Two fields are exposed per direction:
 """
 import logging
 import time
+from collections import deque
+from datetime import date
 from typing import TYPE_CHECKING, Any
 
 from const import EMSMode
@@ -61,6 +63,11 @@ class InverterController:
         self._writer = ConfirmedWriter(HAServiceCaller(supervisor_token, long_lived_token))
         self._ws = ws_client
         self._channels = WriteChannelSet(["charge", "discharge", "grid", "export"])
+        # A10: target changes per channel – timestamps of the last hour (the
+        # write budget) and a per-day count (diagnostics).
+        self._changes: dict[str, deque[float]] = {}
+        self._changes_today: dict[str, int] = {}
+        self._changes_day: date | None = None
         # docs/technical/geraeteprofile.md, "Die Watt-Abstraktion": tracks
         # each actuator's live max across ticks, so a momentarily unavailable
         # attribute read never silently drops the ceiling – see
@@ -153,6 +160,12 @@ class InverterController:
                 # the energy just bought is not immediately used up again.
                 await self._set_grid_charge(True, sim)
                 charge_a = self._resolve_grid_charge_current_a(grid_charge_power_w)
+                previous = self._channels["charge"].target
+                if (previous is not None and previous != charge_a and previous > 0
+                        and self._budget_exhausted("charge")):
+                    # A10: V1 retargets the stretched power often – once the
+                    # hourly budget is used, keep the current value.
+                    charge_a = previous
                 await self._set_charge_current(charge_a, sim)
                 await self._set_discharge_current(self._resolve_discharge_current_a(0), sim)
 
@@ -308,6 +321,60 @@ class InverterController:
         await self._set_discharge_current(cfg.battery_max_discharge_current_a, sim)
         await self.apply_export_limit(False)
 
+    def failsafe_actions(self) -> list[dict[str, Any]]:
+        """A10: the service calls that put the inverter back into self-use.
+
+        Exactly what restore_safe_defaults() writes on a clean shutdown. The
+        HA integration keeps the last copy and runs it on its own when the
+        add-on stops reporting – a crash or SIGKILL never gets that far.
+        Empty while not live: in simulation nothing was ever written.
+        """
+        cfg = self._cfg
+        if not cfg.battery_control_enabled or self.simulation:
+            return []
+        actions: list[dict[str, Any]] = []
+        if cfg.grid_charge_switch_entity:
+            actions.append({"service": "switch.turn_off",
+                            "data": {"entity_id": cfg.grid_charge_switch_entity}})
+        for entity, value in ((cfg.inverter_charge_current_entity, cfg.battery_max_charge_current_a),
+                              (cfg.battery_discharging_current_entity,
+                               cfg.battery_max_discharge_current_a)):
+            if entity:
+                actions.append({"service": "number.set_value",
+                                "data": {"entity_id": entity, "value": value}})
+        if cfg.grid_export_limit_entity and cfg.grid_export_limit_normal_w > 0:
+            actions.append({"service": "number.set_value",
+                            "data": {"entity_id": cfg.grid_export_limit_entity,
+                                     "value": cfg.grid_export_limit_normal_w}})
+        return actions
+
+    @property
+    def target_changes_today(self) -> dict[str, int]:
+        """A10: how often each channel's target changed today (diagnostics)."""
+        return dict(self._changes_today)
+
+    def _note_change(self, name: str, target: Any) -> None:
+        if self._channels[name].target == target:
+            return
+        today = date.today()
+        if self._changes_day != today:
+            self._changes_day, self._changes_today = today, {}
+        self._changes_today[name] = self._changes_today.get(name, 0) + 1
+        self._changes.setdefault(name, deque()).append(time.monotonic())
+
+    def _budget_exhausted(self, name: str) -> bool:
+        """A10: has this channel used up write_budget_per_hour?"""
+        budget = self._cfg.write_budget_per_hour
+        if budget <= 0:
+            return False
+        q = self._changes.get(name)
+        if not q:
+            return False
+        cutoff = time.monotonic() - 3600.0
+        while q and q[0] < cutoff:
+            q.popleft()
+        return len(q) >= budget
+
     async def apply_export_limit(self, block: bool) -> None:
         """A5 (4): export limit 0 W while exporting would cost money.
 
@@ -342,6 +409,7 @@ class InverterController:
             return
         raw = self._ws.state_cache.get(entity, {}).get("state") if self._ws else None
         expected = "on" if on else "off"
+        self._note_change("grid", expected)
         spec = WriteSpec(
             domain="switch", service="turn_on" if on else "turn_off",
             entity_id=entity, payload={"entity_id": entity}, expected=expected,
@@ -357,6 +425,7 @@ class InverterController:
         if not entity:
             return
         self.charge_current_target_a = value_a
+        self._note_change("charge", value_a)
         actual = self._ws.get_state_value(entity) if self._ws else None
         spec = WriteSpec(
             domain="number", service="set_value",
@@ -374,6 +443,7 @@ class InverterController:
         if not entity:
             return
         self.discharge_current_target_a = value_a
+        self._note_change("discharge", value_a)
         actual = self._ws.get_state_value(entity) if self._ws else None
         spec = WriteSpec(
             domain="number", service="set_value",

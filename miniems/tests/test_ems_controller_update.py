@@ -82,6 +82,13 @@ class FakeInverter:
         events, self._events = self._events, []
         return events
 
+    def failsafe_actions(self):
+        return []
+
+    @property
+    def target_changes_today(self):
+        return {}
+
 
 class FakeModel:
     def __init__(self, prediction=None, remaining=3.0) -> None:
@@ -628,6 +635,9 @@ class FakeHotWater:
 
     def planned_pv_kwh_before(self, deadline):
         return 0.0
+
+    def failsafe_actions(self):
+        return []
 
 
 async def test_update_runs_hot_water_and_reports_it(make_config, fake_ws):

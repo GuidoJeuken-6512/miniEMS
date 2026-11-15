@@ -395,6 +395,22 @@ class HotWaterController:
         """A1: slots below this rate count as low-price (None = fixed threshold)."""
         self._cheap_rate_eur = rate_eur
 
+    def failsafe_actions(self) -> list[dict]:
+        """A10: the write that hands the boiler back (setpoint = floor).
+
+        Same call restore_safe_defaults() makes. Empty while not live.
+        """
+        cfg = self._cfg
+        if (not self.enabled or not cfg.hw_control_enabled or cfg.hw_control_simulation
+                or "." not in cfg.hw_write_service):
+            return []
+        raw = round(self._floor_c() * cfg.hw_write_scale)
+        try:
+            data = json.loads(cfg.hw_write_data.replace("{value}", str(raw)))
+        except (json.JSONDecodeError, TypeError):
+            return []
+        return [{"service": cfg.hw_write_service, "data": data}]
+
     async def restore_safe_defaults(self) -> None:
         """Hand the boiler back to the heat pump's own control on shutdown."""
         if not self.enabled or not self._cfg.hw_control_enabled:
