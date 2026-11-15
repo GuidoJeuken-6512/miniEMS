@@ -115,6 +115,9 @@ class HotWaterController:
         # A1: "next low-price slot" boundary from the relative price classes
         # (EMSController.set_cheap_rate). None = cheap_rate_threshold_eur.
         self._cheap_rate_eur: float | None = None
+        # A5 (3): the price is negative and the battery is full – store heat
+        # up to hw_max_temp_c instead of exporting (set by EMSController).
+        self._negative_price = False
         self._last_rate: float | None = None
         self._pending_logs: list[LogEntry] = []
         # Summary of the charge just stopped, logged by the next _step().
@@ -384,6 +387,10 @@ class HotWaterController:
         """Forget the last sent/confirmed setpoint (see InverterController.reset_write_state)."""
         self._channel = WriteChannel()
 
+    def set_negative_price(self, active: bool) -> None:
+        """A5 (3): heat up to hw_max_temp_c while the price is negative."""
+        self._negative_price = active
+
     def set_cheap_rate(self, rate_eur: float | None) -> None:
         """A1: slots below this rate count as low-price (None = fixed threshold)."""
         self._cheap_rate_eur = rate_eur
@@ -464,6 +471,12 @@ class HotWaterController:
             self._set(HWMode.PV, reason)
             return
 
+        if self._negative_price and t < cfg.hw_max_temp_c - 1.0:
+            reason = "negative price, battery full"
+            self._start(now, HWMode.PV, cfg.hw_max_temp_c, t, reason)
+            self._set(HWMode.PV, reason)
+            return
+
         if plan is not None and plan.decision and not plan.charge_now:
             self._set(HWMode.IDLE, plan.decision)
         elif plan is not None and not plan.feasible:
@@ -484,6 +497,7 @@ class HotWaterController:
         elif (now - ch.since).total_seconds() > HW_CHARGE_MAX_SEC:
             self._stop_charge(now, "charge ran longer than allowed")
         elif ch.mode is HWMode.PV and not ch.planned and grid_w is not None and grid_w > 0 \
+                and not self._negative_price \
                 and self._plan is not None and self._plan.window_at(now) is None:
             self._stop_charge(now, "pv surplus gone")
 

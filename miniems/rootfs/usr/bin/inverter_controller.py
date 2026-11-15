@@ -60,7 +60,7 @@ class InverterController:
         self._cfg = config
         self._writer = ConfirmedWriter(HAServiceCaller(supervisor_token, long_lived_token))
         self._ws = ws_client
-        self._channels = WriteChannelSet(["charge", "discharge", "grid"])
+        self._channels = WriteChannelSet(["charge", "discharge", "grid", "export"])
         # docs/technical/geraeteprofile.md, "Die Watt-Abstraktion": tracks
         # each actuator's live max across ticks, so a momentarily unavailable
         # attribute read never silently drops the ceiling – see
@@ -306,6 +306,30 @@ class InverterController:
         await self._set_grid_charge(False, sim)
         await self._set_charge_current(cfg.battery_max_charge_current_a, sim)
         await self._set_discharge_current(cfg.battery_max_discharge_current_a, sim)
+        await self.apply_export_limit(False)
+
+    async def apply_export_limit(self, block: bool) -> None:
+        """A5 (4): export limit 0 W while exporting would cost money.
+
+        Only with a configured grid_export_limit_entity and a normal limit to
+        return to – without both there is nothing safe to write back, so
+        nothing is written at all. Honours battery_control_simulation.
+        """
+        cfg = self._cfg
+        entity = cfg.grid_export_limit_entity
+        if not cfg.battery_control_enabled or not entity or cfg.grid_export_limit_normal_w <= 0:
+            return
+        value = 0 if block else cfg.grid_export_limit_normal_w
+        actual = self._ws.get_state_value(entity) if self._ws else None
+        spec = WriteSpec(
+            domain="number", service="set_value",
+            entity_id=entity, payload={"entity_id": entity, "value": value}, expected=value,
+            tolerance=max(1.0, 0.01 * cfg.grid_export_limit_normal_w),
+        )
+        await self._write_confirmed(
+            self._channels["export"], spec, matches(actual, spec), self.simulation,
+            f"Export limit ({entity})",
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers

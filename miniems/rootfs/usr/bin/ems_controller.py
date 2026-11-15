@@ -232,6 +232,10 @@ class EMSController:
             await self._weather.fetch_hourly_temps()
         # Hot-water plan first: with control live, its planned electricity
         # replaces the flat hot-water share in the bridge plan below.
+        # A5 (3): negative price with a full battery – store heat instead.
+        unpaid_full = self._update_negative_price_actuators(price, bat_soc)
+        if self._hot_water is not None and cfg.negative_price_enabled:
+            self._hot_water.set_negative_price(unpaid_full)
         await self._update_hot_water(now, pv_w, grid_w, price, bat_kwh_use, bat_kwh_free)
         await self._update_bridge_plan(pv_w, price, bat_kwh_free, bat_kwh_use, now)
         await self._update_energy_value(now, price, pv_w, bat_kwh_use, bat_kwh_free)
@@ -292,6 +296,10 @@ class EMSController:
         if self._last_event_log_cleanup != today:
             await self._event_log.cleanup_old_entries(cfg.event_log_retention_days)
             self._last_event_log_cleanup = today
+
+        # A5 (4): negative price with a full battery – stop exporting.
+        if self._inverter and cfg.negative_price_enabled:
+            await self._inverter.apply_export_limit(unpaid_full)
 
         # Apply inverter control (simulation or real)
         if self._inverter:
@@ -587,6 +595,11 @@ class EMSController:
                 and not self._is_stale(cfg.load_power_entity, cfg.sensor_max_age_sec)):
             surplus_w = pv_w - load_w
 
+        # 3. (A5) Negative price: buying is paid for – charge without the
+        #    economic gate, but leave room for the PV still to come.
+        if self._negative_price_charge(price, bat_kwh_free, now):
+            return ModeDecision(EMSMode.GRID_CHARGING, "negative price")
+
         # 3a. Überbrückungsplanung: a small PV surplus must not block a grid
         #     charge the plan needs (winter noon: 300 W surplus, 15 kWh
         #     evening deficit). GRID_CHARGING still stores the PV as well.
@@ -598,7 +611,8 @@ class EMSController:
                                 f"bridge plan: {plan.need_kwh:.1f} kWh by {until}")
 
         if surplus_w is not None and surplus_w > cfg.pv_surplus_threshold_w:
-            hold, reason = self._should_hold_pv_charge(bat_soc, bat_kwh_free, now)
+            hold, reason = self._should_hold_pv_charge(bat_soc, bat_kwh_free, now,
+                                                       price=price, surplus_w=surplus_w)
             if hold:
                 return ModeDecision(EMSMode.EXPORT_SURPLUS, reason)
             # A hold released by the forecast is a normal, slow transition.
@@ -606,7 +620,7 @@ class EMSController:
             # must take effect immediately.
             return ModeDecision(
                 EMSMode.PV_CHARGING, reason,
-                urgent=(reason != "forecast above battery+load need"),
+                urgent=(reason not in ("forecast above battery+load need", "feed-in limit")),
             )
 
         # 4. Cheap dynamic tariff → charge from the grid.
@@ -632,7 +646,12 @@ class EMSController:
     # ------------------------------------------------------------------
 
     def _should_hold_pv_charge(
-        self, bat_soc: float, bat_kwh_free: float | None, now: datetime
+        self,
+        bat_soc: float,
+        bat_kwh_free: float | None,
+        now: datetime,
+        price: float | None = None,
+        surplus_w: float | None = None,
     ) -> tuple[bool, str]:
         """Grid-friendly gate: export the PV surplus instead of storing it?
 
@@ -643,6 +662,14 @@ class EMSController:
 
         if not cfg.pv_export_priority_enabled:
             return False, "export priority off"
+
+        # A5 (1): exporting earns nothing (or costs) – store the PV instead.
+        unpaid = self._export_unpaid(price)
+        if unpaid:
+            return False, unpaid
+        # A5 (6): above the feed-in limit the surplus would be curtailed.
+        if cfg.feed_in_limit_w > 0 and surplus_w is not None and surplus_w > cfg.feed_in_limit_w:
+            return False, "feed-in limit"
 
         # Hard time-of-day backstop – from here on the battery always charges.
         if now.hour >= cfg.pv_charge_backstop_hour:
@@ -1065,6 +1092,52 @@ class EMSController:
     def _rate_tolerance(self) -> float:
         """Band within which two rates count as equally cheap."""
         return RATE_TOLERANCE
+
+    def _export_unpaid(self, price: float | None) -> str:
+        """A5: why exporting earns nothing right now, or "" when it does."""
+        cfg = self._cfg
+        if not cfg.negative_price_enabled:
+            return ""
+        if price is not None and price <= 0:
+            return "negative price"
+        if cfg.feed_in_price_entity:
+            feed = self._ws.get_state_value(cfg.feed_in_price_entity)
+            if feed is not None and feed <= 0:
+                return "feed-in not remunerated"
+        return ""
+
+    def _negative_price_charge(
+        self, price: float | None, bat_kwh_free: float | None, now: datetime
+    ) -> bool:
+        """A5 (2): grid charge at a price ≤ 0, but not into room the PV needs.
+
+        Without this the battery would be full from a negative night hour
+        when the negative midday peak arrives – and then exports into it.
+        """
+        cfg = self._cfg
+        if not cfg.negative_price_enabled or not cfg.battery_control_enabled:
+            return False
+        if price is None or price > 0 or bat_kwh_free is None:
+            return False
+        if self._is_stale(cfg.electricity_price_entity, cfg.price_max_age_sec):
+            return False
+        threshold = (PLAN_STOP_BELOW_KWH if self._mode is EMSMode.GRID_CHARGING
+                     else cfg.grid_charge_min_free_kwh)
+        if bat_kwh_free <= threshold:
+            return False
+        remaining = self._forecast_remaining_kwh()
+        if remaining is None:
+            return True
+        pv_for_battery = max(0.0, remaining - (self._remaining_load_kwh or 0.0))
+        return bat_kwh_free - pv_for_battery > threshold
+
+    def _update_negative_price_actuators(self, price: float | None, bat_soc: float | None) -> bool:
+        """A5 (3, 4): exporting costs money and the battery is full?"""
+        cfg = self._cfg
+        if not cfg.negative_price_enabled:
+            return False
+        full = bat_soc is not None and bat_soc >= cfg.battery_max_soc - 1
+        return full and bool(self._export_unpaid(price))
 
     async def _update_energy_value(
         self,

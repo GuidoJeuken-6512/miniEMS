@@ -49,9 +49,9 @@ class TestAssessEnergy:
         assert not high.pays
 
     def test_hold_serves_the_dearest_hours_first(self):
-        slots = slots_from(at(16), 10)                # STANDARD 16–18, HOCH 18–21, STANDARD
-        by_clock = assess_energy(slots, usable_kwh=1.6, free_kwh=5.0, eta=0.9)
-        by_price = assess_energy(slots, usable_kwh=1.6, free_kwh=5.0, eta=0.9, hold=True)
+        slots = slots_from(at(13), 10)     # NIEDRIG until 16, STANDARD, HOCH 18–21, STANDARD
+        by_clock = assess_energy(slots, usable_kwh=2.4, free_kwh=5.0, eta=0.9)
+        by_price = assess_energy(slots, usable_kwh=2.4, free_kwh=5.0, eta=0.9, hold=True)
         # the clock spends the energy on 16–18 STANDARD, the hold keeps it for HOCH
         assert by_clock.first_value_eur_kwh == pytest.approx(H)
         assert by_price.first_value_eur_kwh == pytest.approx(S)
