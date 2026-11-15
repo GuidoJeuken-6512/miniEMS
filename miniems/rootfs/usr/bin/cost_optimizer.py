@@ -61,6 +61,13 @@ class CostOptimizer:
         # A11: today's maximum SoC and boiler temperature.
         self._max_soc: dict[date, float] = {}
         self._max_boil: dict[date, float] = {}
+        # A7a: battery energy in/out, first/last SoC, discharge efficiency.
+        self._bat_in: dict[date, float] = defaultdict(float)
+        self._bat_out: dict[date, float] = defaultdict(float)
+        self._soc_first: dict[date, float] = {}
+        self._soc_last: dict[date, float] = {}
+        self._dis_load: dict[date, float] = defaultdict(float)
+        self._dis_bat: dict[date, float] = defaultdict(float)
         # A1: today's relative price classes, set by EMSController once per
         # tick. None = no tariff calendar or price_classes_enabled off → the
         # fixed thresholds decide, exactly as before.
@@ -355,6 +362,16 @@ class CostOptimizer:
             self._grid_charge_kwh[now]      += kwh_gc
             self._grid_charge_cost_eur[now] += kwh_gc * price_eur_kwh
 
+        # A7a: battery energy from the power sensor (sign: + = discharge), and
+        # the discharge efficiency where the battery alone supplies the house.
+        if bat_w > 0:
+            self._bat_out[now] += bat_w / 1000 * hours
+            if pv_w < 50 and abs(grid_w) < 100 and bat_w > 300:
+                self._dis_load[now] += load_w / 1000 * hours
+                self._dis_bat[now] += bat_w / 1000 * hours
+        elif bat_w < 0:
+            self._bat_in[now] += -bat_w / 1000 * hours
+
         # Discharge-weighted price: what a stored kWh actually displaces.
         # Accumulated only while the battery discharges, so the average is
         # weighted by when the energy is really used – disproportionately the
@@ -455,6 +472,15 @@ class CostOptimizer:
             fields["max_soc_pct"] = round(self._max_soc[today], 1)
         if today in self._max_boil:
             fields["max_boil_temp_c"] = round(self._max_boil[today], 1)
+        if today in self._soc_first:
+            fields.update({
+                "bat_in_kwh": round(self._bat_in[today], 4),
+                "bat_out_kwh": round(self._bat_out[today], 4),
+                "soc_first_pct": round(self._soc_first[today], 1),
+                "soc_last_pct": round(self._soc_last[today], 1),
+                "dis_eff_load_kwh": round(self._dis_load[today], 4),
+                "dis_eff_bat_kwh": round(self._dis_bat[today], 4),
+            })
         await self._store.upsert_day(today, fields)
 
     # ------------------------------------------------------------------
@@ -598,11 +624,19 @@ class CostOptimizer:
         today = date.today()
         if soc_pct is not None:
             self._max_soc[today] = max(self._max_soc.get(today, soc_pct), soc_pct)
+            self._soc_first.setdefault(today, soc_pct)
+            self._soc_last[today] = soc_pct
         if boil_c is not None:
             self._max_boil[today] = max(self._max_boil.get(today, boil_c), boil_c)
 
     def today_max(self, which: str) -> float | None:
         return (self._max_soc if which == "soc" else self._max_boil).get(date.today())
+
+    async def recent_complete_days(self, days: int) -> list[dict[str, Any]]:
+        """A7a: daily rows of the last `days` days, today excluded."""
+        today = date.today().isoformat()
+        rows = await self._store.query_recent_days(days + 1)
+        return [r for r in rows if r.get("date") != today]
 
     async def days_since(self, column: str, value: float) -> int | None:
         """A11: whole days since `column` last reached `value`.

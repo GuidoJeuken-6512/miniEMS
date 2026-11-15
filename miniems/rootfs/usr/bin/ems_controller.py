@@ -22,7 +22,9 @@ from const import (
     SUN_ENTITY,
     EMSMode,
 )
+from battery_learning import LearnedBattery, learn_battery
 from energy_plan import EnergyPlan, compute_energy_plan
+from forecast_learning import ForecastCorrections, learn_corrections
 from energy_value import RATE_TOLERANCE, EnergyValue, assess_energy, should_hold
 from event_log import EventLog, LogEntry
 from price_classes import classes_for
@@ -129,6 +131,10 @@ class EMSController:
         self._availability = SensorAvailabilityMonitor()
         self._bridge_plan: BridgePlan | None = None
         self._bridge_status: str = "disabled"
+        # A7: learned battery values and forecast corrections, refreshed hourly.
+        self._learned_battery: LearnedBattery | None = None
+        self._corrections = ForecastCorrections()
+        self._learning_at: datetime | None = None
         # A11: maintenance runs – refreshed at most hourly in update().
         self._full_charge_due = False
         self._maintenance_checked_at: datetime | None = None
@@ -236,6 +242,7 @@ class EMSController:
         # Hot-water plan first: with control live, its planned electricity
         # replaces the flat hot-water share in the bridge plan below.
         await self._update_maintenance(now, bat_soc)
+        await self._update_learning(now)
         # A5 (3): negative price with a full battery – store heat instead.
         unpaid_full = self._update_negative_price_actuators(price, bat_soc)
         if self._hot_water is not None and cfg.negative_price_enabled:
@@ -511,6 +518,7 @@ class EMSController:
             result["temp_tomorrow_c"] = self._prediction.temp_tomorrow_c
         result["remaining_load_kwh"] = self._remaining_load_kwh
         result["failsafe"] = self._failsafe_spec()
+        result["learning"] = self._learning_dict()
         result["maintenance_full_charge_due"] = self._full_charge_due
         if self._inverter is not None:
             result["write_changes_today"] = self._inverter.target_changes_today
@@ -1094,16 +1102,63 @@ class EMSController:
             temp = self._weather.hourly_temp_at(t) if self._weather is not None else None
             total += fc.predict_kwh(t, (nxt - t).total_seconds() / 60.0, temp) or 0.0
             t = nxt
-        return total
+        return total * self._load_factor()
 
     def _round_trip_eta(self) -> float:
-        """Round-trip efficiency a bought kWh suffers."""
+        """Round-trip efficiency a bought kWh suffers (A7a: learned, when on)."""
+        lb = self._learned_battery
+        if self._cfg.battery_learned_values_enabled and lb is not None and lb.round_trip:
+            return lb.round_trip
         eta = self._optimizer.today_efficiency()
         return eta if eta and eta > 0 else _DEFAULT_ETA
 
     def _discharge_eta(self) -> float:
-        """Share of a stored kWh that reaches the house (square root of the round trip)."""
+        """Share of a stored kWh that reaches the house (A7a: learned, when on)."""
+        lb = self._learned_battery
+        if self._cfg.battery_learned_values_enabled and lb is not None and lb.eta_discharge:
+            return lb.eta_discharge
         return self._round_trip_eta() ** 0.5
+
+    async def _update_learning(self, now: datetime) -> None:
+        """A7: relearn battery values and forecast corrections at most hourly.
+
+        Recorded and shown always; used only behind their switches.
+        """
+        if self._learning_at is not None and (now - self._learning_at).total_seconds() < 3600:
+            return
+        self._learning_at = now
+        recent = getattr(self._optimizer, "recent_complete_days", None)
+        if recent is not None:
+            try:
+                rows = await recent(14)
+                self._learned_battery = learn_battery(rows, self._cfg.battery_capacity_kwh)
+            except Exception as exc:   # learning is advice, never block control
+                _LOGGER.warning("Battery learning failed: %s", exc)
+        if self._recorder is not None:
+            try:
+                current = now.replace(minute=0, second=0, microsecond=0).isoformat()
+                rows = [r for r in await self._recorder.history_since((now - timedelta(days=14)).date())
+                        if r.get("hour_start") != current]
+                self._corrections = learn_corrections(rows)
+            except Exception as exc:
+                _LOGGER.warning("Forecast learning failed: %s", exc)
+
+    def _learning_dict(self) -> dict:
+        return {
+            "battery": self._learned_battery.as_dict() if self._learned_battery else None,
+            "battery_in_use": self._cfg.battery_learned_values_enabled,
+            "forecast": self._corrections.as_dict(),
+            "pv_correction_in_use": self._cfg.pv_correction_enabled,
+            "plan_feedback_in_use": self._cfg.plan_feedback_enabled,
+        }
+
+    def _pv_factor(self, moment: datetime) -> float:
+        cfg = self._cfg
+        return self._corrections.pv_factor(moment.hour, cfg.pv_correction_enabled,
+                                           cfg.plan_feedback_enabled)
+
+    def _load_factor(self) -> float:
+        return self._corrections.load_total if self._cfg.plan_feedback_enabled else 1.0
 
     def _rate_tolerance(self) -> float:
         """Band within which two rates count as equally cheap."""
@@ -1446,7 +1501,8 @@ class EMSController:
             if load_known:
                 temp = self._weather.hourly_temp_at(a) if self._weather is not None else None
                 load = self._forecaster.predict_kwh(a, minutes, temp) or 0.0  # type: ignore[union-attr]
-            pv_kwh = pv_between(a, end)
+                load *= self._load_factor()
+            pv_kwh = pv_between(a, end) * self._pv_factor(a)
             ahead_h = (a - now).total_seconds() / 3600.0
             if ahead_h < _NOWCAST_HORIZON_H:
                 pv_kwh *= 1.0 + (ratio - 1.0) * (1.0 - ahead_h / _NOWCAST_HORIZON_H)
@@ -1465,12 +1521,43 @@ class EMSController:
         cfg = self._cfg
         if self._is_stale(cfg.load_power_entity, cfg.sensor_max_age_sec):
             load_w = None
+        pv_w = self._ws.get_state_value(cfg.pv_power_entity)
+        if self._is_stale(cfg.pv_power_entity, cfg.sensor_max_age_sec) and not self._pv_dark(now):
+            pv_w = None
+        hour = now.replace(minute=0, second=0, microsecond=0)
+        if self._recorder.hour != hour or not self._recorder.has_forecasts:
+            pv_fc, load_pred = self._hour_forecasts(hour)
+        else:
+            pv_fc = load_pred = None
         try:
             await self._recorder.record_tick(
-                now, load_w, self._heat_pump_power_w(), self._outdoor_temp_c(now)
+                now, load_w, self._heat_pump_power_w(), self._outdoor_temp_c(now), pv_w=pv_w
             )
+            if pv_fc is not None or load_pred is not None:
+                self._recorder.set_forecasts(pv_fc, load_pred)
         except Exception as exc:   # history is best-effort, never block control
             _LOGGER.warning("Hourly history write failed: %s", exc)
+
+    def _hour_forecasts(self, hour: datetime) -> tuple[float | None, float | None]:
+        """A7b/c: uncorrected PV and load forecast for [hour, hour + 1 h)."""
+        cfg = self._cfg
+        pv_fc = None
+        if self._solcast is not None and not self._solcast_data_stale():
+            slots = self._solcast.pv_slots(cfg.pv_forecast_scenario, cfg.pv_forecast_blend_weight) or {}
+            end = hour + timedelta(hours=1)
+            if slots:
+                pv_fc = 0.0
+                for s, (e, kwh) in slots.items():
+                    if e <= hour or s >= end:
+                        continue
+                    overlap = (min(end, e) - max(hour, s)).total_seconds()
+                    pv_fc += kwh * overlap / (e - s).total_seconds()
+        load_pred = None
+        fc = self._forecaster
+        if fc is not None and fc.model is not None:
+            temp = self._weather.hourly_temp_at(hour) if self._weather is not None else None
+            load_pred = fc.predict_kwh(hour, 60.0, temp)
+        return pv_fc, load_pred
 
     async def _log_write_event(self, wevent: dict) -> None:
         await self._event_log.append(LogEntry(

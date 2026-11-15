@@ -590,8 +590,17 @@ async def test_update_runs_bridge_plan_and_records_hour(make_config, fake_ws):
     recorded = []
 
     class Rec:
-        async def record_tick(self, now, load_w, hp_w, temp):
+        hour = None
+        has_forecasts = False
+
+        async def record_tick(self, now, load_w, hp_w, temp, pv_w=None):
             recorded.append((load_w, hp_w, temp))
+
+        def set_forecasts(self, pv_fc, load_pred):
+            pass
+
+        async def history_since(self, since):
+            return []
 
     fc = FakeForecaster()
     ctrl._forecaster = fc
