@@ -497,7 +497,9 @@ class TestUpdateBatteryCapabilityWiring:
         mode, soc, power_w = capability.recorded[0]
         assert mode.value == result["mode"]
         assert soc == 50.0
-        assert power_w == -3000.0
+        # battery_power -3000 W = charging at 3 kW; the tracker gets the power
+        # flowing into the battery (v4.2.1 – before, the raw sign was passed).
+        assert power_w == 3000.0
 
     @pytest.mark.asyncio
     async def test_flushes_capability_every_tick(self, make_config, fake_ws):

@@ -119,7 +119,8 @@ class TestFlushAndRolloverWithStore:
             await real_store.upsert_capability_today(day, "mid", watts, 10)
             await real_store.rollover_capability_day(day, min_samples=1)
         tracker = BatteryCapabilityTracker(real_store)
-        kw = await tracker.charge_power_kw(50.0, fallback_kw=99.0)
+        # Fallback 9 kW: the learned 3 kW stays above the plausibility floor (20 %).
+        kw = await tracker.charge_power_kw(50.0, fallback_kw=9.0)
         assert kw == pytest.approx(3.0)   # median(2000, 3000, 4000) W -> 3.0 kW
 
     @pytest.mark.asyncio
@@ -143,3 +144,50 @@ class TestFlushAndRolloverWithStore:
         tracker = BatteryCapabilityTracker(real_store)
         kw = await tracker.charge_power_kw(95.0, fallback_kw=4.2)   # "high" bucket, empty
         assert kw == 4.2
+
+
+class TestSignFixV421:
+    """v4.2.1: the raw battery_power (positive = discharge) was recorded, so a
+    grid charge never raised the learned maximum – miniEMS then planned with
+    ~0.1 kW and stopped grid charging altogether."""
+
+    @pytest.fixture
+    async def db(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(store_module, "DB_FILE", str(tmp_path / "test.db"))
+        s = EnergyStore()
+        await s.open()
+        yield s
+        await s.close()
+
+    @pytest.mark.asyncio
+    async def test_controller_passes_charge_power_positive(self, make_config, fake_ws):
+        from test_ems_controller_update import build_controller
+        ctrl, *_ = build_controller(make_config, fake_ws)
+        ctrl._mode = EMSMode.GRID_CHARGING
+        recorded = []
+        ctrl._capability.record_tick = lambda mode, soc, w: recorded.append((mode, w))
+        fake_ws.values.update({"sensor.pv": 0.0, "sensor.load": 500.0, "sensor.grid": 6000.0,
+                               "sensor.soc": 50.0, "sensor.batp": -5500.0, "sensor.price": 0.30})
+        await ctrl.update()
+        assert recorded and recorded[0][1] == 5500.0
+
+    @pytest.mark.asyncio
+    async def test_wrong_sign_history_is_purged_once(self, db):
+        for i in range(4):
+            await db.upsert_capability_today(date.today() - timedelta(days=i + 1), "mid", 112.0, 50)
+            await db.rollover_capability_day(date.today() - timedelta(days=i + 1), 6)
+        tracker = BatteryCapabilityTracker(db)
+        assert await tracker.charge_power_kw(50.0, 0.5) == pytest.approx(0.112)   # before
+        assert await tracker.purge_wrong_sign_history() is True
+        assert await tracker.charge_power_kw(50.0, 9.0) == 9.0
+        assert await tracker.purge_wrong_sign_history() is False   # only once
+
+    @pytest.mark.asyncio
+    async def test_implausibly_low_learned_value_is_ignored(self, db):
+        for i in range(4):
+            day = date.today() - timedelta(days=i + 1)
+            await db.upsert_capability_today(day, "mid", 112.0, 50)
+            await db.rollover_capability_day(day, 6)
+        tracker = BatteryCapabilityTracker(db)
+        assert await tracker.charge_power_kw(50.0, 9.0) == 9.0           # 0.112 < 20 % of 9
+        assert await tracker.charge_power_kw(50.0, 0.4) == pytest.approx(0.112)

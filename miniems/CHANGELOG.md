@@ -1,5 +1,23 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 4.2.1
+
+### Fixed
+
+- **Netzladen blieb aus, weil die gelernte Ladeleistung fast 0 war.** Die
+  gelernte Ladeleistung je SoC-Bereich (`battery_capability.py`) wurde mit dem
+  rohen Wert von `battery_power` gefüttert. Dort heißt positiv aber Entladen,
+  eine Ladung ist negativ – das „Maximum“ blieb bei 0 W oder einer kurzen
+  Entladespitze. Nach drei Tagen ersetzte dieser Wert (in der Anlage 0,112 kW)
+  die konfigurierte Ladeleistung von rund 9 kW. Tagesplan, Überbrückungsplan
+  und Energiefahrplan rechneten dann mit 112 W Ladeleistung, Netzladen lohnte
+  sich nie, und der Akku wurde die ganze Nacht nur gehalten.
+  - Die Ladeleistung wird jetzt mit dem richtigen Vorzeichen gelernt.
+  - Alle bisher gelernten Werte werden beim ersten Start einmal verworfen
+    (Meldung im Log); bis neue Daten da sind, gilt der konfigurierte Wert.
+  - Ein gelernter Wert unter 20 % des konfigurierten wird nicht genutzt.
+
+
 ## 4.2.0
 
 Phase C des [Gesamtplans](../docs/roadmap/gesamtplan.md): Integration und Oberfläche.
