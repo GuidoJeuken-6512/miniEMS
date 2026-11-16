@@ -38,6 +38,14 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# A learned value below this share of the configured charge power is not
+# trusted: a real battery limit that low means something is broken (or the
+# observation was), and planning with it stops grid charging altogether.
+PLAUSIBLE_MIN_SHARE = 0.2
+# kv_state marker: history recorded before v4.2.1 used the wrong sign and is
+# discarded once.
+_PURGE_KEY = "capability_sign_fix_v421"
+
 
 def soc_bucket_for(soc: float) -> str:
     """"low" (<=10%), "mid" (11-89%) or "high" (>=90%).
@@ -69,8 +77,14 @@ class BatteryCapabilityTracker:
         # bucket -> (max_power_w, sample_count), today only.
         self._today_stats: dict[str, tuple[float, int]] = {}
 
-    def record_tick(self, mode: EMSMode, soc: float | None, battery_power_w: float) -> None:
+    def record_tick(self, mode: EMSMode, soc: float | None, charge_power_w: float) -> None:
         """Update today's per-bucket max – but only from unbiased ticks.
+
+        ``charge_power_w`` is the power flowing INTO the battery (positive
+        while charging). The caller converts from battery_power_entity, whose
+        canonical sign is positive = discharge (roles.yaml). Before v4.2.1 the
+        raw sensor value was passed, so a charge (negative) never raised the
+        maximum and the learned power stayed near 0 W.
 
         Silently ignores everything that isn't GRID_CHARGING (see module
         docstring) and any tick without a usable SoC.
@@ -80,7 +94,21 @@ class BatteryCapabilityTracker:
         self._roll_in_memory_day_if_needed()
         bucket = soc_bucket_for(soc)
         max_w, count = self._today_stats.get(bucket, (0.0, 0))
-        self._today_stats[bucket] = (max(max_w, battery_power_w), count + 1)
+        self._today_stats[bucket] = (max(max_w, charge_power_w), count + 1)
+
+    async def purge_wrong_sign_history(self) -> bool:
+        """Discard every value learned before v4.2.1 (wrong sign), once.
+
+        Returns True when something was purged in this call.
+        """
+        if self._store is None or await self._store.get_state(_PURGE_KEY):
+            return False
+        removed = await self._store.clear_capability()
+        await self._store.set_state(_PURGE_KEY, {"removed_rows": removed})
+        self._today_stats = {}
+        _LOGGER.warning("Learned charge power: %d value(s) recorded with the wrong sign "
+                        "discarded – the configured charge power applies until new data", removed)
+        return True
 
     def _roll_in_memory_day_if_needed(self) -> None:
         """Reset the in-memory accumulator on a date change.
@@ -137,4 +165,12 @@ class BatteryCapabilityTracker:
         )
         if len(values) < BATTERY_CAPABILITY_MIN_DAYS:
             return fallback_kw
-        return statistics.median(values) / 1000.0
+        learned_kw = statistics.median(values) / 1000.0
+        if fallback_kw > 0 and learned_kw < PLAUSIBLE_MIN_SHARE * fallback_kw:
+            if not getattr(self, "_warned_implausible", False):
+                self._warned_implausible = True
+                _LOGGER.warning("Learned charge power %.2f kW is below %.0f %% of the configured "
+                                "%.1f kW – ignored, using the configured value",
+                                learned_kw, PLAUSIBLE_MIN_SHARE * 100, fallback_kw)
+            return fallback_kw
+        return learned_kw

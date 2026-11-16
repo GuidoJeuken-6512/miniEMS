@@ -283,7 +283,9 @@ class EMSController(PhaseBMixin, PhaseCMixin):
         # mode (post-debounce), then persist and roll the previous day into
         # permanent history once, right after local midnight – same trigger
         # as the event-log cleanup below. See battery_capability.py.
-        self._capability.record_tick(self._mode, bat_soc, bat_w or 0.0)
+        # battery_power is positive while DISCHARGING – the tracker wants the
+        # power flowing into the battery.
+        self._capability.record_tick(self._mode, bat_soc, -(bat_w or 0.0))
         await self._capability.flush_to_db()
         if self._last_capability_rollover is not None and self._last_capability_rollover != today:
             await self._capability.rollover_day(self._last_capability_rollover)

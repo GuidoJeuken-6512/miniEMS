@@ -125,6 +125,7 @@ async def main() -> None:
     event_log = EventLog(max_entries=100, store=store)
     await event_log.restore_from_db()
     capability = BatteryCapabilityTracker(store)
+    await capability.purge_wrong_sign_history()
     hot_water = HotWaterController(
         cfg, ws_client, store,
         HAServiceCaller(supervisor_token, cfg.long_lived_token),

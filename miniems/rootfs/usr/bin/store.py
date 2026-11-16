@@ -537,6 +537,17 @@ class EnergyStore:
         )
         await self._db.commit()
 
+    async def clear_capability(self) -> int:
+        """Delete every learned charge-power row (today and history)."""
+        if not self._db:
+            return 0
+        removed = 0
+        for table in ("battery_charge_capability_today", "battery_charge_capability_history"):
+            cur = await self._db.execute(f"DELETE FROM {table}")
+            removed += cur.rowcount or 0
+        await self._db.commit()
+        return removed
+
     async def query_capability_history(
         self, bucket: str, lookback_days: int, min_samples: int
     ) -> list[float]:
