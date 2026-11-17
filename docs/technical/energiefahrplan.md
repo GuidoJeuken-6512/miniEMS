@@ -392,11 +392,21 @@ lösche battery_charge_capability_today-Zeilen älter als heute
 bucket   = soc_bucket_for(soc)
 tage     = letzte 14 Tage aus battery_charge_capability_history
            WHERE soc_bucket = bucket AND sample_count ≥ MIN_SAMPLES_PER_DAY
-wenn len(tage) ≥ MIN_DAYS (z. B. 3):
-    P_charge_kw = median(max_power_w über tage) / 1000
+           + heute, sobald sample_count ≥ MIN_SAMPLES_PER_DAY        # seit v4.2.2
+config   = battery_max_charge_current_a × battery_voltage_v / 1000
+wenn len(tage) ≥ MIN_DAYS (1, bis v4.2.1: 3):
+    P_charge_kw = min(median(max_power_w über tage) / 1000, config)
 sonst:
-    P_charge_kw = battery_max_charge_current_a × battery_voltage_v / 1000   # Fallback
+    P_charge_kw = config                                              # Fallback
 ```
+
+**Zensierte Ticks (seit v4.2.2):** Ein `GRID_CHARGING`-Tick zählt nur, wenn der Akku
+weniger als 90 % der angeforderten Leistung aufnahm (V1-Strecken, B1-Sicherungsdeckel;
+ohne Anforderung = voller Strom). Sonst misst er die Anforderung, nicht den Akku. Am
+17.11.2026 nahm der Akku bei vollem Strom 3,7 kW auf und danach, gestreckt, 1 kW. Geplant
+wurde mit 185 A × 52 V = 9,6 kW, deshalb schob der Tagesplan das Netzladen ans Ende des
+Fensters. Nach einem Neustart lädt `BatteryCapabilityTracker.restore()` die Werte von heute
+und übernimmt Tage, deren Mitternacht der Neustart verpasst hat.
 
 Fehlt ein Bucket (z. B. `high`, weil `battery_max_soc` ihn nie erreicht), fällt der Lookup
 auf den Konfigurationswert zurück statt auf einen benachbarten Bucket zu raten — ein falsch

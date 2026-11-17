@@ -45,6 +45,9 @@ PLAUSIBLE_MIN_SHARE = 0.2
 # kv_state marker: history recorded before v4.2.1 used the wrong sign and is
 # discarded once.
 _PURGE_KEY = "capability_sign_fix_v421"
+# A GRID_CHARGING tick whose charge power reaches this share of the requested
+# power was limited by the request, not by the battery – not a limit sample.
+CENSORED_SHARE = 0.9
 
 
 def soc_bucket_for(soc: float) -> str:
@@ -77,7 +80,8 @@ class BatteryCapabilityTracker:
         # bucket -> (max_power_w, sample_count), today only.
         self._today_stats: dict[str, tuple[float, int]] = {}
 
-    def record_tick(self, mode: EMSMode, soc: float | None, charge_power_w: float) -> None:
+    def record_tick(self, mode: EMSMode, soc: float | None, charge_power_w: float,
+                    requested_w: float | None = None) -> None:
         """Update today's per-bucket max – but only from unbiased ticks.
 
         ``charge_power_w`` is the power flowing INTO the battery (positive
@@ -86,10 +90,18 @@ class BatteryCapabilityTracker:
         raw sensor value was passed, so a charge (negative) never raised the
         maximum and the learned power stayed near 0 W.
 
+        ``requested_w`` is what miniEMS asked the inverter for this tick (V1
+        stretching, fuse cap) – None means full current. A tick where the
+        battery took about what was asked measures the request, not the
+        battery (censored): on 17.11.2026 V1 stretched to ~1 kW after 12:30,
+        while the battery had just taken 3.7 kW at full current.
+
         Silently ignores everything that isn't GRID_CHARGING (see module
-        docstring) and any tick without a usable SoC.
+        docstring), censored ticks and any tick without a usable SoC.
         """
         if mode is not EMSMode.GRID_CHARGING or soc is None:
+            return
+        if requested_w is not None and charge_power_w >= CENSORED_SHARE * requested_w:
             return
         self._roll_in_memory_day_if_needed()
         bucket = soc_bucket_for(soc)
@@ -109,6 +121,22 @@ class BatteryCapabilityTracker:
         _LOGGER.warning("Learned charge power: %d value(s) recorded with the wrong sign "
                         "discarded – the configured charge power applies until new data", removed)
         return True
+
+    async def restore(self) -> None:
+        """After startup: roll over days a restart skipped, reload today.
+
+        Without it a restart (e.g. installing an update) lost today's samples –
+        the next flush overwrote the stored maxima with the fresh, smaller
+        in-memory ones – and a day that ended while the add-on was down never
+        reached the history.
+        """
+        if self._store is None:
+            return
+        today = date.today()
+        for day in await self._store.pending_capability_days(today):
+            await self._store.rollover_capability_day(day, BATTERY_CAPABILITY_MIN_SAMPLES_PER_DAY)
+        self._today = today
+        self._today_stats = await self._store.load_capability_today(today)
 
     def _roll_in_memory_day_if_needed(self) -> None:
         """Reset the in-memory accumulator on a date change.
@@ -150,12 +178,17 @@ class BatteryCapabilityTracker:
 
         Median over the last BATTERY_CAPABILITY_LOOKBACK_DAYS qualifying days
         for soc's bucket (mirrors ConsumptionModel._predict_load()'s median-
-        over-recent-days approach). Falls back to `fallback_kw` – the
-        configured current x voltage estimate – when the bucket has fewer
-        than BATTERY_CAPABILITY_MIN_DAYS qualifying days: a bucket a user's
+        over-recent-days approach), today included once it qualifies. Falls
+        back to `fallback_kw` – the configured current x voltage estimate,
+        which stays the ceiling – when the bucket has fewer than
+        BATTERY_CAPABILITY_MIN_DAYS qualifying days: a bucket a user's
         battery_max_soc never reaches (e.g. "high" at max_soc=95) must stay on
-        the known-conservative config value rather than guess from a
-        neighbouring bucket.
+        the config value rather than guess from a neighbouring bucket.
+
+        Since v4.2.2 one day is enough (was 3) and today counts at once: the
+        samples are uncensored (record_tick), and the config value is the
+        harmful guess – 185 A × 52 V = 9.6 kW against a measured 3.7 kW made
+        the day plan push grid charging to the end of the window.
         """
         if self._store is None:
             return fallback_kw
@@ -163,9 +196,14 @@ class BatteryCapabilityTracker:
         values = await self._store.query_capability_history(
             bucket, BATTERY_CAPABILITY_LOOKBACK_DAYS, BATTERY_CAPABILITY_MIN_SAMPLES_PER_DAY
         )
+        self._roll_in_memory_day_if_needed()
+        today_max, today_count = self._today_stats.get(bucket, (0.0, 0))
+        if today_count >= BATTERY_CAPABILITY_MIN_SAMPLES_PER_DAY and today_max > 0:
+            values = [*values, today_max]
         if len(values) < BATTERY_CAPABILITY_MIN_DAYS:
             return fallback_kw
-        learned_kw = statistics.median(values) / 1000.0
+        learned_kw = min(statistics.median(values) / 1000.0, fallback_kw) if fallback_kw > 0 \
+            else statistics.median(values) / 1000.0
         if fallback_kw > 0 and learned_kw < PLAUSIBLE_MIN_SHARE * fallback_kw:
             if not getattr(self, "_warned_implausible", False):
                 self._warned_implausible = True

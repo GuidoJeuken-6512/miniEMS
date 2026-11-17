@@ -69,8 +69,40 @@ def test_pv_slots_kw_to_kwh_per_half_hour(make_config, fake_ws):
 def test_pv_slots_scenarios(make_config, fake_ws):
     c = _client(make_config, fake_ws)
     assert c.pv_slots("estimate10")[_T15][1] == pytest.approx(0.3879 * 0.5)
+    # est10 / est90 = 0.093 -> the estimate keeps 0.7 × 0.093 / 0.5 of its weight
+    w = 0.7 * (0.3879 / 4.1833) / 0.5
     blend = c.pv_slots("blend", 0.7)[_T15][1]
-    assert blend == pytest.approx((0.7 * 1.5068 + 0.3 * 0.3879) * 0.5)
+    assert blend == pytest.approx((w * 1.5068 + (1 - w) * 0.3879) * 0.5)
+
+
+def test_blend_keeps_configured_weight_when_confident(make_config, fake_ws):
+    entries = [{"period_start": "2026-10-22T15:00:00+02:00", "pv_estimate": 2.0,
+                "pv_estimate10": 1.6, "pv_estimate90": 2.4}]          # 1.6 / 2.4 = 0.67
+    blend = _client(make_config, fake_ws, entries=entries).pv_slots("blend", 0.7)[_T15][1]
+    assert blend == pytest.approx((0.7 * 2.0 + 0.3 * 1.6) * 0.5)
+
+
+def test_blend_without_est90_keeps_configured_weight(make_config, fake_ws):
+    # dusk: est90 = 0 < est – no spread information, no penalty
+    blend = _client(make_config, fake_ws).pv_slots("blend", 0.7)[_T15 + timedelta(hours=3)][1]
+    assert blend == pytest.approx((0.7 * 0.0495 + 0.3 * 0.0165) * 0.5)
+
+
+def test_blend_uncertain_afternoon_17_11(make_config, fake_ws):
+    """Real slots 14:00/15:00 of 17.11.2026; measured: 0.97 / 0.14 kWh."""
+    entries = [
+        {"period_start": "2026-11-17T14:00:00+01:00", "pv_estimate": 2.1098,
+         "pv_estimate10": 0.6731, "pv_estimate90": 3.7861},
+        {"period_start": "2026-11-17T14:30:00+01:00", "pv_estimate": 2.0803,
+         "pv_estimate10": 0.672, "pv_estimate90": 3.7718},
+        {"period_start": "2026-11-17T15:00:00+01:00", "pv_estimate": 1.0973,
+         "pv_estimate10": 0.2688, "pv_estimate90": 3.1925},
+        {"period_start": "2026-11-17T15:30:00+01:00", "pv_estimate": 0.8573,
+         "pv_estimate10": 0.1773, "pv_estimate90": 2.4323},
+    ]
+    slots = _client(make_config, fake_ws, entries=entries).pv_slots("blend", 0.7)
+    total = sum(kwh for _, kwh in slots.values())
+    assert total == pytest.approx(1.33, abs=0.01)      # fixed 70 % blend: 2.42; measured 1.11
 
 
 def test_pv_slots_gap_does_not_stretch_slot(make_config, fake_ws):

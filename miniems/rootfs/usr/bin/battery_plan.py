@@ -16,7 +16,7 @@ the whole known horizon at once and picks, per 30-min slot, one action:
                  (energy × percentile of the rates × η – otherwise the plan
                  would empty the battery at the horizon)
     feed-in  : export above the feed-in limit is lost, not paid
-    solved   : backwards over the slots, ~72 × 101 × 4 × 4 evaluations
+    solved   : backwards over the slots, ~72 × 201 × 4 × 4 evaluations
 
 Planning styles scale the forecasts and the residual value – a simple,
 understandable risk setting:
@@ -38,7 +38,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from bridge_planner import PlanSlot
 
-STEPS = 100
+# Levels between min and max SoC. 200 since v4.2.2 (was 100): rounding towards
+# the start level leaves up to one level per slot unused – 0.1 kWh at 20 kWh
+# instead of 0.2. ~0.16 s for 72 slots on a PC.
+STEPS = 200
+# Two choices within this many € count as equal (float residue of the level
+# grid decided otherwise – 17.11.2026: hold vs. discharge, both 7.2417 €).
+TIE_EUR = 0.001
 
 
 class Action(str, Enum):
@@ -172,12 +178,35 @@ def plan_battery(
                     grid_chg = min(chg_cap, room / eta_charge)
                     e += grid_chg * eta_charge
                     imp += grid_chg
+        # Round towards the starting level, then recompute every flow from the
+        # level actually reached. Rounding to the nearest level credited up to
+        # half a level for free – a different amount in every slot. On
+        # 17.11.2026 that alone moved the discharge from tonight's HOCH to
+        # tomorrow's (same rate, 0.44 instead of 0.40 kWh for the same four
+        # levels). Now every level stored or drawn is worth the same everywhere.
+        x = e / unit
+        if x >= level:
+            new = min(STEPS, int(x + 1e-9))
+        else:
+            new = max(0, -int(-x + 1e-9))
+        delta = (new - level) * unit
+        if net >= 0:
+            if a is not Action.EXPORT:
+                pv_stored = min(into * eta_charge, delta)
+                exp = net - pv_stored / eta_charge
+                grid_chg = (delta - pv_stored) / eta_charge if a is Action.CHARGE else 0.0
+                imp = grid_chg
+        elif a in (Action.AUTO, Action.EXPORT):
+            dis = -delta * eta_discharge
+            imp = deficit - dis
+        elif a is Action.CHARGE:
+            grid_chg = delta / eta_charge
+            imp = deficit + grid_chg
         if feed_in_limit_kw > 0:
             paid_exp = min(exp, feed_in_limit_kw * h)
         else:
             paid_exp = exp
         cost = imp * s.rate_eur_kwh - paid_exp * feed_in_eur_kwh + dis * wear_eur_kwh  # type: ignore[operator]
-        new = min(STEPS, max(0, int(round(e / unit))))
         return new, cost, grid_chg, imp, exp
 
     # value[l][a_prev] for the slot after the last one: residual value of the energy
@@ -192,13 +221,13 @@ def plan_battery(
         new_choice = [[0] * len(_ACTIONS) for _ in range(STEPS + 1)]
         for l in range(STEPS + 1):
             for pa in range(len(_ACTIONS)):
-                best, best_a = inf, 0
-                for ai in range(len(_ACTIONS)):
-                    nl, cost, *_ = trans[l][ai]
-                    total = cost + (switch_cost_eur if ai != pa else 0.0) + value[nl][ai]
-                    if total < best - 1e-12:
-                        best, best_a = total, ai
-                new_value[l][pa] = best
+                totals = [trans[l][ai][1] + (switch_cost_eur if ai != pa else 0.0)
+                          + value[trans[l][ai][0]][ai] for ai in range(len(_ACTIONS))]
+                # Ties go to the first action in _ACTIONS order (AUTO): with two
+                # equally dear windows, spend in the one that comes first.
+                floor = min(totals) + TIE_EUR
+                best_a = next(ai for ai, total in enumerate(totals) if total <= floor)
+                new_value[l][pa] = totals[best_a]
                 new_choice[l][pa] = best_a
         value = new_value
         choice.append(new_choice)

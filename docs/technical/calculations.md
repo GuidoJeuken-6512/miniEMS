@@ -456,6 +456,11 @@ today_grid_charge_cost_bilanz_eur = today_grid_charge_kwh_bilanz
     (None, wenn today_production_entity ≤ 0 oder eine der beiden Entities fehlt)
 ```
 
+Der Wert ist ein laufendes Verhältnis der Tageszähler und am Vormittag unbrauchbar
+(Werte bis −1000 % oder 11 %). Die Planung (Tagesplan, Überbrückungsplan,
+Warmwasser-Plan, Wirtschaftlichkeitsprüfung) übernimmt ihn deshalb seit v4.2.2 nur
+im Bereich 65–98 % (`EMSController._measured_eta()`), sonst gilt 0,9.
+
 #### ROI der Netzladung (`today_grid_charge_roi_eur`)
 
 ```

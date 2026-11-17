@@ -454,6 +454,11 @@ today_grid_charge_cost_bilanz_eur = today_grid_charge_kwh_bilanz
     (None when today_production_entity ≤ 0 or either entity is missing)
 ```
 
+The value is a running ratio of today's counters and useless in the morning
+(readings down to −1000 % or 11 %). Planning (day plan, bridge plan, hot-water plan,
+economic gate) therefore takes it only within 65–98 % since v4.2.2
+(`EMSController._measured_eta()`), otherwise 0.9.
+
 #### Grid-Charge ROI (`today_grid_charge_roi_eur`)
 
 ```

@@ -117,7 +117,37 @@ def _num(value: object) -> float | None:
         return None
 
 
+# Blend: from this ratio est10 ÷ est90 on, Solcast counts as sure of the slot
+# and the configured weight applies; below it the weight of `estimate` shrinks
+# proportionally towards estimate10.
+CONFIDENT_RATIO = 0.5
+
+
+def slot_confidence(entry: dict) -> float:
+    """est10 ÷ est90 of one slot: 1 = sure, near 0 = anything is possible.
+
+    1.0 when est90 is missing or not above est (observed at dusk: est90 = 0
+    while est > 0) – no information is no reason to distrust the estimate.
+    """
+    est = _num(entry.get("pv_estimate"))
+    est10 = _num(entry.get("pv_estimate10"))
+    est90 = _num(entry.get("pv_estimate90"))
+    if est is None or est10 is None or est90 is None or est90 <= 0 or est90 < est:
+        return 1.0
+    return min(1.0, min(est10, est) / est90)
+
+
 def _scenario_kw(entry: dict, scenario: str, blend_weight: float) -> float | None:
+    """Mean kW of one slot for the scenario.
+
+    "blend" mixes estimate and estimate10 with `blend_weight`, scaled down by
+    the slot's confidence below CONFIDENT_RATIO. On 17.11.2026, 14–16 h, Solcast
+    said 2.1 / 1.0 kW with est10 0.67 / 0.22 and est90 3.8 / 2.8 (confidence
+    0.18 / 0.08); 1.0 / 0.14 kWh came. The fixed 70 % blend expected ~2 kWh
+    there and the day plan kept room for it instead of grid charging. A wrong
+    "too little" costs nothing here (no feed-in pay), a wrong "too much" costs
+    the evening rate.
+    """
     est = _num(entry.get("pv_estimate"))
     if est is None:
         return None
@@ -128,4 +158,5 @@ def _scenario_kw(entry: dict, scenario: str, blend_weight: float) -> float | Non
     if scenario == "estimate10":
         return est10
     w = max(0.0, min(1.0, blend_weight))
+    w *= min(1.0, slot_confidence(entry) / CONFIDENT_RATIO)
     return w * est + (1.0 - w) * est10

@@ -139,3 +139,24 @@ class TestUse:
         on._learned_battery = lb
         assert on._round_trip_eta() == pytest.approx(0.729)
         assert on._discharge_eta() == pytest.approx(0.9)
+
+    @pytest.mark.parametrize("measured", [-10.0, -0.5, 0.0, 0.11, 0.44, 1.2, None])
+    def test_implausible_measured_eta_falls_back_to_default(self, make_config, fake_ws, measured):
+        """17.11.2026: today's running inverter efficiency read 11 % at 13:49 –
+        the day plan stopped grid charging in the low-price window."""
+        ctrl = make_controller(make_config, fake_ws)
+        ctrl._optimizer._efficiency = measured
+        assert ctrl._measured_eta() is None
+        assert ctrl._round_trip_eta() == pytest.approx(0.9)       # _DEFAULT_ETA
+        assert ctrl._discharge_eta() == pytest.approx(0.9 ** 0.5)
+
+    def test_plausible_measured_eta_is_used(self, make_config, fake_ws):
+        ctrl = make_controller(make_config, fake_ws)
+        ctrl._optimizer._efficiency = 0.77
+        assert ctrl._round_trip_eta() == pytest.approx(0.77)
+
+    def test_implausible_eta_does_not_block_legacy_gate(self, make_config, fake_ws):
+        ctrl = make_controller(make_config, fake_ws)
+        ctrl._discharge_tariff = 0.3944
+        ctrl._optimizer._efficiency = 0.11
+        assert ctrl._grid_charge_pays_legacy(0.2744) is True

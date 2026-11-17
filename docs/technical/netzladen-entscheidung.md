@@ -145,7 +145,7 @@ flowchart TD
     I -- nein --> OLD
     I -- ja --> S["Slots à 30 min bis 36 h<br/>(höchstens bis Ende Solcast-Prognose)"]
     S --> S1["je Slot: Last aus Temperatur-Modell,<br/>PV aus Solcast (Szenario),<br/>Preis aus Tarifkalender"]
-    S1 --> N["Nowcasting: Ist-PV / Prognose<br/>skaliert die nächsten 2 h"]
+    S1 --> N["Nowcasting: Ist-PV / Prognose<br/>senkt die nächsten 2 h (hebt sie nie, seit v4.2.2)"]
     N --> W["günstiges Fenster jetzt =<br/>Slots mit Preis ≤ aktuellem Preis"]
     W --> B["Überbrückung = Slots danach<br/>bis zum nächsten ebenso günstigen"]
     B --> P{"lohnt sich je Slot?<br/>η × Preis_Slot − Preis_jetzt<br/>> Mindestmarge"}

@@ -139,8 +139,8 @@ ab dem aktuellen nutzbaren Akkuinhalt.
     **Nicht**, wenn vorher ein Netzladefenster des Energiefahrplans liegt
     (`BatteryContext.grid_charge_windows`, seit v3.7.0): Dann wird jede jetzt entnommene
     kWh dort aus dem Netz nachgekauft, auch wenn danach PV überläuft.
-  - sonst **günstigster Tarif danach ÷ η** (η = `cost_optimizer.today_efficiency()`,
-    ersatzweise 0,9): Die kWh muss aus dem Netz zurückgekauft werden.
+  - sonst **günstigster Tarif danach ÷ η** (η = `EMSController._measured_eta()`, der
+    heutige Wechselrichter-Wirkungsgrad nur im Bereich 65–98 %, ersatzweise 0,9): Die kWh muss aus dem Netz zurückgekauft werden.
 - Der Akku zählt nur mit SoC und Lastprognose. Die Last der WW-Ladung selbst wird nicht
   in die Akku-Prognose zurückgekoppelt.
 - Die Lastprognose wird vor der WW-Planung aufgefrischt (`ems_controller._update_hot_water`),

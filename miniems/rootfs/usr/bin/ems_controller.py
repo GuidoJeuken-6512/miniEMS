@@ -24,7 +24,7 @@ from const import (
     SUN_ENTITY,
     EMSMode,
 )
-from battery_learning import LearnedBattery, learn_battery
+from battery_learning import ROUND_TRIP_BOUNDS, LearnedBattery, learn_battery
 from battery_plan import Action, BatteryPlan, plan_battery
 from energy_plan import EnergyPlan, compute_energy_plan
 from forecast_learning import ForecastCorrections, learn_corrections
@@ -64,7 +64,10 @@ _DEFAULT_ETA = 0.9
 _NOWCAST_HORIZON_H = 2.0
 _NOWCAST_MIN_FORECAST_KW = 0.2
 _NOWCAST_RATIO_MIN = 0.3
-_NOWCAST_RATIO_MAX = 1.5
+# Only downwards (v4.2.2): a sunny moment says little about the next two hours
+# in a broken sky, a cloud does – and a PV forecast too high defers grid
+# charging into a window that ends without the sun (17.11.2026).
+_NOWCAST_RATIO_MAX = 1.0
 
 
 @dataclass(frozen=True)
@@ -285,7 +288,11 @@ class EMSController(PhaseBMixin, PhaseCMixin):
         # as the event-log cleanup below. See battery_capability.py.
         # battery_power is positive while DISCHARGING – the tracker wants the
         # power flowing into the battery.
-        self._capability.record_tick(self._mode, bat_soc, -(bat_w or 0.0))
+        # What was asked for this tick (V1 stretching, B1 fuse cap; None = full
+        # current) – a tick that delivered the request is not a battery limit.
+        requested_w = (self._phase_b_grid_charge_cap(getattr(self, "_v1_requested_w", None))
+                       if self._mode is EMSMode.GRID_CHARGING else None)
+        self._capability.record_tick(self._mode, bat_soc, -(bat_w or 0.0), requested_w)
         await self._capability.flush_to_db()
         if self._last_capability_rollover is not None and self._last_capability_rollover != today:
             await self._capability.rollover_day(self._last_capability_rollover)
@@ -1165,8 +1172,24 @@ class EMSController(PhaseBMixin, PhaseCMixin):
         lb = self._learned_battery
         if self._cfg.battery_learned_values_enabled and lb is not None and lb.round_trip:
             return lb.round_trip
+        return self._measured_eta() or _DEFAULT_ETA
+
+    def _measured_eta(self) -> float | None:
+        """Today's measured inverter efficiency – None unless plausible.
+
+        The value is a running ratio of today's counters, (production − losses)
+        ÷ production. In the morning production is tiny and the losses dominate:
+        on 17.11.2026 it read −1000 % at 09:39, 11 % at 13:49 and 44 % at 15:00.
+        Taken as round trip, 11 % made one bought kWh cost 27.4 ct ÷ 0.11 – the
+        day plan stopped grid charging in the middle of the low-price window and
+        then held the battery through the evening peak. Outside the bounds a
+        learned round trip may take (ROUND_TRIP_BOUNDS) the caller uses its
+        default instead.
+        """
         eta = self._optimizer.today_efficiency()
-        return eta if eta and eta > 0 else _DEFAULT_ETA
+        if eta is None or not ROUND_TRIP_BOUNDS[0] <= eta <= ROUND_TRIP_BOUNDS[1]:
+            return None
+        return eta
 
     def _discharge_eta(self) -> float:
         """Share of a stored kWh that reaches the house (A7a: learned, when on)."""
@@ -1567,9 +1590,7 @@ class EMSController(PhaseBMixin, PhaseCMixin):
         slots = self._build_plan_slots(now, price, pv_w)
         if slots is None:
             return   # _build_plan_slots set the status
-        eta = self._optimizer.today_efficiency()
-        if eta is None or eta <= 0:
-            eta = _DEFAULT_ETA
+        eta = self._measured_eta() or _DEFAULT_ETA
         self._bridge_plan = plan_bridge(
             slots,
             stored_kwh=bat_kwh_use,
@@ -1776,7 +1797,7 @@ class EMSController(PhaseBMixin, PhaseCMixin):
         # miniEMS steers it; grid-charge windows exist only with battery control.
         battery = None
         if bat_kwh_use is not None and bat_kwh_free is not None:
-            eta = self._optimizer.today_efficiency()
+            eta = self._measured_eta()
             # Grid-charge windows the energy plan will buy: a battery kWh used
             # for hot water before them is bought there, not refilled by PV.
             ep = self._energy_plan
@@ -1784,7 +1805,7 @@ class EMSController(PhaseBMixin, PhaseCMixin):
                        if ep is not None and self._cfg.battery_control_enabled else ())
             battery = BatteryContext(
                 stored_kwh=bat_kwh_use, free_kwh=bat_kwh_free,
-                eta=eta if eta and eta > 0 else _DEFAULT_ETA,
+                eta=eta or _DEFAULT_ETA,
                 grid_charging=self._cfg.battery_control_enabled,
                 grid_charge_windows=windows,
             )
@@ -2093,8 +2114,8 @@ class EMSController(PhaseBMixin, PhaseCMixin):
     def _grid_charge_pays_legacy(self, price: float) -> bool:
         """The pre-A3 gate: η × historical discharge tariff − price > margin."""
         tariff = self._discharge_tariff
-        eff = self._optimizer.today_efficiency()
-        if tariff is None or eff is None or eff <= 0:
+        eff = self._measured_eta()
+        if tariff is None or eff is None:
             return True
 
         margin = eff * tariff - price
