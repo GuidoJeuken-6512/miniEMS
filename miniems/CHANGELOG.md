@@ -1,5 +1,27 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 4.2.2
+
+### Fixed
+
+- **Netzladen brach im Niedrigpreisfenster ab, abends wurde der Akku gehalten.**
+  Tagesplan, Überbrückungsplan, Warmwasser-Plan und Wirtschaftlichkeitsprüfung
+  nahmen als Wirkungsgrad den *laufenden* Wechselrichter-Wirkungsgrad von heute,
+  (Produktion − Verluste) ÷ Produktion aus den Tageszählern. Am Vormittag ist die
+  Produktion klein und die Verluste überwiegen: Am 17.11. stand der Wert um 09:39
+  bei −1000 %, um 13:49 bei 11 %, um 15:00 bei 44 %. Bis 0 % griff der
+  Standardwert 90 %. Ab dem ersten kleinen positiven Wert kostete eine für 27,4 ct
+  gekaufte kWh rechnerisch 27,4 ct ÷ 0,11. Der Plan stoppte das Netzladen um 13:50
+  (Akku bei 5,8 von 20 kWh) und hielt den Akku im Hochtarif fest, statt ihn zu
+  nutzen.
+  - Der gemessene Wert gilt nur noch innerhalb der Grenzen, die auch ein
+    gelernter Akku-Wirkungsgrad haben darf (65–98 %). Sonst gilt der
+    Standardwert 90 %.
+  - Ein gelernter Wirkungsgrad (`battery_learned_values_enabled`) hat weiter
+    Vorrang. Die Anzeige `Heutiger Wechselrichter-Wirkungsgrad` bleibt
+    unverändert.
+
+
 ## 4.2.1
 
 ### Fixed
