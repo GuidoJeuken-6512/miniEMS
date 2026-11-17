@@ -46,6 +46,17 @@ aus dem Netz.
     Obergrenze.
   - Nach einem Neustart gehen die Messwerte des Tages nicht mehr verloren, und
     Tage, deren Mitternacht der Neustart verpasst hat, kommen in die Historie.
+- **Tagesplan: Rundung entschied Gleichstände.** Der Plan rundete den Ladestand
+  nach jedem Slot auf die nächste von 100 Stufen und schrieb dabei bis zu einer
+  halben Stufe gratis gut, in jedem Slot unterschiedlich viel. Am 17.11. brachten
+  vier Stufen morgen im Hochtarif 0,44 kWh, heute Abend nur 0,40 kWh, also
+  verschob der Plan das Entladen auf morgen.
+  - Der Ladestand wird jetzt zur Ausgangsstufe hin gerundet, und alle
+    Energieflüsse werden aus dem tatsächlich erreichten Stand neu berechnet.
+    Eine Stufe ist damit überall gleich viel wert.
+  - 200 statt 100 Stufen, damit pro Slot höchstens 0,1 kWh ungenutzt bleiben.
+  - Echte Gleichstände (≤ 0,1 ct) gewinnt die erste Aktion: Bei zwei gleich
+    teuren Fenstern wird im früheren entladen.
 
 
 ## 4.2.1

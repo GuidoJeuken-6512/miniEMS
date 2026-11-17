@@ -218,7 +218,7 @@ Akku, ein zweiter Wirkungsgrad-Verlust fällt nicht an. Halten lohnt ab
 **Akku-Tagesplan** (aus EnergyWizard `battery_plan.optimize`, angepasst):
 
 ```text
-Zustand  : Energie im Akku (≈ 100 Stufen) × letzte Aktion
+Zustand  : Energie im Akku (200 Stufen, seit v4.2.2; zur Ausgangsstufe gerundet) × letzte Aktion
 Aktionen : auto (Eigenverbrauch) | hold (nicht entladen, PV lädt) | charge (aus dem Netz)
            später optional: discharge (ins Netz), standardmäßig aus
 Kosten   : Σ Netzbezug × Kaufpreis − Einspeisung × Vergütung

@@ -73,6 +73,38 @@ class TestPlan:
         p = _plan(day_slots(start), charge_kw=0)
         assert not p.steps and p.reason
 
+    def test_rounding_does_not_move_discharge_between_equal_rates(self):
+        """17.11.2026, 20:00: HOCH tonight and tomorrow at the same rate, no
+        refill (round trip 30 %), slightly higher load tomorrow. Rounding to the
+        nearest level made tomorrow's slots look cheaper per stored kWh – the
+        plan held the battery through tonight's HOCH."""
+        now = datetime(2026, 11, 17, 20, 0, tzinfo=TZ)
+
+        def rate(t):
+            return 0.39437 if 18 <= t.hour < 21 else 0.34439
+
+        def load(t):
+            return 0.437 if t.day == 18 and 18 <= t.hour < 21 else 0.402
+
+        eta = 0.30 ** 0.5
+        p = plan_battery(now, day_slots(now, n=50, load=load, rate=rate), stored_kwh=4.32,
+                         capacity_kwh=20.57, charge_kw=3.7, discharge_kw=9.6, eta_charge=eta,
+                         eta_discharge=eta, feed_in_eur_kwh=0.0, last_action=Action.AUTO)
+        hoch_tonight = [s for s in p.steps if s.start.day == 17 and s.start.hour < 21]
+        assert all(s.action is Action.AUTO for s in hoch_tonight)
+
+    def test_levels_are_conserved(self):
+        """Every flow matches the level actually reached – no free energy."""
+        start = datetime(2026, 11, 16, 13, tzinfo=TZ)
+        p = _plan(day_slots(start, load=lambda t: 1.0 if 18 <= t.hour < 21 else 0.4,
+                            pv=lambda t: 0.3 if 10 <= t.hour < 15 else 0.0))
+        level = 2.0
+        for s in p.steps:
+            assert s.soc_kwh_end <= 8.0 + 1e-9 and s.soc_kwh_end >= -1e-9
+            if s.grid_charge_kwh > 0:
+                assert s.soc_kwh_end - level <= s.grid_charge_kwh * 0.95 + 0.3 * 0.95 + 1e-6
+            level = s.soc_kwh_end
+
     def test_fast_enough(self):
         start = datetime(2026, 11, 16, 0, tzinfo=TZ)
         t0 = time.perf_counter()
