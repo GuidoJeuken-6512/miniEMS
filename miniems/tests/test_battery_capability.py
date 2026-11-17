@@ -54,6 +54,17 @@ class TestRecordTick:
         assert tracker._today_stats["mid"] == (3000.0, 1)
         assert tracker._today_stats["high"] == (500.0, 1)
 
+    def test_censored_tick_is_ignored(self):
+        """V1 asked for 1 kW and got 1 kW – that measures the request."""
+        tracker = BatteryCapabilityTracker(None)
+        tracker.record_tick(EMSMode.GRID_CHARGING, 30.0, 1015.0, requested_w=1050.0)
+        assert tracker._today_stats == {}
+
+    def test_tick_below_the_request_is_a_limit_sample(self):
+        tracker = BatteryCapabilityTracker(None)
+        tracker.record_tick(EMSMode.GRID_CHARGING, 30.0, 3700.0, requested_w=13800.0)
+        assert tracker._today_stats["mid"] == (3700.0, 1)
+
     def test_date_change_resets_in_memory_accumulator(self):
         tracker = BatteryCapabilityTracker(None)
         tracker.record_tick(EMSMode.GRID_CHARGING, 50.0, 3000.0)
@@ -124,14 +135,48 @@ class TestFlushAndRolloverWithStore:
         assert kw == pytest.approx(3.0)   # median(2000, 3000, 4000) W -> 3.0 kW
 
     @pytest.mark.asyncio
-    async def test_charge_power_kw_falls_back_below_min_days(self, real_store):
+    async def test_one_qualifying_day_is_enough(self, real_store):
         yesterday = date.today() - timedelta(days=1)
-        await real_store.upsert_capability_today(yesterday, "mid", 3000.0, 10)
+        await real_store.upsert_capability_today(yesterday, "mid", 3700.0, 10)
         await real_store.rollover_capability_day(yesterday, min_samples=1)
-        # Only one qualifying day – BATTERY_CAPABILITY_MIN_DAYS (3) not met.
         tracker = BatteryCapabilityTracker(real_store)
-        kw = await tracker.charge_power_kw(50.0, fallback_kw=4.2)
-        assert kw == 4.2
+        assert await tracker.charge_power_kw(50.0, fallback_kw=9.6) == pytest.approx(3.7)
+
+    @pytest.mark.asyncio
+    async def test_no_data_falls_back(self, real_store):
+        tracker = BatteryCapabilityTracker(real_store)
+        assert await tracker.charge_power_kw(50.0, fallback_kw=9.6) == 9.6
+
+    @pytest.mark.asyncio
+    async def test_today_counts_once_it_qualifies(self, real_store):
+        """17.11.2026: 3.7 kW at full current – used the same day, not after 3."""
+        tracker = BatteryCapabilityTracker(real_store)
+        for _ in range(5):
+            tracker.record_tick(EMSMode.GRID_CHARGING, 30.0, 3700.0)
+        assert await tracker.charge_power_kw(30.0, fallback_kw=9.6) == 9.6   # 5 < 6 samples
+        tracker.record_tick(EMSMode.GRID_CHARGING, 30.0, 3700.0)
+        assert await tracker.charge_power_kw(30.0, fallback_kw=9.6) == pytest.approx(3.7)
+
+    @pytest.mark.asyncio
+    async def test_config_value_stays_the_ceiling(self, real_store):
+        yesterday = date.today() - timedelta(days=1)
+        await real_store.upsert_capability_today(yesterday, "mid", 12000.0, 10)
+        await real_store.rollover_capability_day(yesterday, min_samples=1)
+        tracker = BatteryCapabilityTracker(real_store)
+        assert await tracker.charge_power_kw(50.0, fallback_kw=9.6) == pytest.approx(9.6)
+
+    @pytest.mark.asyncio
+    async def test_restore_reloads_today_and_rolls_over_skipped_days(self, real_store):
+        two_days_ago = date.today() - timedelta(days=2)
+        await real_store.upsert_capability_today(two_days_ago, "mid", 3600.0, 10)
+        await real_store.upsert_capability_today(date.today(), "mid", 3700.0, 8)
+        tracker = BatteryCapabilityTracker(real_store)
+        await tracker.restore()
+        assert await real_store.query_capability_history("mid", 14, 1) == [3600.0]
+        assert await real_store.pending_capability_days(date.today()) == []
+        assert tracker._today_stats["mid"] == (3700.0, 8)
+        tracker.record_tick(EMSMode.GRID_CHARGING, 50.0, 1500.0)
+        assert tracker._today_stats["mid"] == (3700.0, 9)          # merged, not overwritten
 
     @pytest.mark.asyncio
     async def test_charge_power_kw_falls_back_for_empty_bucket(self, real_store):
@@ -165,7 +210,7 @@ class TestSignFixV421:
         ctrl, *_ = build_controller(make_config, fake_ws)
         ctrl._mode = EMSMode.GRID_CHARGING
         recorded = []
-        ctrl._capability.record_tick = lambda mode, soc, w: recorded.append((mode, w))
+        ctrl._capability.record_tick = lambda mode, soc, w, req=None: recorded.append((mode, w))
         fake_ws.values.update({"sensor.pv": 0.0, "sensor.load": 500.0, "sensor.grid": 6000.0,
                                "sensor.soc": 50.0, "sensor.batp": -5500.0, "sensor.price": 0.30})
         await ctrl.update()

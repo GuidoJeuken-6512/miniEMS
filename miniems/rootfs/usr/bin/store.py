@@ -537,6 +537,29 @@ class EnergyStore:
         )
         await self._db.commit()
 
+    async def load_capability_today(self, day: date) -> dict[str, tuple[float, int]]:
+        """`day`'s running maxima per bucket: {bucket: (max_power_w, sample_count)}."""
+        if not self._db:
+            return {}
+        async with self._db.execute(
+            """SELECT soc_bucket, max_power_w, sample_count
+               FROM battery_charge_capability_today WHERE date = ?""",
+            [str(day)],
+        ) as cur:
+            rows = await cur.fetchall()
+            return {r["soc_bucket"]: (r["max_power_w"], r["sample_count"]) for r in rows}
+
+    async def pending_capability_days(self, before: date) -> list[date]:
+        """Days before `before` still in the temporary table (never rolled over)."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT DISTINCT date FROM battery_charge_capability_today WHERE date < ? ORDER BY date",
+            [str(before)],
+        ) as cur:
+            rows = await cur.fetchall()
+            return [date.fromisoformat(r["date"]) for r in rows]
+
     async def clear_capability(self) -> int:
         """Delete every learned charge-power row (today and history)."""
         if not self._db:

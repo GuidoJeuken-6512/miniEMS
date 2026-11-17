@@ -142,7 +142,7 @@ INVERTER_WRITE_STUCK_THRESHOLD_SEC = 1800   # 30 min – provisional, see above
 # question in the roadmap doc) – revisit once event_log/write-confirm data
 # gives a real distribution to size these against.
 BATTERY_CAPABILITY_MIN_SAMPLES_PER_DAY = 6   # ~3 min of GRID_CHARGING at a 30s tick
-BATTERY_CAPABILITY_MIN_DAYS = 3              # qualifying days needed before trusting history
+BATTERY_CAPABILITY_MIN_DAYS = 1              # qualifying days (today included) – v4.2.2, was 3
 BATTERY_CAPABILITY_LOOKBACK_DAYS = 14
 
 # ── Wärmepumpe / Warmwasser – Datensammlung (heat_pump_recorder.py) ───────────

@@ -123,6 +123,16 @@ class TestPlanBuild:
         first = ctrl._bridge_plan.slots[0]
         assert first.pv_kwh == pytest.approx(0.5, abs=0.01)
 
+    @pytest.mark.asyncio
+    async def test_nowcast_never_scales_up(self, make_config, fake_ws):
+        """17.11.2026: a sunny moment must not raise the next hours' PV."""
+        ctrl = make(make_config, fake_ws, pv_kw=lambda h: 2.0 if 8 <= h < 14 else 0.0)
+        now = datetime(2026, 12, 10, 12, 0, tzinfo=TZ)
+        ctrl._battery_model.capacity_kwh = 20.0
+        await ctrl._update_bridge_plan(3000.0, 0.2744, 10.0, 3.0, now)  # measured 3 kW vs 2 kW
+        first = ctrl._bridge_plan.slots[0]
+        assert first.pv_kwh == pytest.approx(1.0, abs=0.01)             # forecast, not ×1.5
+
 
 class TestDecision:
     @pytest.mark.asyncio

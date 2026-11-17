@@ -228,7 +228,7 @@ The hourly history is **always** recorded, even with the switch off, so history 
 | `history_backfill_enabled` | `false` | Switch at the top of Settings (“Control Mode”), no restart needed: switching it on runs the import at once. At every start, fill missing days of the last 60 days (daily load from `load_consumption_total_entity`, outdoor daily mean from `outdoor_temp_entity`) from HA's long-term statistics. Gaps only – measured days and today are never overwritten, a rerun changes nothing. |
 | `heating_limit_temp_c` | `15.0` | Heating limit: above it the heat pump does not heat. Hot water is learned as a flat share. 5–25. |
 | `pv_forecast_scenario` | `blend` | Solcast scenario: `estimate`, `estimate10` (pessimistic) or `blend`. |
-| `pv_forecast_blend_weight` | `0.7` | For `blend`: weight of `estimate`, rest `estimate10`. |
+| `pv_forecast_blend_weight` | `0.7` | For `blend`: weight of `estimate`, rest `estimate10`. Since v4.2.2 per slot by Solcast's certainty: when `estimate10 ÷ estimate90` is below 0.5, the weight of `estimate` shrinks in the same proportion (at 0.18 from 70 % to 25 %). |
 | `tariff_source` | `auto` | Tariff calendar: `auto` (dated `rates[]` if present, else `timeslots[]`), `timeslots` or `rates`. |
 
 ---

@@ -4,6 +4,10 @@
 
 ### Fixed
 
+Alle Punkte gehen auf den 17.11.2026 zurück: Im Niedrigpreisfenster 12–16 Uhr
+wurde der Akku nur auf 5,8 von 20 kWh geladen, abends kam der Strom für 39,4 ct
+aus dem Netz.
+
 - **Netzladen brach im Niedrigpreisfenster ab, abends wurde der Akku gehalten.**
   Tagesplan, Überbrückungsplan, Warmwasser-Plan und Wirtschaftlichkeitsprüfung
   nahmen als Wirkungsgrad den *laufenden* Wechselrichter-Wirkungsgrad von heute,
@@ -20,6 +24,28 @@
   - Ein gelernter Wirkungsgrad (`battery_learned_values_enabled`) hat weiter
     Vorrang. Die Anzeige `Heutiger Wechselrichter-Wirkungsgrad` bleibt
     unverändert.
+- **PV-Prognose bei unsicherem Solcast zu optimistisch.** Am 17.11. sagte
+  Solcast für 14–16 Uhr 3,1 kWh voraus, gekommen sind 1,1 kWh. Solcast war sich
+  selbst unsicher (pessimistischer ÷ optimistischer Wert 0,08–0,18), trotzdem
+  rechnete die feste Mischung (70 % Schätzung, 30 % pessimistisch) mit rund
+  2,4 kWh. Der Tagesplan hielt dafür Platz im Akku frei, statt zu laden.
+  - `blend` gewichtet jetzt je Slot nach der Sicherheit von Solcast: Unter
+    `estimate10 ÷ estimate90 = 0,5` schrumpft der Anteil der Schätzung im selben
+    Verhältnis. Für 14–16 Uhr ergibt das 1,3 kWh statt 2,4 kWh.
+  - Das Nowcasting senkt die nächsten zwei Stunden, wenn weniger PV kommt als
+    erwartet, hebt sie aber nicht mehr an (bisher bis ×1,5). Ein sonniger
+    Moment bei wechselnder Bewölkung sagt wenig über die nächsten Stunden.
+- **Gelernte Ladeleistung realistisch und schneller.** Geplant wurde mit
+  185 A × 52 V = 9,6 kW, gemessen waren 3,7 kW. Deshalb glaubte der Plan, die
+  ganze Ladung in der letzten halben Stunde nachholen zu können.
+  - Ein Messwert zählt nur noch, wenn der Akku weniger aufnahm als angefordert.
+    Hat miniEMS selbst gedrosselt (Strecken, Sicherungsdeckel), misst der Tick
+    die Anforderung und wird verworfen.
+  - Ein Tag mit Messwerten genügt (bisher 3), der laufende Tag zählt sofort mit.
+  - Der konfigurierte Strom (`battery_max_charge_current_a`) bleibt die
+    Obergrenze.
+  - Nach einem Neustart gehen die Messwerte des Tages nicht mehr verloren, und
+    Tage, deren Mitternacht der Neustart verpasst hat, kommen in die Historie.
 
 
 ## 4.2.1

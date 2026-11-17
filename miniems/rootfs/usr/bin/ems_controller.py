@@ -64,7 +64,10 @@ _DEFAULT_ETA = 0.9
 _NOWCAST_HORIZON_H = 2.0
 _NOWCAST_MIN_FORECAST_KW = 0.2
 _NOWCAST_RATIO_MIN = 0.3
-_NOWCAST_RATIO_MAX = 1.5
+# Only downwards (v4.2.2): a sunny moment says little about the next two hours
+# in a broken sky, a cloud does – and a PV forecast too high defers grid
+# charging into a window that ends without the sun (17.11.2026).
+_NOWCAST_RATIO_MAX = 1.0
 
 
 @dataclass(frozen=True)
@@ -285,7 +288,11 @@ class EMSController(PhaseBMixin, PhaseCMixin):
         # as the event-log cleanup below. See battery_capability.py.
         # battery_power is positive while DISCHARGING – the tracker wants the
         # power flowing into the battery.
-        self._capability.record_tick(self._mode, bat_soc, -(bat_w or 0.0))
+        # What was asked for this tick (V1 stretching, B1 fuse cap; None = full
+        # current) – a tick that delivered the request is not a battery limit.
+        requested_w = (self._phase_b_grid_charge_cap(getattr(self, "_v1_requested_w", None))
+                       if self._mode is EMSMode.GRID_CHARGING else None)
+        self._capability.record_tick(self._mode, bat_soc, -(bat_w or 0.0), requested_w)
         await self._capability.flush_to_db()
         if self._last_capability_rollover is not None and self._last_capability_rollover != today:
             await self._capability.rollover_day(self._last_capability_rollover)

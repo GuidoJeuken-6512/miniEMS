@@ -237,7 +237,7 @@ ist – so ist beim Einschalten schon Historie da.
 | `history_backfill_enabled` | `false` | Schalter oben in den Einstellungen („Control Mode“), wirkt ohne Neustart: Einschalten startet den Import sofort. Beim Start fehlende Tage der letzten 60 Tage (Tagesverbrauch aus `load_consumption_total_entity`, Außentemperatur-Tagesmittel aus `outdoor_temp_entity`) aus den HA-Langzeitstatistiken nachfüllen. Nur Lücken – gemessene Tage und der laufende Tag werden nie überschrieben, ein erneuter Lauf ändert nichts. |
 | `heating_limit_temp_c` | `15.0` | Heizgrenze: darüber heizt die Wärmepumpe nicht. Warmwasser wird pauschal als fester Anteil gelernt. 5–25. |
 | `pv_forecast_scenario` | `blend` | Solcast-Szenario: `estimate` (Mittel), `estimate10` (pessimistisch) oder `blend`. |
-| `pv_forecast_blend_weight` | `0.7` | Bei `blend`: Anteil von `estimate`, Rest `estimate10`. Zu wenig laden kostet die volle Tarifspanne je kWh, zu viel nur die Umwandlungsverluste – deshalb leicht pessimistisch. |
+| `pv_forecast_blend_weight` | `0.7` | Bei `blend`: Anteil von `estimate`, Rest `estimate10`. Zu wenig laden kostet die volle Tarifspanne je kWh, zu viel nur die Umwandlungsverluste – deshalb leicht pessimistisch. Seit v4.2.2 je Slot nach der Sicherheit von Solcast: Liegt `estimate10 ÷ estimate90` unter 0,5, schrumpft der Anteil von `estimate` im selben Verhältnis (bei 0,18 von 70 % auf 25 %). |
 | `tariff_source` | `auto` | Tarifkalender: `auto` (datierte Preise `rates[]` falls vorhanden, sonst feste Zeitfenster `timeslots[]`), `timeslots` oder `rates`. |
 
 !!! note "Was sich mit dem Schalter ändert"

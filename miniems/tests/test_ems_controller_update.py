@@ -446,8 +446,9 @@ class FakeCapability:
         self.flushed = 0
         self.rolled_over: list = []
 
-    def record_tick(self, mode, soc, battery_power_w):
+    def record_tick(self, mode, soc, battery_power_w, requested_w=None):
         self.recorded.append((mode, soc, battery_power_w))
+        self.requested = requested_w
 
     async def flush_to_db(self):
         self.flushed += 1
