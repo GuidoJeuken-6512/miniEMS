@@ -1,5 +1,28 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 4.2.3
+
+### Fixed
+
+- **Kein Netzladen in der Nacht, weil der gelernte Wirkungsgrad den
+  Eigenverbrauch des Wechselrichters enthielt.** Der gelernte
+  Entlade-Wirkungsgrad war „Hauslast ÷ Akkuabgabe“, solange der Akku allein das
+  Haus versorgt. Die Akkuabgabe deckt dabei aber auch den Eigenverbrauch des
+  Wechselrichters (in der Anlage ~83 W: Netz 903 W bei 820 W Last), und den
+  zahlt das Netz genauso, wenn der Akku ruht. Er zählte trotzdem als Verlust des
+  Akkus, und quadratisch im Round Trip (η_dc × η_dis²). Heraus kamen ~70 %. Bei
+  70 % kostet eine für 27,4 ct geladene kWh 39 ct, also so viel wie der
+  Hochtarif. Der Tagesplan hielt den Akku in der Nacht auf den 19.11. deshalb
+  nur und lud weder nachts noch mittags. Laden lohnt sich ab etwa 75 %.
+  - Gemessen wird jetzt der Eigenverbrauch (Netz − Hauslast, solange der Akku
+    ruht und keine PV kommt) und beim Entlade-Wirkungsgrad wieder hinzugerechnet.
+  - Tage vor 4.2.3 haben die dafür nötigen Stunden nicht. Bis neue Daten da sind,
+    lernt der Entlade-Wirkungsgrad nichts, und es gilt der Standardwert.
+  - Die Akku-Tageswerte (`bat_in`, `bat_out`, Entlade-Wirkungsgrad) gehen nach
+    einem Neustart nicht mehr verloren. Bisher überschrieb der nächste Tick sie
+    mit den seit dem Neustart gezählten, kleineren Werten.
+
+
 ## 4.2.2
 
 ### Fixed

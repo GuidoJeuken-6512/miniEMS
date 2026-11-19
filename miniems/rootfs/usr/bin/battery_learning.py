@@ -16,7 +16,9 @@ Per day, CostOptimizer records (daily_stats):
 Learned over the last days:
 
     η_dc       = (Σ out + ΔE) ÷ Σ in,   ΔE = capacity × (SoC_end − SoC_start)
-    η_dis      = Σ load ÷ Σ battery output   (inverter on the way out)
+    η_dis      = Σ (load + standby × hours) ÷ Σ battery output   (inverter on the
+                 way out; standby = its own consumption, paid by grid or battery
+                 alike – v4.2.3)
     round trip = η_dc × η_dis²   (the way in through the inverter is taken as
                                   lossy as the way out – not measurable apart)
     capacity   = median over days with |ΔSoC| ≥ 20 % of
@@ -39,6 +41,7 @@ ETA_DIS_BOUNDS = (0.80, 1.00)
 ROUND_TRIP_BOUNDS = (0.65, 0.98)
 _CAPACITY_BOUNDS = (0.5, 1.5)      # × configured capacity
 _MIN_SOC_SWING = 20.0
+_MIN_IDLE_HOURS = 1.0
 
 
 @dataclass(frozen=True)
@@ -60,6 +63,35 @@ def _within(value: float, bounds: tuple[float, float]) -> float | None:
     return value if bounds[0] <= value <= bounds[1] else None
 
 
+def standby_kw(days: list[dict[str, Any]]) -> float | None:
+    """The inverter's own consumption: Σ(grid − load) ÷ hours while the battery
+    rests and no PV comes. None below _MIN_IDLE_HOURS of such ticks."""
+    hours = sum(r.get("idle_hours") or 0.0 for r in days)
+    if hours < _MIN_IDLE_HOURS:
+        return None
+    return sum(r.get("idle_overhead_kwh") or 0.0 for r in days) / hours
+
+
+def _discharge_eta(days: list[dict[str, Any]]) -> float | None:
+    """η_dis = (house load + inverter standby) ÷ battery output.
+
+    While the battery alone supplies the house its output also covers the
+    inverter's own consumption – which the grid pays just the same when the
+    battery rests (17.11.2026: grid 903 W at 820 W load). Before v4.2.3 it
+    counted as a conversion loss: η_dis ≈ 0.85 and, squared, a round trip of
+    ~0.70 – a kWh bought at 27.4 ct cost 39 ct, so the day plan stopped grid
+    charging at night. Only days that recorded the hours (v4.2.3 on) count.
+    """
+    rows = [r for r in days if r.get("dis_eff_hours") is not None]
+    standby = standby_kw(days)
+    bat = sum(r.get("dis_eff_bat_kwh") or 0.0 for r in rows)
+    if standby is None or bat < _MIN_DIS_KWH:
+        return None
+    load = sum((r.get("dis_eff_load_kwh") or 0.0) + standby * (r.get("dis_eff_hours") or 0.0)
+               for r in rows)
+    return _within(load / bat, ETA_DIS_BOUNDS)
+
+
 def learn_battery(rows: list[dict[str, Any]], capacity_kwh: float) -> LearnedBattery:
     """Learn from complete daily rows (today excluded by the caller)."""
     days = [r for r in rows if r.get("bat_in_kwh") is not None and r.get("bat_out_kwh") is not None]
@@ -75,9 +107,7 @@ def learn_battery(rows: list[dict[str, Any]], capacity_kwh: float) -> LearnedBat
         delta = capacity_kwh * (last - first) / 100.0
         eta_dc = _within((e_out + delta) / e_in, ETA_DC_BOUNDS)
 
-    load = sum(r.get("dis_eff_load_kwh") or 0.0 for r in days)
-    bat = sum(r.get("dis_eff_bat_kwh") or 0.0 for r in days)
-    eta_dis = _within(load / bat, ETA_DIS_BOUNDS) if bat >= _MIN_DIS_KWH else None
+    eta_dis = _discharge_eta(days)
 
     round_trip = None
     if eta_dc is not None and eta_dis is not None:

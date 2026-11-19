@@ -15,10 +15,12 @@ from test_ems_controller import make_controller
 TZ = timezone(timedelta(hours=1))
 
 
-def _day(i, bat_in=10.0, bat_out=9.0, first=20.0, last=20.0, load=4.5, bat=5.0):
+def _day(i, bat_in=10.0, bat_out=9.0, first=20.0, last=20.0, load=4.5, bat=5.0,
+         dis_hours=5.0, idle_over=0.0, idle_hours=4.0):
     return {"date": (date(2026, 11, 1) + timedelta(days=i)).isoformat(),
             "bat_in_kwh": bat_in, "bat_out_kwh": bat_out, "soc_first_pct": first,
-            "soc_last_pct": last, "dis_eff_load_kwh": load, "dis_eff_bat_kwh": bat}
+            "soc_last_pct": last, "dis_eff_load_kwh": load, "dis_eff_bat_kwh": bat,
+            "dis_eff_hours": dis_hours, "idle_overhead_kwh": idle_over, "idle_hours": idle_hours}
 
 
 class TestBatteryLearning:
@@ -38,6 +40,28 @@ class TestBatteryLearning:
         assert learn_battery([_day(0), _day(1)], 10.0).round_trip is None
         lb = learn_battery([_day(i, bat_out=10.5) for i in range(5)], 10.0)
         assert lb.eta_dc is None                  # > 99 %: not physical
+
+    def test_inverter_standby_is_not_a_battery_loss(self):
+        """17.11.2026: 820 W load, the inverter itself ~83 W. While the battery
+        alone supplies the house it also feeds those 83 W – the grid pays them
+        just the same when the battery rests."""
+        # 5 h at 0.82 kW load from 0.968 kW battery output; standby 0.083 kW
+        rows = [_day(i, load=4.1, bat=4.84, dis_hours=5.0, idle_over=0.83, idle_hours=10.0)
+                for i in range(5)]
+        lb = learn_battery(rows, 10.0)
+        assert lb.eta_discharge == pytest.approx((4.1 + 0.083 * 5) / 4.84)     # 0.93, not 0.85
+        biased = (4.1 / 4.84) ** 2 * lb.eta_dc
+        assert lb.round_trip > biased + 0.1
+
+    def test_days_without_hours_do_not_learn_discharge_eta(self):
+        """Rows before v4.2.3 carry no hours – no correction possible, no value."""
+        rows = [_day(i, dis_hours=None, idle_over=None, idle_hours=None) for i in range(7)]
+        lb = learn_battery(rows, 10.0)
+        assert lb.eta_discharge is None and lb.round_trip is None
+
+    def test_no_standby_measurement_no_discharge_eta(self):
+        rows = [_day(i, idle_hours=0.1) for i in range(7)]       # < 1 h of idle ticks
+        assert learn_battery(rows, 10.0).eta_discharge is None
 
     def test_capacity_from_soc_swing(self):
         rows = [_day(i, bat_in=9.0 / 0.9 ** 0.5, bat_out=0.0, first=10.0, last=100.0)
@@ -115,6 +139,34 @@ class TestRecording:
         assert row["bat_in_kwh"] == pytest.approx(2.0)      # 2 confirmed ticks × 1 kWh
         assert row["dis_eff_load_kwh"] == pytest.approx(0.9)
         assert (row["soc_first_pct"], row["soc_last_pct"]) == (50.0, 60.0)
+        assert row["dis_eff_hours"] == pytest.approx(1.0)
+
+    @pytest.mark.asyncio
+    async def test_optimizer_records_inverter_standby(self, db, make_config):
+        opt = CostOptimizer(make_config(), db)
+        opt.note_maxima(50.0, None)
+        for _ in range(4):     # battery rests, no PV: grid 903 W for 820 W load
+            opt.record_tick(grid_power_w=903, pv_power_w=0, load_power_w=820, battery_power_w=0,
+                            price_eur_kwh=0.3, interval_sec=1800)
+        await opt.flush_to_db()
+        row = await db.load_day(date.today())
+        assert row["idle_overhead_kwh"] / row["idle_hours"] == pytest.approx(0.083)
+
+    @pytest.mark.asyncio
+    async def test_battery_sums_survive_a_restart(self, db, make_config):
+        opt = CostOptimizer(make_config(), db)
+        opt.note_maxima(50.0, None)
+        opt.record_tick(grid_power_w=0, pv_power_w=0, load_power_w=900, battery_power_w=1000,
+                        price_eur_kwh=0.3, interval_sec=3600)
+        await opt.flush_to_db()
+        again = CostOptimizer(make_config(), db)
+        await again.restore_today()
+        again.record_tick(grid_power_w=0, pv_power_w=0, load_power_w=900, battery_power_w=1000,
+                          price_eur_kwh=0.3, interval_sec=3600)
+        await again.flush_to_db()
+        row = await db.load_day(date.today())
+        assert row["bat_out_kwh"] == pytest.approx(2.0)     # was overwritten with 1.0
+        assert row["soc_first_pct"] == 50.0
 
 
 class TestUse:

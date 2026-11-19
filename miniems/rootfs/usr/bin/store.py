@@ -198,6 +198,11 @@ class EnergyStore:
             "soc_last_pct REAL",
             "dis_eff_load_kwh REAL",
             "dis_eff_bat_kwh REAL",
+            # v4.2.3: hours of those ticks, and the inverter's own consumption
+            # while the battery rests (grid − load, no PV) with its hours.
+            "dis_eff_hours REAL",
+            "idle_overhead_kwh REAL",
+            "idle_hours REAL",
             # C4: plan fidelity – minutes observed / kept per day.
             "plan_minutes INTEGER",
             "plan_kept_minutes INTEGER",

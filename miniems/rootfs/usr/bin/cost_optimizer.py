@@ -13,6 +13,10 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# A7a: grid − load above this while the battery rests is a load the load
+# sensor missed (or a sensor glitch), not the inverter's own consumption.
+IDLE_OVERHEAD_MAX_W = 500.0
+
 
 class CostOptimizer:
     """Accumulates energy cost and saving metrics; persists to SQLite."""
@@ -68,6 +72,12 @@ class CostOptimizer:
         self._soc_last: dict[date, float] = {}
         self._dis_load: dict[date, float] = defaultdict(float)
         self._dis_bat: dict[date, float] = defaultdict(float)
+        # v4.2.3: hours of those discharge-only ticks, and the inverter's own
+        # consumption (grid − load while the battery rests, no PV) – it is paid
+        # whether battery or grid supplies the house, not a battery loss.
+        self._dis_hours: dict[date, float] = defaultdict(float)
+        self._idle_over: dict[date, float] = defaultdict(float)
+        self._idle_hours: dict[date, float] = defaultdict(float)
         # A1: today's relative price classes, set by EMSController once per
         # tick. None = no tariff calendar or price_classes_enabled off → the
         # fixed thresholds decide, exactly as before.
@@ -107,6 +117,16 @@ class CostOptimizer:
         self._kwh_low_rate[today]        = row.get("kwh_low_rate", 0.0)
         self._discharge_kwh_ticks[today] = row.get("discharge_kwh_ticks", 0.0) or 0.0
         self._discharge_value_eur[today] = row.get("discharge_value_eur", 0.0) or 0.0
+        # A7a: battery sums – without them a restart overwrote the day's values
+        # with the smaller ones counted since (v4.2.3).
+        for attr, col in (("_bat_in", "bat_in_kwh"), ("_bat_out", "bat_out_kwh"),
+                          ("_dis_load", "dis_eff_load_kwh"), ("_dis_bat", "dis_eff_bat_kwh"),
+                          ("_dis_hours", "dis_eff_hours"), ("_idle_over", "idle_overhead_kwh"),
+                          ("_idle_hours", "idle_hours")):
+            getattr(self, attr)[today] = row.get(col) or 0.0
+        for attr, col in (("_soc_first", "soc_first_pct"), ("_soc_last", "soc_last_pct")):
+            if row.get(col) is not None:
+                getattr(self, attr)[today] = row[col]
         bilanz = row.get("grid_charge_kwh_bilanz")
         self._grid_charge_kwh_bilanz[today] = bilanz  # None if never recorded
         eff = row.get("efficiency_pct")
@@ -369,8 +389,14 @@ class CostOptimizer:
             if pv_w < 50 and abs(grid_w) < 100 and bat_w > 300:
                 self._dis_load[now] += load_w / 1000 * hours
                 self._dis_bat[now] += bat_w / 1000 * hours
+                self._dis_hours[now] += hours
         elif bat_w < 0:
             self._bat_in[now] += -bat_w / 1000 * hours
+        if pv_w < 50 and abs(bat_w) < 50 and grid_w > 100:
+            overhead_w = grid_w - load_w
+            if 0.0 <= overhead_w <= IDLE_OVERHEAD_MAX_W:
+                self._idle_over[now] += overhead_w / 1000 * hours
+                self._idle_hours[now] += hours
 
         # Discharge-weighted price: what a stored kWh actually displaces.
         # Accumulated only while the battery discharges, so the average is
@@ -480,6 +506,9 @@ class CostOptimizer:
                 "soc_last_pct": round(self._soc_last[today], 1),
                 "dis_eff_load_kwh": round(self._dis_load[today], 4),
                 "dis_eff_bat_kwh": round(self._dis_bat[today], 4),
+                "dis_eff_hours": round(self._dis_hours[today], 4),
+                "idle_overhead_kwh": round(self._idle_over[today], 4),
+                "idle_hours": round(self._idle_hours[today], 4),
             })
         await self._store.upsert_day(today, fields)
 
