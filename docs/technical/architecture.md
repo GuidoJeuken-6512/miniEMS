@@ -143,19 +143,45 @@ Die vollständigen Formeln und Schwellwerte stehen in [Berechnungen](calculation
 
 ```mermaid
 flowchart TD
-    A{"SoC verfügbar &<br/>nicht veraltet?"} -->|nein| I1["IDLE<br/>(urgent – Wechselrichter-Eigenlogik)"]
-    A -->|ja| B{"soc < battery_min_soc?<br/>(oder Hysterese aktiv)"}
-    B -->|ja| PROT["PROTECT_BATTERY<br/>Schalter=off · Charge=max · Discharge=0"]
-    B -->|nein| C{"soc ≥ battery_max_soc?"}
-    C -->|ja| I2["IDLE – battery full<br/>Schalter=off · Charge=max · Discharge=max"]
-    C -->|nein| D{"PV-Überschuss ><br/>pv_surplus_threshold_w?"}
-    D -->|nein| G
-    D -->|ja| E{"Export-Halt aktiv?<br/>(_should_hold_pv_charge)"}
-    E -->|ja, hold| EXP["EXPORT_SURPLUS<br/>Schalter=off · Charge=export_hold_a (0) · Discharge=max"]
-    E -->|nein| PV["PV_CHARGING<br/>Schalter=off · Charge=max · Discharge=max"]
-    G{"Preis günstig &<br/>_should_grid_charge?<br/>(heute/morgen-Forecast, Dark-Window)"} -->|ja| GRID["GRID_CHARGING<br/>Schalter=on · Charge=max · Discharge=0"]
-    G -->|nein| I3["IDLE – no action<br/>Schalter=off · Charge=max · Discharge=max"]
+    A{"SoC verfügbar<br/>und frisch?"} -- nein --> I0["IDLE (urgent – Wechselrichter-Eigenlogik)"]
+    A -- ja --> B{"SoC < battery_min_soc<br/>(oder Hysterese)?"}
+    B -- ja --> PROT["PROTECT_BATTERY"]
+    B -- nein --> C{"SoC ≥ battery_max_soc?"}
+    C -- ja --> I1["IDLE – Akku voll"]
+    C -- nein --> M{"Wartungs-Volladung fällig<br/>und Preis günstig? (A11)"}
+    M -- ja --> G1["GRID_CHARGING"]
+    M -- nein --> N{"Preis ≤ 0? (A5)"}
+    N -- ja --> G2["GRID_CHARGING<br/>(Platz für PV lassen)"]
+    N -- nein --> DP{"Tagesplan aktiv?<br/>(battery_plan_enabled)"}
+    DP -- ja --> DPS["Slot 0 des Plans:<br/>CHARGE → GRID_CHARGING<br/>HOLD → HOLD_FOR_PEAK / PV_CHARGING<br/>EXPORT → EXPORT_SURPLUS<br/>AUTO → IDLE / PV_CHARGING"]
+    DP -- nein --> BRG{"Überbrückungsplan<br/>braucht Netzladung?"}
+    BRG -- ja --> G3["GRID_CHARGING"]
+    BRG -- nein --> PV{"PV-Überschuss ><br/>pv_surplus_threshold_w?"}
+    PV -- ja --> H{"Export-Halt?<br/>(_should_hold_pv_charge)"}
+    H -- ja --> EXP["EXPORT_SURPLUS"]
+    H -- nein --> PVC["PV_CHARGING"]
+    PV -- nein --> GC{"günstig und lohnend?<br/>(_should_grid_charge)"}
+    GC -- ja --> G4["GRID_CHARGING"]
+    GC -- nein --> HO{"Akku-Halt A4?"}
+    HO -- ja --> HOLD["HOLD_FOR_PEAK"]
+    HO -- nein --> I2["IDLE – keine Aktion"]
+
+    DPS --> OVR
+    G1 & G2 & G3 & G4 & EXP & PVC & HOLD & I2 & I1 --> OVR{"Übersteuerung C2?<br/>(nie über harte Grenzen)"}
+    OVR --> COM["_commit: Verweildauer mode_dwell_sec<br/>(außer urgent)"]
 ```
+
+Wechselrichter-Einstellungen je Modus (`InverterController.apply_mode`):
+
+| Modus | Netzlade-Schalter | Ladestrom | Entladestrom |
+|---|---|---|---|
+| `GRID_CHARGING` | an | gestreckte Leistung (V1) bzw. max, Netzladestrom ≤ `battery_max_grid_charge_current_a` | 0 |
+| `PV_CHARGING`, `IDLE` | aus | max | max |
+| `EXPORT_SURPLUS` | aus | `export_hold_charge_current_a` | max |
+| `PROTECT_BATTERY`, `HOLD_FOR_PEAK` | aus | max (PV darf laden) | 0 |
+
+Wie die Preise entstehen, mit denen diese Regeln entscheiden, zeigt
+[Preise und Entscheidungen](preise-und-entscheidungen.md).
 
 Jeder Zweig ist **fail closed**: Fehlt oder veraltet ein benötigter Sensorwert, gewinnt immer der sicherere Ausgang (kein Netzladen, kein Zurückhalten von PV-Ladung). `_commit()` entprellt einen neu vorgeschlagenen Modus zusätzlich über `mode_dwell_sec`, außer die Entscheidung ist `urgent` (SoC-Schutz, fehlender SoC-Sensor, ein durch eine Sicherheits-Guard beendeter Export-Halt).
 

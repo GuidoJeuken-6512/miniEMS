@@ -38,6 +38,7 @@ Dieser Abschnitt dokumentiert das interne Design von miniEMS v1.5.3 für Entwick
 ## Wo anfangen
 
 - [Architektur](architecture.md) — Komponentendiagramm, asyncio-Task-Graph, Authentifizierungsablauf
+- [Preise und Entscheidungen](preise-und-entscheidungen.md) — vom Preis-Sensor über abgeleitete Preise bis zur Entscheidung jedes Verbrauchers
 - [Berechnungen](calculations.md) — alle Formeln im EMS-Loop
 - [Datenspeicherung](data-storage.md) — Konfigurationsdateien, SQLite-Schema, In-Memory-Zustand
 - [API-Referenz](api.md) — interne HTTP-Endpunkte
