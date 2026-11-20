@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from sensor_validator import SensorValidator
+from sensor_validator import SensorValidator, balanced
 
 if TYPE_CHECKING:
     from config_loader import Config
@@ -314,20 +314,27 @@ class CostOptimizer:
         if delta is not None:
             load_total_kwh_ha = delta
 
-        # Spike validation – use last-accepted values; skip accumulation on spike
-        pv_w   = self._validator.validate(cfg.pv_power_entity, pv_power_w)
-        grid_w = self._validator.validate(cfg.grid_power_entity, grid_power_w)
-        load_w = self._validator.validate(cfg.load_power_entity, load_power_w)
-        bat_w  = self._validator.validate(cfg.battery_power_entity, battery_power_w)
-
-        if pv_w is None:
-            pv_w = 0.0
-        if grid_w is None:
-            grid_w = 0.0
-        if load_w is None:
-            load_w = 0.0
-        if bat_w is None:
-            bat_w = 0.0
+        # Spike validation. A tick whose four readings fit the power balance
+        # is real and taken as it is (v4.2.4 – a hob switching every minute
+        # was rejected every other tick). Otherwise each reading is checked
+        # against its last accepted value; a rejected one is replaced by that
+        # value, not by 0 – 0 W undercounted load and battery output and
+        # pulled the learned efficiency down.
+        readings = (
+            (cfg.pv_power_entity, pv_power_w), (cfg.grid_power_entity, grid_power_w),
+            (cfg.load_power_entity, load_power_w), (cfg.battery_power_entity, battery_power_w),
+        )
+        validator = self._validator
+        if balanced(pv_power_w, grid_power_w, load_power_w, battery_power_w):
+            pv_w, grid_w, load_w, bat_w = (validator.accept(e, v) for e, v in readings)
+        else:
+            checked = []
+            for entity, value in readings:
+                ok = validator.validate(entity, value)
+                if ok is None:
+                    ok = validator.last(entity)
+                checked.append(0.0 if ok is None else ok)
+            pv_w, grid_w, load_w, bat_w = checked
 
         # Grid import (positive = import, negative = export)
         # kWh: prefer inverter's daily-total sensor; fall back to accumulation from grid_w.

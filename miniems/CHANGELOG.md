@@ -1,5 +1,36 @@
 <!-- https://developers.home-assistant.io/docs/add-ons/presentation#keeping-a-changelog -->
 
+## 4.2.4
+
+### Fixed
+
+- **Spike-Filter verwarf echte, taktende Lasten.** Ein Herd, der jede Minute
+  zwischen 3,1 und 1,0 kW wechselt, wird bei 30 s Takt abwechselnd hoch und
+  niedrig gemessen. Die Sprungprüfung wertete jeden niedrigen Wert als
+  Ausreißer, und zwei übereinstimmende Werte in Folge (die Bestätigungsregel)
+  kamen nie. Der verworfene Wert zählte als 0 W: Hauslast und Akkuabgabe
+  wurden zu niedrig gebucht, und der gelernte Wirkungsgrad sank.
+  - Neu: Passen die vier Messwerte eines Ticks in der Energiebilanz zusammen
+    (PV + Netz + Akku ≈ Last, Toleranz 300 W + 10 %), sind sie echt.
+  - Ein echter Ausreißer wird durch den letzten gültigen Wert ersetzt, nicht
+    mehr durch 0 W.
+  - Betrifft nur Kosten- und Lernrechnung, nicht die Steuerung.
+- **Netzladen: Ladestrom stieg in jedem Slot an, über 400 Schreibvorgänge in
+  vier Stunden.** Die gestreckte Ladeleistung war „Energie des Slots ÷
+  Restzeit“, die Energie blieb aber die des Plans. Der angeforderte Strom
+  stieg deshalb alle 30 s um 2–5 A, von ~82 auf ~172 A in 15 Minuten. Der Akku
+  nahm ohnehin nur ~80 A auf. Am 20.11. wurden Lade- und Netzladestrom von
+  12 bis 16 Uhr je ~230-mal geschrieben.
+  - Die Leistung ist jetzt Energie ÷ Slotlänge (ab Planzeit), konstant bis zum
+    nächsten Plan.
+  - Totband: Änderungen unter max(3 A, 5 %) werden nicht geschrieben.
+- **Wechselrichter-Status meldete „warning“, obwohl der Deye sofort
+  bestätigte.** Ein in diesem Tick geschriebener Wert galt sofort als
+  unbestätigt. Mit der Rampe oben stand der Status 15 Minuten jeder halben
+  Stunde auf „warning“, obwohl der Deye jeden Wert in Sekunden übernahm. Jetzt
+  warnt er erst, wenn ein Wert länger als die Bestätigungsfrist (30 s) offen ist.
+
+
 ## 4.2.3
 
 ### Fixed

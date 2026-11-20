@@ -366,6 +366,21 @@ class TestGridChargeCurrent:
         assert "Grid charge current (number.grid_charge_current)" in ctrl.stuck_channel_labels
 
     @pytest.mark.asyncio
+    async def test_small_changes_stay_inside_the_deadband(self, make_config, ws):
+        """v4.2.4: 82 A, then 84 A, 86 A … – nothing new is written below the
+        deadband (max 3 A, 5 %); a real change still is."""
+        ctrl = make_ctrl(make_config, ws, simulation=True)
+        ws.values["sensor.deye8k_battery_voltage"] = 50.0
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=4100)   # 82 A
+        assert ctrl.charge_current_target_a == 82
+        for watts in (4200, 4250, 4300):                                          # 84–86 A
+            await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=watts)
+            assert ctrl.charge_current_target_a == 82
+            assert ctrl.grid_charge_current_target_a == 82
+        await ctrl.apply_mode(EMSMode.GRID_CHARGING, grid_charge_power_w=5000)   # 100 A
+        assert ctrl.charge_current_target_a == 100
+
+    @pytest.mark.asyncio
     async def test_stretched_power_goes_to_both_limits(self, make_config, ws):
         ctrl = make_ctrl(make_config, ws, simulation=True)
         ws.values["sensor.deye8k_battery_voltage"] = 50.0

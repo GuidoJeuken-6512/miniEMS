@@ -128,15 +128,16 @@ class TestRecording:
         opt.note_maxima(50.0, None)
         opt.record_tick(grid_power_w=0, pv_power_w=0, load_power_w=900, battery_power_w=1000,
                         price_eur_kwh=0.3, interval_sec=3600)
-        # the spike filter adopts a jump only once a second tick confirms it
-        for _ in range(3):
+        # 2 kW from the grid into the battery: the power balance holds, so the
+        # jump is taken at once (v4.2.4) – before, only from the second tick
+        for _ in range(2):
             opt.record_tick(grid_power_w=2000, pv_power_w=0, load_power_w=0, battery_power_w=-2000,
                             price_eur_kwh=0.3, interval_sec=1800)
         opt.note_maxima(60.0, None)
         await opt.flush_to_db()
         row = await db.load_day(date.today())
         assert row["bat_out_kwh"] == pytest.approx(1.0)
-        assert row["bat_in_kwh"] == pytest.approx(2.0)      # 2 confirmed ticks × 1 kWh
+        assert row["bat_in_kwh"] == pytest.approx(2.0)      # 2 ticks × 1 kWh
         assert row["dis_eff_load_kwh"] == pytest.approx(0.9)
         assert (row["soc_first_pct"], row["soc_last_pct"]) == (50.0, 60.0)
         assert row["dis_eff_hours"] == pytest.approx(1.0)

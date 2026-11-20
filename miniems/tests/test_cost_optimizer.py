@@ -117,10 +117,32 @@ class TestRecordTickBasics:
     def test_discharge_weighted_accumulation_only_while_discharging(self, opt):
         opt.record_tick(grid_power_w=0, pv_power_w=0, load_power_w=1000, battery_power_w=1000.0,
                          price_eur_kwh=0.40, interval_sec=3600)   # discharging
-        opt.record_tick(grid_power_w=0, pv_power_w=1000, load_power_w=0, battery_power_w=-500.0,
+        # 1 kW PV: 0.5 kW into the battery, 0.5 kW exported – a balanced tick
+        opt.record_tick(grid_power_w=-500, pv_power_w=1000, load_power_w=0, battery_power_w=-500.0,
                          price_eur_kwh=0.10, interval_sec=3600)   # charging, must not count
         assert opt._discharge_kwh_ticks[date.today()] == pytest.approx(1.0)
         assert opt._discharge_value_eur[date.today()] == pytest.approx(0.40)
+
+    def test_switching_load_is_not_a_spike(self, opt):
+        """20.11.2026: a hob, 3.1 kW / 1.0 kW in turn every 30 s, battery-fed.
+        Before v4.2.4 every low reading was rejected and counted as 0 W."""
+        for _ in range(5):
+            opt.record_tick(grid_power_w=13, pv_power_w=0, load_power_w=3133,
+                            battery_power_w=3302, price_eur_kwh=0.34, interval_sec=30)
+            opt.record_tick(grid_power_w=9, pv_power_w=0, load_power_w=971,
+                            battery_power_w=1083, price_eur_kwh=0.34, interval_sec=30)
+        hours = 30 / 3600
+        assert opt._bat_out[date.today()] == pytest.approx(5 * (3302 + 1083) / 1000 * hours)
+        assert opt._load_total_kwh[date.today()] == pytest.approx(5 * (3133 + 971) / 1000 * hours)
+
+    def test_unbalanced_spike_keeps_the_last_value(self, opt):
+        """A single bad battery reading breaks the balance – it is replaced by
+        the last accepted value, not by 0 W."""
+        opt.record_tick(grid_power_w=10, pv_power_w=0, load_power_w=900,
+                        battery_power_w=1000, price_eur_kwh=0.34, interval_sec=3600)
+        opt.record_tick(grid_power_w=10, pv_power_w=0, load_power_w=900,
+                        battery_power_w=30000, price_eur_kwh=0.34, interval_sec=3600)
+        assert opt._bat_out[date.today()] == pytest.approx(2.0)   # 1 kWh + 1 kWh held
 
     def test_spike_is_not_accumulated(self, opt):
         opt.record_tick(grid_power_w=0, pv_power_w=1000, load_power_w=0, battery_power_w=0,

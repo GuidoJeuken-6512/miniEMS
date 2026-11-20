@@ -129,7 +129,11 @@ class TestController:
         ctrl, now = self._ctrl(make_config, fake_ws, Action.CHARGE, kwh=2.0)
         d = ctrl._decide(pv_w=0, load_w=500, bat_soc=40.0, price=L, bat_kwh_free=5.0, now=now)
         assert d.mode is EMSMode.GRID_CHARGING and d.reason.startswith("battery plan")
-        assert ctrl._grid_charge_power_w(5.0, now) == pytest.approx(2.0 / (20 / 60) * 1000)
+        # v4.2.4: the slot's energy over the whole slot (30 min), not over the
+        # time left – and the same value later in the slot.
+        assert ctrl._grid_charge_power_w(5.0, now) == pytest.approx(2.0 / 0.5 * 1000)
+        later = now + timedelta(minutes=15)
+        assert ctrl._grid_charge_power_w(5.0, later) == pytest.approx(2.0 / 0.5 * 1000)
 
     def test_hold(self, make_config, fake_ws):
         ctrl, now = self._ctrl(make_config, fake_ws, Action.HOLD)

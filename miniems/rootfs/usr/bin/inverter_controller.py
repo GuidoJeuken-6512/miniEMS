@@ -48,6 +48,11 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# v4.2.4: a grid-charge current change below this is not written – the
+# inverter keeps its value. max(DEADBAND_A, SHARE × current value).
+GRID_CHARGE_DEADBAND_A = 3
+GRID_CHARGE_DEADBAND_SHARE = 0.05   # well inside the 0.9 censoring share of battery_capability
+
 
 class InverterController:
     """Controls the Deye inverter via HA service calls."""
@@ -170,6 +175,12 @@ class InverterController:
                         and self._budget_exhausted("charge")):
                     # A10: V1 retargets the stretched power often – once the
                     # hourly budget is used, keep the current value.
+                    charge_a = previous
+                elif (isinstance(previous, (int, float)) and previous > 0
+                        and abs(charge_a - previous) < max(GRID_CHARGE_DEADBAND_A,
+                                                           GRID_CHARGE_DEADBAND_SHARE * previous)):
+                    # v4.2.4: a few amps more or less change nothing – keep the
+                    # value on the inverter instead of writing it every tick.
                     charge_a = previous
                 await self._set_charge_current(charge_a, sim)
                 await self._set_grid_charge_current(

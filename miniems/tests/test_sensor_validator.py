@@ -71,3 +71,26 @@ def test_independent_entities_tracked_separately():
     v.validate("sensor.b", 5.0)
     assert v.validate("sensor.a", 1900.0) is None
     assert v.validate("sensor.b", 6.0) == 6.0
+
+
+def test_balanced_tick_with_inverter_consumption():
+    from sensor_validator import balanced
+    # 20.11.2026, hob on / off: load ≈ battery + grid, ~180 W inverter consumption
+    assert balanced(pv_w=0, grid_w=13, load_w=3133, battery_w=3302)
+    assert balanced(pv_w=0, grid_w=9, load_w=971, battery_w=1083)
+    # grid charging: 4 kW in, 3.8 kW into the battery, 200 W house
+    assert balanced(pv_w=0, grid_w=4000, load_w=200, battery_w=-3800)
+
+
+def test_unbalanced_tick():
+    from sensor_validator import balanced
+    assert not balanced(pv_w=0, grid_w=10, load_w=900, battery_w=30000)   # bad battery reading
+    assert not balanced(pv_w=50000, grid_w=0, load_w=1000, battery_w=0)   # bad PV reading
+
+
+def test_accept_sets_the_baseline():
+    v = SensorValidator()
+    v.validate("sensor.x", 3000.0)
+    v.accept("sensor.x", 1000.0)
+    assert v.last("sensor.x") == 1000.0
+    assert v.validate("sensor.x", 1050.0) == 1050.0

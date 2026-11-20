@@ -72,8 +72,40 @@ class SensorValidator:
         self._pending.pop(entity_id, None)
         return value
 
+    def accept(self, entity_id: str, value: float) -> float:
+        """Take a reading as real without the jump check (see balanced())."""
+        self._last[entity_id] = value
+        self._pending.pop(entity_id, None)
+        return value
+
+    def last(self, entity_id: str) -> float | None:
+        """The last accepted reading, or None before the first one."""
+        return self._last.get(entity_id)
+
     @staticmethod
     def _is_spike(reference: float, value: float) -> bool:
         delta = abs(value - reference)
         ratio = delta / max(1.0, abs(reference))
         return delta > _DELTA_W_THRESHOLD and ratio > _DELTA_RATIO_THRESHOLD
+
+
+# Power balance: load ≈ PV + grid (import +) + battery (discharge +), up to the
+# inverter's own consumption (~80–200 W on the Deye 8K). A tick whose four
+# readings agree within this is real, however far it jumped.
+BALANCE_TOLERANCE_W = 300.0
+BALANCE_TOLERANCE_SHARE = 0.10
+
+
+def balanced(pv_w: float, grid_w: float, load_w: float, battery_w: float) -> bool:
+    """Do the four power readings of one tick fit together?
+
+    The jump check alone fails on a load that switches on and off every
+    minute, sampled every 30 s (20.11.2026, a hob: 3.1 kW / 1.0 kW in turn).
+    Every other reading was a "spike" against the last accepted one, and
+    two agreeing readings in a row – the confirmation rule – never came.
+    A real load change moves load and battery (or grid) together; a single
+    bad reading breaks the balance.
+    """
+    supply = pv_w + grid_w + battery_w
+    scale = max(abs(load_w), abs(supply), abs(pv_w), abs(grid_w), abs(battery_w))
+    return abs(supply - load_w) <= BALANCE_TOLERANCE_W + BALANCE_TOLERANCE_SHARE * scale

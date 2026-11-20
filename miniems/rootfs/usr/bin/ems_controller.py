@@ -14,6 +14,7 @@ from const import (
     DAILY_VALUE_GRACE_SEC,
     ENERGY_PLAN_RECOMPUTE_SEC,
     FORECAST_MAX_AGE_SEC,
+    INVERTER_WRITE_CONFIRM_TIMEOUT_SEC,
     PLAN_HORIZON_H,
     PLAN_SLOT_MIN,
     PLAN_STOP_BELOW_KWH,
@@ -1027,10 +1028,15 @@ class EMSController(PhaseBMixin, PhaseCMixin):
 
         step = self._plan_step(now)
         if step is not None and step.action is Action.CHARGE and step.grid_charge_kwh > 0:
-            # A6: the energy the plan buys in this slot, over the rest of it.
-            remaining_h = (step.end - now).total_seconds() / 3600.0
-            if remaining_h > 0:
-                return step.grid_charge_kwh / max(remaining_h, 0.25) * 1000.0
+            # A6: the energy the plan buys in this slot, over the slot as the
+            # plan saw it (plan time → slot end). Constant until the next plan.
+            # Before v4.2.4 it was divided by the time *left*, while the energy
+            # stayed that of the plan: the request climbed every tick (82 →
+            # 172 A in 15 min on 20.11.2026) – ~460 writes in four hours for a
+            # battery that took ~80 A anyway.
+            slot_h = (step.end - step.start).total_seconds() / 3600.0
+            if slot_h > 0 and now < step.end:
+                return step.grid_charge_kwh / slot_h * 1000.0
 
         if self._bridge_in_control() and self._bridge_plan.cheap_until is not None:  # type: ignore[union-attr]
             # Only the planned energy, over the rest of the cheap window.
@@ -2064,9 +2070,21 @@ class EMSController(PhaseBMixin, PhaseCMixin):
             return "ok"
         if self._inverter.longest_pending_sec > self._cfg.inverter_write_stuck_threshold_sec:
             return "error"
-        if self._inverter.write_unconfirmed > 0 or self._inverter.write_errors > 0:
+        if self._inverter.write_errors > 0 or self._write_overdue():
             return "warning"
         return "ok"
+
+    def _write_overdue(self) -> bool:
+        """A write still unconfirmed after the confirmation timeout.
+
+        A write sent this tick is unconfirmed until the next one by nature;
+        before v4.2.4 that alone raised "warning". With V1 retargeting the
+        current every tick, the status sat on "warning" for 15 min of every
+        half hour although the Deye reported each value within seconds.
+        """
+        inv = self._inverter
+        return (inv is not None and inv.write_unconfirmed > 0
+                and inv.longest_pending_sec > INVERTER_WRITE_CONFIRM_TIMEOUT_SEC)
 
     def _grid_charge_pays(self, price: float) -> bool:
         """Does buying this kWh for the battery actually earn anything?
@@ -2365,7 +2383,7 @@ class EMSController(PhaseBMixin, PhaseCMixin):
             )
         # Inverter service calls HA accepted, but the entity never reflected
         # the new value (retried every tick until it does)
-        if self._inverter is not None and self._inverter.write_unconfirmed > 0:
+        if self._write_overdue():
             warnings.append(
                 f"Inverter control: {self._inverter.write_unconfirmed} unconfirmed write(s) – "
                 "HA accepted the command but the inverter has not reported the new value yet"

@@ -823,10 +823,16 @@ class TestInverterWriteStatus:
         ctrl._inverter = _FakeInverter(longest_pending_sec=0, write_unconfirmed=0, write_errors=0)
         assert ctrl._inverter_write_status() == "ok"
 
-    def test_warning_when_unconfirmed(self, make_config, fake_ws):
+    def test_warning_when_unconfirmed_past_the_confirm_timeout(self, make_config, fake_ws):
+        ctrl = make_controller(make_config, fake_ws, inverter_write_stuck_threshold_sec=1800)
+        ctrl._inverter = _FakeInverter(longest_pending_sec=31, write_unconfirmed=1, write_errors=0)
+        assert ctrl._inverter_write_status() == "warning"
+
+    def test_fresh_write_is_not_a_warning(self, make_config, fake_ws):
+        """v4.2.4: written this tick, confirmed by the next – not a warning."""
         ctrl = make_controller(make_config, fake_ws, inverter_write_stuck_threshold_sec=1800)
         ctrl._inverter = _FakeInverter(longest_pending_sec=10, write_unconfirmed=1, write_errors=0)
-        assert ctrl._inverter_write_status() == "warning"
+        assert ctrl._inverter_write_status() == "ok"
 
     def test_error_when_stuck_past_threshold(self, make_config, fake_ws):
         ctrl = make_controller(make_config, fake_ws, inverter_write_stuck_threshold_sec=1800)

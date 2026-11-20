@@ -226,14 +226,30 @@ werden die heutigen Akkumulatoren vor dem ersten Tick aus SQLite wiederhergestel
 
 ### Voraussetzung: Spike-Filterung
 
-Jeder Leistungswert wird vor der Verwendung von `SensorValidator` validiert.
-Ein Messwert gilt als Spike (Ablehnung), wenn:
+Jeder Leistungswert wird vor der Verwendung geprüft (`sensor_validator.py`).
+
+**1. Energiebilanz (seit v4.2.4).** Passen die vier Messwerte eines Ticks zusammen,
+gelten alle als echt, egal wie weit sie gesprungen sind:
+
+```
+| PV + Netz (Bezug +) + Akku (Entladen +) − Last |  ≤  300 W + 10 % × größter Wert
+```
+
+Die Toleranz deckt den Eigenverbrauch des Wechselrichters (~80–200 W beim Deye 8K) ab.
+Hintergrund: Ein Herd, der jede Minute zwischen 3,1 kW und 1,0 kW wechselt, wird bei
+30 s Takt abwechselnd hoch und niedrig gemessen. Die Sprungprüfung allein verwarf jeden
+niedrigen Wert, weil nie zwei übereinstimmende Werte aufeinander folgten (20.11.2026).
+
+**2. Sprungprüfung**, nur wenn die Bilanz nicht aufgeht. Ein Messwert gilt als Spike, wenn:
 
 ```
 |delta| > 500 W  AND  |delta| / vorheriger_Wert > 50 %
 ```
 
-Ein abgelehnter Wert liefert `None`; der Aufrufer (`CostOptimizer.record_tick()`) setzt für diesen Tick **0 W** ein — nicht den letzten akzeptierten Wert. Wenn kein vorheriger Wert für einen Sensor vorhanden ist, wird die erste Messung immer akzeptiert.
+Ein abgelehnter Wert wird seit v4.2.4 durch den **letzten akzeptierten Wert** ersetzt,
+nicht mehr durch 0 W. 0 W zählte Last und Akkuabgabe zu niedrig und drückte den gelernten
+Wirkungsgrad. Wenn kein vorheriger Wert für einen Sensor vorhanden ist, wird die erste
+Messung immer akzeptiert.
 
 !!! danger "Seit v2.0.6: ein abgelehnter Wert kann sich nach zwei Ticks bestätigen"
     Bis v2.0.5 aktualisierte eine Ablehnung die Vergleichsbasis (`_last`) nicht — das war beabsichtigt, damit ein einzelner Ausreißer sie nicht sofort verdirbt. Der Effekt: verschiebt sich der reale Wert **dauerhaft und legitim** (z. B. ein Verbraucher schaltet ab), sieht danach *jeder* künftige echte Messwert wieder wie ein Spike gegenüber der alten, eingefrorenen Basis aus — die Ablehnung verhindert für immer, dass sie sich korrigiert, bis das Add-on neu startet. Live beobachtet: `battery_power` blieb nach einem echten Rückgang von ~1341 W auf ~394 W über 2,5 Stunden lang bei jedem Tick abgelehnt, mit `0 W` in der Kostenrechnung statt der echten ~270–290 W.
